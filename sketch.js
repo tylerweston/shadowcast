@@ -9,12 +9,9 @@ ONLY draw the walls that the light makes visible
 - save and load games, high scores
 - tutorial
 - storeItem / getItem to store local information
-
 - encapsulate state in a better way
-- 
-
 - change game grid size
-
+- timer, countdown and every solution gets you some more time
 */
 
 // global variables
@@ -82,6 +79,7 @@ let empty_space_fill;
 let empty_space_2_fill;
 let edge_color;
 let edge_circle_color;
+let font_color;
 
 // tiles
 const FLOOR_EMPTY = 0;      // darker, no tiles
@@ -112,15 +110,10 @@ class detector
 
   check_color()
   {
-
-
     let xp = this.x * gridSize + GRID_HALF;
     let yp = this.y * gridSize + GRID_HALF;
     let HALF_HALF = GRID_HALF / 2;
 
-    let r = 0;
-    let g = 0;
-    let b = 0;
 
     // for each light detector, see if we can see them from
     // our current position.
@@ -129,25 +122,26 @@ class detector
     // TODO: Collect ALL FIVE points and then use a VOTING algorithm to make sure at
     // least 3 points have the same color!
     let locs = [[xp - HALF_HALF, yp], [xp + HALF_HALF, yp], [xp, yp - HALF_HALF], [xp, yp + HALF_HALF], [xp, yp]];
+    let majority_color = undefined;
+    let majority_count = 0;
+    let found_colors = [];
+
     for (let [xpos, ypos] of locs)
     {
       // if we can, add their light values onto ours, then check if 
       // we are the correct light value
+      let r = 0;
+      let g = 0;
+      let b = 0;
+
       for (let l of lightsources)
       {
+
+    
         if (!l.active)
           continue;
         let xtarget = l.x  * gridSize + (gridSize / 2);
         let ytarget = l.y * gridSize + (gridSize / 2)
-
-
-        // draw the line between detector and light sources
-        // strokeWeight(2);
-        // stroke(255, 50);
-        // line(xtarget, ytarget, xpos, ypos);
-        // here is where we do our checks!
-
-        //// start of copied code from edge checking
 
         // line segment1 is xtarget,ytarget to xpos, ypos
         // line segment2 e2.sx, e2.sy to e2.ex, e2.ey
@@ -182,13 +176,61 @@ class detector
           b += l.b;
         }
       }
-      if (r === this.r && g === this.g && b == this.b)
+      // once we get here, we have r, g, and b values of a single
+      // lightsource hitting this light
+
+      // if (r === this.r && g === this.g && b == this.b)
+      // {
+      //   this.correct = true;
+      //   return;
+      // }
+      let fc = color(r, g, b);
+      found_colors.push(fc);
+
+      if (majority_color === undefined || majority_count === 0)
       {
-        this.correct = true;
-        return;
+        majority_color = fc;
+        majority_count = 1;
       }
+      else if (majority_color == fc)
+      {
+        majority_count += 1;
+      }
+      else
+      {
+        majority_count -= 1;
+      }
+
     }
-    this.correct = false;
+
+    if (found_colors.length == 0)
+    {
+      this.correct = false;
+      return;
+    }
+
+    if (red(majority_color) == this.r &&
+        green(majority_color) == this.g &&
+        blue(majority_color) == this.b)
+    {
+      // make sure it's actually a majority
+      let count = 0;
+      for (let col of found_colors)
+      {
+        if (red(col) === red(majority_color) && green(col) === green(majority_color) && blue(col) === blue(majority_color))
+        {
+          count += 1;
+        }
+      }
+      if (count > 2)
+        this.correct = true;
+      else 
+        this.correct = false;
+    }
+    else
+    {
+      this.correct = false;
+    }
   }
 
   draw_this()
@@ -380,15 +422,7 @@ function setup() {
   // init_random_detectors();
   random_level();
 
-  solid_wall_fill = color(155, 155, 155);
-  solid_wall_permenant_fill = color(180, 180, 180);
-  solid_wall_outline = color(150, 150, 150);
-  empty_space_fill = color(33, 33, 33);
-  empty_space_2_fill = color(37, 37, 37);
-  empty_space_outline = color(45, 45, 45);
-
-  edge_color = color(90, 90, 90);
-  edge_circle_color = color(70, 70, 70);
+  initialize_colors();
 
   // some UI stuff
   resetButton = createButton('Reset Grid');
@@ -396,6 +430,21 @@ function setup() {
 
   detector_colors = [color(255, 255, 255), color(0, 0, 0), color(255, 0, 0), color(0, 255, 0),
                     color(0, 0, 255), color(255, 255, 0), color(255, 0, 255), color(0, 255, 255)];
+}
+
+function initialize_colors() {
+  solid_wall_fill = color(145, 145, 145);
+  solid_wall_permenant_fill = color(180, 180, 180);
+  solid_wall_outline = color(160, 160, 160);
+
+  empty_space_fill = color(33, 33, 33);
+  empty_space_2_fill = color(37, 37, 37);
+  empty_space_outline = color(43, 43, 43);
+
+  edge_color = color(90, 90, 90);
+  edge_circle_color = color(80, 80, 80);
+
+  font_color = color(35, 35, 35);
 }
 
 function checkMouse()
@@ -558,6 +607,7 @@ function clear_grid_spot(x, y)
 }
 
 //////// DRAWING 
+// DRAW gets called EVERY frame, this is the MAIN GAME LOOP
 function draw() {
 
   if (display_editor)
@@ -593,6 +643,77 @@ function draw() {
     }
   }
 
+  // draw base grid (walls + floors)
+  draw_walls_and_floors();
+
+  // draw edges
+  draw_edges();
+
+
+  // draw detectors (for now, check active status as well)
+
+  // TODO: This should  happen somewhere else
+  // check if all detectors are active
+  let all_active = true;
+  for (let d of detectors)
+  {
+    d.check_color();
+    if(!d.correct)
+      all_active = false;
+  }
+
+  draw_detectors();
+
+  draw_light_sources();
+
+  // draw cursor viz if mouse cursor isn't in a wall
+  draw_mouse_illumination(mx, my);
+
+  // Draw glass (Extra tiles to draw would happen here?)
+  strokeWeight(4);
+  stroke(90, 50);
+  for (x = 0 ; x < gridWidth; ++x)
+  {
+    for (y = 0; y < gridHeight; ++y)
+    {
+      if (grid[x][y].grid_type == GLASS_WALL || grid[x][y].grid_type == GLASS_WALL_TOGGLABLE)
+        square(x * gridSize, y * gridSize, gridSize);
+    }
+  }
+
+  // FADING IN/OUT STATE STUFF
+  if (all_active)
+  {
+    if (globalFade < 1)
+    {
+      globalFade += 0.01;
+    }
+    fill(48, 48, 48, globalFade * 255);
+    rect(0, 0, gameWidth, gameHeight);
+    if (globalFade >= 1)
+    {
+      ++difficulty_level;
+      random_level();
+      make_edges();
+    }
+  }
+
+  if (!all_active && globalFade > 0)
+  {
+    globalFade -= 0.01;
+    fill(48, 48, 48, globalFade * 255);
+    rect(0, 0, gameWidth, gameHeight);
+  }
+
+  // Render any text that we have to
+  textSize(gridSize - 2);
+  fill(font_color);
+  text("Level: " + difficulty_level, 0, gridSize - 4);
+
+}
+
+function draw_walls_and_floors()
+{
   strokeWeight(1);
   for (x = 0 ; x < gridWidth; ++x)
   {
@@ -658,30 +779,32 @@ function draw() {
       }
     }
   }
+}
 
-  // draw walls
+function draw_edges()
+{
   strokeWeight(3);
   for (let e of edges)
   {
     stroke(edge_circle_color);
-    ellipse(e.sx, e.sy, 2, 2);
-    ellipse(e.ex, e.ey, 2, 2);
+    ellipse(e.sx, e.sy, 3, 3);
+    ellipse(e.ex, e.ey, 3, 3);
 
     stroke(edge_color);
     line(e.sx, e.sy, e.ex, e.ey);
   }
+}
 
-    // draw detectors
-    let all_active = true;
+function draw_detectors()
+{
+  for (let d of detectors)
+  {
+    d.draw_this();
+  }
+}
 
-    for (let d of detectors)
-    {
-      d.check_color();
-      if(!d.correct)
-        all_active = false;
-      d.draw_this();
-    }
-
+function draw_light_sources()
+{
   // draw our light sources in a first pass
   for (let l of lightsources)
   {
@@ -693,11 +816,10 @@ function draw() {
   {
     l.draw_this()
   }
+}
 
-
-
-  // draw cursor visibility
-  // draw cursor viz if mouse cursor isn't in a wall
+function draw_mouse_illumination(mx, my)
+{
   if (show_mouse_illumination)
   {
     let cursor_viz = get_visible_polygon(mx, my, 1);
@@ -723,50 +845,6 @@ function draw() {
       }
     }
   }
-
-  strokeWeight(4);
-  stroke(90, 50);
-  for (x = 0 ; x < gridWidth; ++x)
-  {
-    for (y = 0; y < gridHeight; ++y)
-    {
-      if (grid[x][y].grid_type == GLASS_WALL || grid[x][y].grid_type == GLASS_WALL_TOGGLABLE)
-        square(x * gridSize, y * gridSize, gridSize);
-    }
-  }
-
-  if (all_active)
-  {
-    if (globalFade < 1)
-    {
-      globalFade += 0.01;
-    }
-    fill(48, 48, 48, globalFade * 255);
-    rect(0, 0, gameWidth, gameHeight);
-    if (globalFade >= 1)
-    {
-      ++difficulty_level;
-      random_level();
-      make_edges();
-    }
-  }
-
-  if (!all_active && globalFade > 0)
-  {
-    globalFade -= 0.01;
-    fill(48, 48, 48, globalFade * 255);
-    rect(0, 0, gameWidth, gameHeight);
-  }
-
-  // no need to draw a dot where the cursor is I don't think?
-  // stroke(175, 0, 10);
-  // ellipse(mx, my, 2, 2);
-
-  textSize(gridSize - 2);
-  fill(0);
-  strokeWeight(2);
-  text("Level: " + difficulty_level, 0, gridSize - 4);
-
 }
 
 function drawUI()
@@ -851,28 +929,26 @@ function difficulty_to_detector_amount()
 {
   // map from a difficulty level to number of detectors
   // on the field
-  if (difficulty_level < 3)
+  if (difficulty_level <= 3)
     return difficulty_level;
-  if (difficulty_level < 6)
-    return difficulty_level - 1;
-  if (difficulty_level < 9)
-    return difficulty_level - 1;
-  return int((difficulty_level - 8) / 2);
+  if (difficulty_level <= 6)
+    return difficulty_level - 2;
+  if (difficulty_level <= 9)
+    return difficulty_level - 3;
+  return int(2 + difficulty_level / 2);
 }
 
 function difficulty_to_shrink_amount()
 {
-  if (difficulty_level < 3)
+  if (difficulty_level <= 3)
     return 1;
-  if (difficulty_level < 6)
+  if (difficulty_level <= 6)
     return 2;
-  if (difficulty_level < 9)
+  if (difficulty_level <= 9)
     return 3;
-  if (difficulty_level < 12)
+  if (difficulty_level <= 15)
     return 4;
-  if (difficulty_level < 15)
-    return 5;
-  return 6;
+  return 5;
 }
 
 function shrink_lights()
@@ -1124,8 +1200,6 @@ function resetStuff()
   shrink_lights();
   make_edges();
 }
-
-
 
 // use getItem and storeItem to locally store data
 
