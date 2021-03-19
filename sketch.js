@@ -7,11 +7,12 @@ ONLY draw the walls that the light makes visible
 - editor
 - tiles: glass unfillable, glass fillable
 - save and load games, high scores
-- tutorial
 - storeItem / getItem to store local information
 - encapsulate state in a better way
 - change game grid size
-- timer, countdown and every solution gets you some more time
+- Game Modes:
+  - timer, countdown and every solution gets you some more time
+  - more points for using less walls!
 */
 
 // global variables
@@ -51,6 +52,9 @@ let difficulty_level = 1;
 let all_detectors_active = false;
 
 let display_editor = false;
+
+let show_tutorial = true;
+let waiting_for_tutorial_unclick = false;
 
 // Mouse state stuff
 const MOUSE_STATE_NORMAL = 0;
@@ -115,12 +119,11 @@ class detector
     let HALF_HALF = GRID_HALF / 2;
 
 
-    // for each light detector, see if we can see them from
-    // our current position.
-
-    // check 5 locations to simulate more than just checking the point in the middle
-    // TODO: Collect ALL FIVE points and then use a VOTING algorithm to make sure at
-    // least 3 points have the same color!
+    // Check Detectors
+    // Uses Boyer-Moore vote algorithm to determine the majority
+    // of checked points that are receiving light
+    // at least 3 of the internal points need to be covered in the correct
+    // light color!
     let locs = [[xp - HALF_HALF, yp], [xp + HALF_HALF, yp], [xp, yp - HALF_HALF], [xp, yp + HALF_HALF], [xp, yp]];
     let majority_color = undefined;
     let majority_count = 0;
@@ -179,14 +182,11 @@ class detector
       // once we get here, we have r, g, and b values of a single
       // lightsource hitting this light
 
-      // if (r === this.r && g === this.g && b == this.b)
-      // {
-      //   this.correct = true;
-      //   return;
-      // }
+      // add our found color to the color list
       let fc = color(r, g, b);
       found_colors.push(fc);
 
+      // Boyer-Moore vote algorithm.
       if (majority_color === undefined || majority_count === 0)
       {
         majority_color = fc;
@@ -203,12 +203,7 @@ class detector
 
     }
 
-    if (found_colors.length == 0)
-    {
-      this.correct = false;
-      return;
-    }
-
+    // TODO: Write a color equality function!
     if (red(majority_color) == this.r &&
         green(majority_color) == this.g &&
         blue(majority_color) == this.b)
@@ -453,7 +448,10 @@ function checkMouse()
     return;
 
   // TODO: clean up spaghetti mouse code
-  if (mouseIsPressed)
+  if (!mouseIsPressed && waiting_for_tutorial_unclick)
+    waiting_for_tutorial_unclick = false;
+
+  if (mouseIsPressed && !waiting_for_tutorial_unclick)
   {
     selected_light = get_selected_light(mouseX, mouseY);
     // this can be outside our canvas, ignore clicks outside the canvas
@@ -709,6 +707,9 @@ function draw() {
   textSize(gridSize - 2);
   fill(font_color);
   text("Level: " + difficulty_level, 0, gridSize - 4);
+
+  if (show_tutorial)
+    tutorial();
 
 }
 
@@ -1199,6 +1200,58 @@ function resetStuff()
   make_some_floor_unbuildable(difficulty_to_shrink_amount());
   shrink_lights();
   make_edges();
+}
+
+function tutorial()
+{
+  waiting_for_tutorial_unclick = true;
+  let mx = mouseX, my = mouseY;
+  let over_btn = false;
+  if ((width / 2) - 30 < mx && mx < (width / 2) + 10 && 380 <= my && my <= 420)
+    over_btn = true;
+
+  stroke(190, 190, 190);
+  fill (35);
+  strokeWeight(4);
+  rect(gridSize * 2, gridSize * 2, width - gridSize * 4, height - gridSize * 4);
+  fill(72);
+  rect(gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
+
+
+  let s = "Tutorial\n" +
+   "Use left click to make walls, right click to remove walls.\n" +
+    "Drag lights with left mouse, switch with right.\n"+
+    "Get all detectors lit up the correct color to proceed.";
+  strokeWeight(1);
+  fill(180);
+  stroke(130);
+  textSize(28);
+  textAlign(CENTER, CENTER);
+  text(s, gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
+
+  if (over_btn)
+  {
+    noStroke();
+    fill(255, 20);
+    ellipse((width / 2) - 10, 400, 60, 60);
+
+    fill(255, 255, 255);
+  }
+  else 
+  {
+    fill(0, 0, 0);
+  }
+  stroke(130);
+  strokeWeight(1);
+  text("OK", (width / 2) - 10, 400);
+
+  textAlign(LEFT, BASELINE);
+  // TODO: Don't send extra click up!
+  if (mouseIsPressed && over_btn)
+  {
+    show_tutorial = false;
+  }
+
 }
 
 // use getItem and storeItem to locally store data
