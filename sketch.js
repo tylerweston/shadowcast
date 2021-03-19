@@ -1,10 +1,10 @@
 /*
 ONLY draw the walls that the light makes visible
+- randomized puzzles
 
 -editor
--detectors: r, g, b, cyan, magenta, yellow, white, black
 -tiles: glass unfillable, glass fillable
-- permentant wall
+-permentant wall
 -fillable floor, unfillable floor
 
 */
@@ -23,6 +23,7 @@ let detectors = [];
 let gridSize = 30;
 
 let globalFade = 0;
+let difficulty_increase = 0;
 
 const GRID_HALF = gridSize / 2;
 const GRID_THIRD = gridSize / 3;
@@ -40,7 +41,7 @@ let detectorY = gridHeight - 5;
 let detectorSelected = false;
 let detectorActive = true;
 
-let num_detectors = 5;
+let difficulty_level = 1;
 
 let all_detectors_active = false;
 
@@ -95,6 +96,8 @@ class detector
     this.g = g;
     this.b = b;
     this.correct = false;
+    this.anim_cycle = random(10);
+    this.anim_speed = random() / 25;
     grid[x][y].grid_type = DETECTOR_TILE;
     grid[x][y].permenant = true;
     // grid[x][y].unpassable = true;
@@ -175,13 +178,9 @@ class detector
 
         if (!has_intersection)
         {
-          //print("Got light from: " + l.c);
           r += l.r;
           g += l.g;
           b += l.b;
-          // print("L.r: " + l.r);
-          // print("L.g: " + l.g);
-          // print("L.b: " + l.b);
         }
       }
       if (r === this.r && g === this.g && b == this.b)
@@ -195,28 +194,26 @@ class detector
 
   draw_this()
   {
-    stroke(16);
+    let default_size = 0.75;
+    default_size *= (abs(sin(this.anim_cycle)) + 3) / 4;
+    this.anim_cycle += this.anim_speed;
+    if (this.anim_cycle > TWO_PI)
+      this.anim_cycle = 0;
+    strokeWeight(7);
+    stroke(12, 12, 12);
     noFill();
-    ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.4, gridSize * 0.4);
-    ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.95, gridSize * 0.95);
-    //fill(this.c);
+    ellipse(this.x * gridSize + GRID_HALF, this.y * gridSize + GRID_HALF, gridSize * 0.65, gridSize * 0.65);
+    strokeWeight(4);
+    stroke(this.c);
     if (this.correct)
     {
-      stroke(0, 255, 0);
+      fill(this.c);
     }
-    else  // incorrect
+    else
     {
-      // line(this.x * gridSize, this.y * gridSize, this.x * gridSize + gridSize, this.y * gridSize + gridSize);
-      // line(this.x * gridSize, this.y * gridSize  + gridSize, this.x * gridSize + gridSize, this.y * gridSize);
-      stroke(255, 0, 0);
+      noFill();
     }
-    noFill();
-    strokeWeight(4);
-    ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.6, gridSize * 0.6);
-
-    stroke(this.c);
-    noFill();
-    ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.85, gridSize * 0.85);
+    ellipse(this.x * gridSize + GRID_HALF, this.y * gridSize + GRID_HALF, gridSize * default_size, gridSize * default_size);
   }
 }
 
@@ -377,6 +374,7 @@ function resetStuff()
   initializeGrid();
   init_light_sources();
   init_random_detectors();
+  difficulty_level = 1;
 }
 
 function setup() {
@@ -456,6 +454,7 @@ function init_light_sources()
 {
   // init lights
   lightsources = []
+  // RGB lights
   let source = new light_source(gridWidth - 5, gridHeight - 5, false, 255, 0, 0);
   lightsources.push(source);
   source = new light_source(gridHeight - 5, 5, false, 0, 255, 0);
@@ -470,12 +469,18 @@ function init_random_detectors()
   detectors = []
 
   // we could raise the difficulty by adding more checkers
-  for (i = 0 ; i < num_detectors; ++ i)
+  for (i = 0 ; i < difficulty_level; ++ i)
   {
     let col_val = [0, 255];
     let r = random(col_val);
     let g = random(col_val);
     let b = random(col_val);
+    if (difficulty_level == 1)
+    {
+      r = 255;
+      g = 255;
+      b = 255;
+    }
     let xp = int(random(2, gridWidth - 2));
     let yp = int(random(2, gridHeight - 2));
     while (grid[xp][yp].grid_type != EMPTY_FLOOR)
@@ -719,6 +724,14 @@ function check_detector_visible(xpos, ypos)
   // first, check one beam to the center of the detector
 }
 
+function turn_lights_off()
+{
+  for (let l of lightsources)
+  {
+    l.active = false;
+  }
+}
+
 function get_visible_polygon(xpos, ypos, radius)
 {
   let viz_polygon = [];
@@ -958,7 +971,9 @@ function draw() {
     rect(0, 0, gameWidth, gameHeight);
     if (globalFade >= 1)
     {
+      ++difficulty_level;
       initializeGrid();
+      turn_lights_off();
       init_random_detectors();
     }
   }
