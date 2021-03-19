@@ -1,6 +1,12 @@
 /*
 ONLY draw the walls that the light makes visible
-- need a way to tell which colors are hitting a detector
+
+-editor
+-detectors: r, g, b, cyan, magenta, yellow, white, black
+-tiles: glass unfillable, glass fillable
+- permentant wall
+-fillable floor, unfillable floor
+
 */
 
 // global variables
@@ -57,13 +63,20 @@ class detector
     this.x = x;
     this.y = y;
     this.c = color(r,g,b);
+    this.r = r;
+    this.g = g;
+    this.b = b;
     this.correct = false;
+    grid[x][y].permenant = true;
+    grid[x][y].unpassable = true;
   }
 
   check_color()
   {
-    let xtarget = x * gridSize + (gridSize / 2);
-    let ytarget = y * gridSize + (gridSize / 2);
+
+
+    let xpos = this.x * gridSize + (gridSize / 2);
+    let ypos = this.y * gridSize + (gridSize / 2);
 
     let r = 0;
     let g = 0;
@@ -74,20 +87,104 @@ class detector
 
     // if we can, add their light values onto ours, then check if 
     // we are the correct light value
+    for (let l of lightsources)
+    {
+      if (!l.active)
+        continue;
+      let xtarget = l.x  * gridSize + (gridSize / 2);
+      let ytarget = l.y * gridSize + (gridSize / 2)
+
+
+      // draw the line between detector and light sources
+      // strokeWeight(2);
+      // stroke(255, 50);
+      // line(xtarget, ytarget, xpos, ypos);
+      // here is where we do our checks!
+
+      //// start of copied code from edge checking
+
+      // line segment1 is xtarget,ytarget to xpos, ypos
+      // line segment2 e2.sx, e2.sy to e2.ex, e2.ey
+      let has_intersection = false;
+
+      let min_px, min_py;
+
+      for (let e2 of edges) // check for ray intersection
+      {
+
+        let s1_x = xpos - xtarget;     
+        let s1_y = ypos - ytarget;
+        let s2_x = e2.ex - e2.sx;     
+        let s2_y = e2.ey - e2.sy;
+
+        let s = (-s1_y * (xtarget - e2.sx) + s1_x * (ytarget - e2.sy)) / (-s2_x * s1_y + s1_x * s2_y);
+        let t = ( s2_x * (ytarget - e2.sy) - s2_y * (xtarget - e2.sx)) / (-s2_x * s1_y + s1_x * s2_y);
+
+        // if we have an intersection
+        if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
+        {
+          min_px = xtarget + (t * s1_x);
+          min_py = ytarget + (t * s1_y);
+          has_intersection = true;
+          break;
+        }
+      }
+
+      // if (has_intersection)
+      // {
+      //   // collect the color from the light source
+      //   strokeWeight(2);
+      //   stroke(255, 255, 255);
+      //   ellipse(min_px, min_py, 4, 4);
+      //   ///// end of copied code from edge checking
+      // }
+
+      if (!has_intersection)
+      {
+        //print("Got light from: " + l.c);
+        r += l.r;
+        g += l.g;
+        b += l.b;
+        // print("L.r: " + l.r);
+        // print("L.g: " + l.g);
+        // print("L.b: " + l.b);
+      }
+    }
+    if (r === this.r && g === this.g && b == this.b)
+    {
+      this.correct = true;
+    }
+    else
+    {
+      this.correct = false;
+    }
 
   }
 
   draw_this()
   {
+    stroke(47);
+    noFill();
+    ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.4, gridSize * 0.4);
+    ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.9, gridSize * 0.9);
     //fill(this.c);
+    if (this.correct)
+    {
+      stroke(0, 255, 0);
+    }
+    else  // incorrect
+    {
+      // line(this.x * gridSize, this.y * gridSize, this.x * gridSize + gridSize, this.y * gridSize + gridSize);
+      // line(this.x * gridSize, this.y * gridSize  + gridSize, this.x * gridSize + gridSize, this.y * gridSize);
+      stroke(255, 0, 0);
+    }
+    noFill();
+    strokeWeight(4);
+    ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.6, gridSize * 0.6);
+
     stroke(this.c);
     noFill();
     ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.8, gridSize * 0.8);
-    // if (this.correct)
-    // {
-    //   fill(0, 0, 0);
-    //   ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.3, gridSize * 0.3);
-    // }
   }
 }
 
@@ -105,6 +202,9 @@ class light_source
     // one red, one green, one blue
     // specify a base color and do all color calculations off that for now!
     // could add custom light stuff later
+    this.r = r;
+    this.g = g;
+    this.b = b;
 
     // This might not be the best way to do this but it could work for now?!
     this.c = color(r, g, b);
@@ -286,6 +386,13 @@ function initializeGrid()
             grid[x][y].unpassable = true;
             grid[x][y].permenant = true;
           }
+
+          if (13 <= x && x <= gridWidth - 13)
+          {
+            grid[x][y].unpassable = true;
+            grid[x][y].permenant = false;
+            grid[x][y].exist = true;
+          }
         }
       }
     }
@@ -304,6 +411,8 @@ function initializeGrid()
   // detectors
   detectors = []
   let d = new detector(5, 5, 255, 255, 255);
+  detectors.push(d);
+  d = new detector(gridWidth - 5, 5, 0, 0, 0);
   detectors.push(d);
 }
 
@@ -471,7 +580,7 @@ function checkMouse()
       else if (mouseButton === LEFT)
       {
         // add a wall
-        if (!grid[targetX][targetY].exist && !grid[targetX][targetY].unpassable)
+        if (!grid[targetX][targetY].exist && !grid[targetX][targetY].permenant)
         {
           grid[targetX][targetY].exist = 1;
           grid[targetX][targetY].fade = 0;
@@ -638,7 +747,7 @@ function draw() {
       if (!grid[x][y].exist)
       {
         if (grid[x][y].fade > 0)
-          grid[x][y].fade -= 0.15;
+          grid[x][y].fade -= 0.1;
         stroke(empty_space_outline);
         fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
                         p ? solid_wall_permenant_fill : solid_wall_fill, 
@@ -648,7 +757,7 @@ function draw() {
       else if (grid[x][y].exist)
       {
         if (grid[x][y].fade < 1)
-          grid[x][y].fade += 0.15;
+          grid[x][y].fade += 0.1;
         stroke(solid_wall_outline);
         fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
                         p ? solid_wall_permenant_fill : solid_wall_fill, 
@@ -659,8 +768,20 @@ function draw() {
       if (grid[x][y].unpassable)
       {
         strokeWeight(2);
-        stroke(180, 180, 180);
-        square(x * gridSize + 1, y * gridSize + 1, gridSize - 2);
+        stroke(170, 170, 170);
+        if (grid[x][y].permenant)
+        {
+          fill(170, 170, 170, 40);
+        }
+        square(x * gridSize + 1, y * gridSize + 1, gridSize - 3);
+
+        // TODO: Little glass lines on the windows?
+        // strokeWeight(1);
+        // for (j = 0; j < 5; ++ j)
+        // {
+        //  line(x * gridSize + 10 - j, y * gridSize - j, x * gridSize + j, y * gridSize + 10 + j);
+        // }
+
       }
     }
   }
@@ -677,6 +798,13 @@ function draw() {
     line(e.sx, e.sy, e.ex, e.ey);
   }
 
+    // // // draw detectors
+    for (let d of detectors)
+    {
+      d.check_color();
+      d.draw_this();
+    }
+
   // draw our light sources in a first pass
   for (let l of lightsources)
   {
@@ -689,12 +817,7 @@ function draw() {
     l.draw_this()
   }
 
-  // // // draw detectors
-  // for (let d of detectors)
-  // {
-  //   d.check_color();
-  //   d.draw_this();
-  // }
+
 
   // draw cursor visibility
   // draw cursor viz if mouse cursor isn't in a wall
@@ -721,6 +844,17 @@ function draw() {
         vertex(cursor_viz[0].x, cursor_viz[0].y);
         endShape();
       }
+    }
+  }
+
+  strokeWeight(4);
+  stroke(90, 50);
+  for (x = 0 ; x < gridWidth; ++x)
+  {
+    for (y = 0; y < gridHeight; ++y)
+    {
+      if (grid[x][y].permenant)
+        square(x * gridSize, y * gridSize, gridSize);
     }
   }
 
