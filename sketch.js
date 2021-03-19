@@ -1,11 +1,19 @@
 /*
 ONLY draw the walls that the light makes visible
-- randomized puzzles
 
--editor
--tiles: glass unfillable, glass fillable
--permentant wall
--fillable floor, unfillable floor
+- make it work on mobile? 
+  - single click to toggle light on and off, drag to move it  
+  - fix webpage
+- editor
+- tiles: glass unfillable, glass fillable
+- save and load games, high scores
+- tutorial
+- storeItem / getItem to store local information
+
+- encapsulate state in a better way
+- 
+
+- change game grid size
 
 */
 
@@ -76,7 +84,7 @@ let edge_color;
 let edge_circle_color;
 
 // tiles
-const EMPTY_FLOOR = 0;      // darker, no tiles
+const FLOOR_EMPTY = 0;      // darker, no tiles
 const FLOOR_BUILDABLE = 1;  // tiles
 
 const PERMENANT_WALL = 2;
@@ -85,6 +93,7 @@ const GLASS_WALL_TOGGLABLE = 4;
 
 const DETECTOR_TILE = 5;
 
+//////// CLASSES
 class detector
 {
   constructor(x, y, r, g, b)
@@ -96,11 +105,9 @@ class detector
     this.g = g;
     this.b = b;
     this.correct = false;
-    this.anim_cycle = random(10);
-    this.anim_speed = random() / 25;
-    grid[x][y].grid_type = DETECTOR_TILE;
-    grid[x][y].permenant = true;
-    // grid[x][y].unpassable = true;
+    this.anim_cycle = random(TWO_PI);
+    this.anim_speed = ((random() + 1) / 25) + 0.0025;
+    set_grid(x, y, DETECTOR_TILE);
   }
 
   check_color()
@@ -119,6 +126,8 @@ class detector
     // our current position.
 
     // check 5 locations to simulate more than just checking the point in the middle
+    // TODO: Collect ALL FIVE points and then use a VOTING algorithm to make sure at
+    // least 3 points have the same color!
     let locs = [[xp - HALF_HALF, yp], [xp + HALF_HALF, yp], [xp, yp - HALF_HALF], [xp, yp + HALF_HALF], [xp, yp]];
     for (let [xpos, ypos] of locs)
     {
@@ -166,16 +175,6 @@ class detector
             break;
           }
         }
-
-        // if (has_intersection)
-        // {
-        //   // collect the color from the light source
-        //   strokeWeight(2);
-        //   stroke(255, 255, 255);
-        //   ellipse(min_px, min_py, 4, 4);
-        //   ///// end of copied code from edge checking
-        // }
-
         if (!has_intersection)
         {
           r += l.r;
@@ -194,15 +193,15 @@ class detector
 
   draw_this()
   {
+    noStroke();
+    fill(27);
+    square(this.x * gridSize + 1, this.y * gridSize + 1, gridSize - 2);
+
     let default_size = 0.75;
-    default_size *= (abs(sin(this.anim_cycle)) + 3) / 4;
+    default_size *= (sin(this.anim_cycle) + 4) / 5;
     this.anim_cycle += this.anim_speed;
     if (this.anim_cycle > TWO_PI)
       this.anim_cycle = 0;
-    strokeWeight(7);
-    stroke(12, 12, 12);
-    noFill();
-    ellipse(this.x * gridSize + GRID_HALF, this.y * gridSize + GRID_HALF, gridSize * 0.65, gridSize * 0.65);
     strokeWeight(4);
     stroke(this.c);
     if (this.correct)
@@ -347,7 +346,7 @@ class grid_obj
     this.fade = 0;
     this.permenant = false;
     this.unpassable = false;
-    this.grid_type = EMPTY_FLOOR;
+    this.grid_type = FLOOR_EMPTY;
   }
 }
 
@@ -361,22 +360,7 @@ class viz_poly_point
   }
 }
 
-function clear_grid_spot(x, y)
-{
-  grid[x][y].grid_type = EMPTY_FLOOR;
-  grid[x][y].permenant = false;
-  grid[x][y].unpassable = false;
-  grid[x][y].exist = false;
-}
-
-function resetStuff()
-{
-  initializeGrid();
-  init_light_sources();
-  init_random_detectors();
-  difficulty_level = 1;
-}
-
+//////// MAIN GAME
 function setup() {
   // createCanvas(gameWidth, gameHeight + uiHeight);
   createCanvas(gameWidth, gameHeight);
@@ -392,7 +376,9 @@ function setup() {
 
   initializeGrid();
   init_light_sources();
-  init_random_detectors();
+
+  // init_random_detectors();
+  random_level();
 
   solid_wall_fill = color(155, 155, 155);
   solid_wall_permenant_fill = color(180, 180, 180);
@@ -405,11 +391,382 @@ function setup() {
   edge_circle_color = color(70, 70, 70);
 
   // some UI stuff
-  resetButton = createButton('Reset');
+  resetButton = createButton('Reset Grid');
   resetButton.mousePressed(resetStuff);
 
   detector_colors = [color(255, 255, 255), color(0, 0, 0), color(255, 0, 0), color(0, 255, 0),
                     color(0, 0, 255), color(255, 255, 0), color(255, 0, 255), color(0, 255, 255)];
+}
+
+function checkMouse()
+{
+  if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height)
+    return;
+
+  // TODO: clean up spaghetti mouse code
+  if (mouseIsPressed)
+  {
+    selected_light = get_selected_light(mouseX, mouseY);
+    // this can be outside our canvas, ignore clicks outside the canvas
+    let targetX = int(mouseX / gridSize);
+    let targetY = int(mouseY / gridSize);
+    if (targetX <= 0 || targetY <= 0 || targetX >= gridWidth - 1 || targetY >= gridHeight - 1)
+      return;
+
+    if (!already_clicked)
+    {
+      already_clicked = true;
+
+      if (selected_light != undefined)
+      {
+        if (mouseButton === LEFT)
+        {
+          mouse_state = MOUSE_STATE_DRAG;
+          dragged_light = selected_light;
+        }
+        else
+        {
+          //detectorActive = !detectorActive;
+          lightsources[selected_light].active = !lightsources[selected_light].active;
+        }
+      }
+    }
+
+    //if (!mouseOverDetector(mouseX, mouseY))
+    if (mouse_state == MOUSE_STATE_NORMAL)
+    {
+      if (mouseButton === RIGHT)
+      {
+        // clear a grid
+        if (!grid[targetX][targetY].permenant)
+          grid[targetX][targetY].exist = 0;
+      }
+      else if (mouseButton === LEFT)
+      {
+        // add a wall
+        if (!grid[targetX][targetY].exist && !grid[targetX][targetY].permenant)
+        {
+          grid[targetX][targetY].exist = 1;
+          grid[targetX][targetY].fade = 0;
+        }
+      }
+      make_edges();
+      oldx = 0;
+      oldy = 0;
+    }
+    else if (mouse_state == MOUSE_STATE_DRAG)
+    {
+      // we're dragging a light around
+
+      // This will need to be a bit more complicated since rn with a fast enough
+      // mouse swipe you can go through walls
+      if (!grid[targetX][targetY].exist && !grid[targetX][targetY].unpassable)
+      {
+        lightsources[dragged_light].x = targetX;
+        lightsources[dragged_light].y = targetY;
+      }
+      else
+      {
+        dragged_light = undefined;
+        mouse_state = MOUSE_STATE_DROPPED_DRAG;
+      }
+    }
+    else
+    {
+      // do nothing?
+      // we were dragging something but now we've dropped it
+      // don't accept wall drawing or dragging input until another
+      // mouse click
+    }
+  }
+  else
+  {
+    already_clicked = false;
+    dragged_light = undefined;
+    mouse_state = MOUSE_STATE_NORMAL;
+  }
+}
+
+// keyboard input
+function keyPressed() {
+  // JUST DEBUG STUFF?
+  // editor keys and stuff will be handled here as well?
+  if (keyCode === LEFT_ARROW) {
+    difficulty_level--;
+    random_level();
+  } else if (keyCode === RIGHT_ARROW) {
+    difficulty_level++;
+    random_level();
+  }
+}
+
+//////// MAP
+function initializeGrid()
+{
+  // initialize grid
+  for (x = 0; x < gridWidth; ++x)
+  {
+    for (y = 0; y < gridHeight; ++y)
+    {
+      set_grid(x, y, FLOOR_BUILDABLE);
+      if (x === 0 || x === gridWidth - 1 || y === 0 || y === gridHeight - 1)
+      {
+        set_grid(x, y, PERMENANT_WALL);
+      }
+    }
+  }
+}
+
+function set_grid(x, y, type)
+{
+  switch(type)
+  {
+    case FLOOR_EMPTY:
+      grid[x][y].grid_type = FLOOR_EMPTY;
+      grid[x][y].exist = false;
+      grid[x][y].permenant = true;
+      grid[x][y].unpassable = true;
+      break;
+    case PERMENANT_WALL:
+      grid[x][y].grid_type = PERMENANT_WALL;
+      grid[x][y].exist = true;
+      grid[x][y].permenant = true;
+      grid[x][y].unpassable = true;
+      break;
+    case FLOOR_BUILDABLE:
+      grid[x][y].grid_type = FLOOR_BUILDABLE;
+      grid[x][y].exist = false;
+      grid[x][y].permenant = false;
+      grid[x][y].unpassable = false;
+      break;
+    case DETECTOR_TILE:
+      grid[x][y].grid_type = DETECTOR_TILE;
+      grid[x][y].exist = false
+      grid[x][y].permenant = true;
+      grid[x][y].unpassable = false;
+      break;
+
+  }
+}
+
+function clear_grid_spot(x, y)
+{
+  grid[x][y].grid_type = FLOOR_EMPTY;
+  grid[x][y].permenant = false;
+  grid[x][y].unpassable = false;
+  grid[x][y].exist = false;
+}
+
+//////// DRAWING 
+function draw() {
+
+  if (display_editor)
+    drawUI();
+
+  checkMouse();
+  let mx = mouseX;
+  let my = mouseY;
+  let mouse_updated = false;
+
+  if (oldx != mx || oldy != my)
+  {
+    // get_visible_polygon(mx, my, 10);
+    // remove_duplicate_viz_points();
+    oldx = mx, oldy = my;
+    mouse_updated = true;
+  }
+
+  // check if we've selected any lights
+  if (mouse_updated)
+  {
+    detectorSelected = get_selected_light(mx, my);
+    if (detectorSelected !== undefined)
+    {
+      lightsources[detectorSelected].seleted = true;
+    }
+    else
+    {
+      for (i = 0; i < lightsources.length; ++i)
+      {
+        lightsources[i].seleted = false;
+      }
+    }
+  }
+
+  strokeWeight(1);
+  for (x = 0 ; x < gridWidth; ++x)
+  {
+    for (y = 0; y < gridHeight; ++y)
+    {
+      let odd = ((x + y) % 2 === 0);
+      let p = (grid[x][y].permenant);
+
+      if (!grid[x][y].exist)  // EMPTY SPACES
+      {
+
+        if (grid[x][y].grid_type == FLOOR_EMPTY)
+        {
+          stroke(25, 25, 25);
+          fill(13, 13, 13);
+          square(x * gridSize, y * gridSize, gridSize);
+        }
+
+        else if (grid[x][y].grid_type == FLOOR_BUILDABLE)
+        {
+          if (grid[x][y].fade > 0)
+            grid[x][y].fade -= 0.1;
+          stroke(empty_space_outline);
+          // lerp between the empty fill color and the color of whatever
+          // solid thing will be there
+          fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
+                          p ? solid_wall_permenant_fill : solid_wall_fill, 
+                          grid[x][y].fade));
+          square(x * gridSize, y * gridSize, gridSize);
+        }
+
+      }
+
+      else if (grid[x][y].exist)  // SOLID WALLS
+      {
+        if (grid[x][y].fade < 1)
+          grid[x][y].fade += 0.1;
+        stroke(solid_wall_outline);
+        // exact same thing as above!
+        fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
+                        p ? solid_wall_permenant_fill : solid_wall_fill, 
+                        grid[x][y].fade));
+        square(x * gridSize , y * gridSize, gridSize);
+      }
+
+      if (grid[x][y].grid_type == GLASS_WALL_TOGGLABLE || grid[x][y] == GLASS_WALL)
+      {
+        strokeWeight(2);
+        stroke(170, 170, 170);
+        if (grid[x][y].permenant)
+        {
+          fill(170, 170, 170, 40);
+        }
+        square(x * gridSize + 1, y * gridSize + 1, gridSize - 3);
+
+        // TODO: Little glass lines on the windows?
+        // strokeWeight(1);
+        // for (j = 0; j < 5; ++ j)
+        // {
+        //  line(x * gridSize + 10 - j, y * gridSize - j, x * gridSize + j, y * gridSize + 10 + j);
+        // }
+
+      }
+    }
+  }
+
+  // draw walls
+  strokeWeight(3);
+  for (let e of edges)
+  {
+    stroke(edge_circle_color);
+    ellipse(e.sx, e.sy, 2, 2);
+    ellipse(e.ex, e.ey, 2, 2);
+
+    stroke(edge_color);
+    line(e.sx, e.sy, e.ex, e.ey);
+  }
+
+    // draw detectors
+    let all_active = true;
+
+    for (let d of detectors)
+    {
+      d.check_color();
+      if(!d.correct)
+        all_active = false;
+      d.draw_this();
+    }
+
+  // draw our light sources in a first pass
+  for (let l of lightsources)
+  {
+    l.draw_light();
+  }
+
+  // and then the lights themselves separately
+  for (let l of lightsources)
+  {
+    l.draw_this()
+  }
+
+
+
+  // draw cursor visibility
+  // draw cursor viz if mouse cursor isn't in a wall
+  if (show_mouse_illumination)
+  {
+    let cursor_viz = get_visible_polygon(mx, my, 1);
+    remove_duplicate_viz_points(cursor_viz);
+    noStroke();
+    fill(130, 130, 130, 30);
+
+    if (mx >= 0 && mx <= width && my >= 0 && my <= height)
+    {
+      let targetX = int(mx / gridSize);
+      let targetY = int(my / gridSize);
+      targetX = constrain(targetX, 0, gridWidth - 1);
+      targetY = constrain(targetY, 0, gridHeight - 1);
+
+      if (!grid[targetX][targetY].exist && cursor_viz.length > 1 )
+      {
+        beginShape();
+        vertex(mx, my);
+        for (i = 0; i < cursor_viz.length; ++i)
+          vertex(cursor_viz[i].x, cursor_viz[i].y);
+        vertex(cursor_viz[0].x, cursor_viz[0].y);
+        endShape();
+      }
+    }
+  }
+
+  strokeWeight(4);
+  stroke(90, 50);
+  for (x = 0 ; x < gridWidth; ++x)
+  {
+    for (y = 0; y < gridHeight; ++y)
+    {
+      if (grid[x][y].grid_type == GLASS_WALL || grid[x][y].grid_type == GLASS_WALL_TOGGLABLE)
+        square(x * gridSize, y * gridSize, gridSize);
+    }
+  }
+
+  if (all_active)
+  {
+    if (globalFade < 1)
+    {
+      globalFade += 0.01;
+    }
+    fill(48, 48, 48, globalFade * 255);
+    rect(0, 0, gameWidth, gameHeight);
+    if (globalFade >= 1)
+    {
+      ++difficulty_level;
+      random_level();
+      make_edges();
+    }
+  }
+
+  if (!all_active && globalFade > 0)
+  {
+    globalFade -= 0.01;
+    fill(48, 48, 48, globalFade * 255);
+    rect(0, 0, gameWidth, gameHeight);
+  }
+
+  // no need to draw a dot where the cursor is I don't think?
+  // stroke(175, 0, 10);
+  // ellipse(mx, my, 2, 2);
+
+  textSize(gridSize - 2);
+  fill(0);
+  strokeWeight(2);
+  text("Level: " + difficulty_level, 0, gridSize - 4);
+
 }
 
 function drawUI()
@@ -431,22 +788,14 @@ function drawUI()
   text("detector", 10, gameHeight + 110);
 }
 
-function initializeGrid()
+//////// RANDOM GAME MODE
+function random_level()
 {
-  // initialize grid
-  for (x = 0; x < gridWidth; ++x)
-  {
-    for (y = 0; y < gridHeight; ++y)
-    {
-      //grid[x][y].exist = false;
-      clear_grid_spot(x, y);
-      if (x === 0 || x === gridWidth - 1 || y === 0 || y === gridHeight - 1)
-      {
-        grid[x][y].exist = true;
-        grid[x][y].permenant = true;
-      }
-    }
-  }
+  initializeGrid();
+  turn_lights_off();
+  init_random_detectors(difficulty_to_detector_amount());
+  make_some_floor_unbuildable(difficulty_to_shrink_amount());
+  shrink_lights();
   make_edges();
 }
 
@@ -463,19 +812,20 @@ function init_light_sources()
   lightsources.push(source);
 }
 
-function init_random_detectors()
+function init_random_detectors(num_detectors)
 {
+  // initialize a randomized array of detectors
   // detectors
   detectors = []
 
   // we could raise the difficulty by adding more checkers
-  for (i = 0 ; i < difficulty_level; ++ i)
+  for (i = 0 ; i < num_detectors; ++ i)
   {
     let col_val = [0, 255];
     let r = random(col_val);
     let g = random(col_val);
     let b = random(col_val);
-    if (difficulty_level == 1)
+    if (num_detectors == 1)
     {
       r = 255;
       g = 255;
@@ -483,10 +833,12 @@ function init_random_detectors()
     }
     let xp = int(random(2, gridWidth - 2));
     let yp = int(random(2, gridHeight - 2));
-    while (grid[xp][yp].grid_type != EMPTY_FLOOR)
+    let gtype = grid[xp][yp].grid_type;
+    while (gtype != FLOOR_EMPTY && gtype != FLOOR_BUILDABLE)
     {
       xp = int(random(2, gridWidth - 2));
       yp = int(random(2, gridHeight - 2));
+      gtype = grid[xp][yp].grid_type;
     }
     // TODO: If this chosen spot is a detector or a lightsource,
     // reject this position and try again
@@ -495,25 +847,67 @@ function init_random_detectors()
   }
 }
 
-function remove_duplicate_viz_points(viz_polygon)
+function difficulty_to_detector_amount()
 {
-  if (viz_polygon.length === 0)
-    return;
-  
-  let p_index = 0;
-  while (p_index + 1 < viz_polygon.length)
+  // map from a difficulty level to number of detectors
+  // on the field
+  if (difficulty_level < 3)
+    return difficulty_level;
+  if (difficulty_level < 6)
+    return difficulty_level - 1;
+  if (difficulty_level < 9)
+    return difficulty_level - 1;
+  return int((difficulty_level - 8) / 2);
+}
+
+function difficulty_to_shrink_amount()
+{
+  if (difficulty_level < 3)
+    return 1;
+  if (difficulty_level < 6)
+    return 2;
+  if (difficulty_level < 9)
+    return 3;
+  if (difficulty_level < 12)
+    return 4;
+  if (difficulty_level < 15)
+    return 5;
+  return 6;
+}
+
+function shrink_lights()
+{
+  // if the lights have ended up outside the boundaries of the new shrink
+  let shrunk = difficulty_to_shrink_amount();
+  for (let l of lightsources)
   {
-    if (abs(viz_polygon[p_index].x - viz_polygon[p_index + 1].x) < 0.3 && abs(viz_polygon[p_index].y - viz_polygon[p_index + 1].y) < 0.3)
+    if (l.x < shrunk)
+      l.x = shrunk;
+    if (l.x > gridWidth - shrunk - 1)
+      l.x = gridWidth - shrunk - 1;
+    if (l.y < shrunk)
+      l.y = shrunk;
+    if (l.y > gridHeight - shrunk - 1)
+      l.y = gridHeight - shrunk - 1;
+  }
+}
+
+function make_some_floor_unbuildable(shrink_amount)
+{
+  // bring in some floor from the outside
+  for (x = 1 ; x < gridWidth - 1; ++x)
+  {
+    for (y = 1; y < gridHeight - 1; ++y)
     {
-      viz_polygon.splice(p_index, 1);
-    }
-    else
-    {
-      ++p_index;
+      if (x < shrink_amount || gridWidth - 1 < x + shrink_amount || y < shrink_amount || gridHeight - 1 < y + shrink_amount)
+      {
+        set_grid(x, y, FLOOR_EMPTY);
+      }
     }
   }
 }
 
+//////// EDGE ALG
 function make_edges()
 {
   edges = [];
@@ -614,124 +1008,7 @@ function make_edges()
   }
 }
 
-function checkMouse()
-{
-  if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height)
-    return;
-
-  // TODO: clean up spaghetti mouse code
-  if (mouseIsPressed)
-  {
-    selected_light = get_selected_light(mouseX, mouseY);
-    // this can be outside our canvas, ignore clicks outside the canvas
-    let targetX = int(mouseX / gridSize);
-    let targetY = int(mouseY / gridSize);
-    if (targetX <= 0 || targetY <= 0 || targetX >= gridWidth - 1 || targetY >= gridHeight - 1)
-      return;
-
-    if (!already_clicked)
-    {
-      already_clicked = true;
-
-      if (selected_light != undefined)
-      {
-        if (mouseButton === LEFT)
-        {
-          mouse_state = MOUSE_STATE_DRAG;
-          dragged_light = selected_light;
-        }
-        else
-        {
-          //detectorActive = !detectorActive;
-          lightsources[selected_light].active = !lightsources[selected_light].active;
-        }
-      }
-    }
-
-    //if (!mouseOverDetector(mouseX, mouseY))
-    if (mouse_state == MOUSE_STATE_NORMAL)
-    {
-      if (mouseButton === RIGHT)
-      {
-        // clear a grid
-        if (!grid[targetX][targetY].permenant)
-          grid[targetX][targetY].exist = 0;
-      }
-      else if (mouseButton === LEFT)
-      {
-        // add a wall
-        if (!grid[targetX][targetY].exist && !grid[targetX][targetY].permenant)
-        {
-          grid[targetX][targetY].exist = 1;
-          grid[targetX][targetY].fade = 0;
-        }
-      }
-      make_edges();
-      oldx = 0;
-      oldy = 0;
-    }
-    else if (mouse_state == MOUSE_STATE_DRAG)
-    {
-      // we're dragging a light around
-
-      // This will need to be a bit more complicated since rn with a fast enough
-      // mouse swipe you can go through walls
-      if (!grid[targetX][targetY].exist && !grid[targetX][targetY].unpassable)
-      {
-        lightsources[dragged_light].x = targetX;
-        lightsources[dragged_light].y = targetY;
-      }
-      else
-      {
-        dragged_light = undefined;
-        mouse_state = MOUSE_STATE_DROPPED_DRAG;
-      }
-    }
-    else
-    {
-      // do nothing?
-      // we were dragging something but now we've dropped it
-      // don't accept wall drawing or dragging input until another
-      // mouse click
-    }
-  }
-  else
-  {
-    already_clicked = false;
-    dragged_light = undefined;
-    mouse_state = MOUSE_STATE_NORMAL;
-  }
-}
-
-function get_selected_light(xpos, ypos)
-{
-  // return index of the light that the cursor is over
-  let i = 0;
-  for (let l of lightsources)
-  {
-    if (l.x * gridSize <= xpos && xpos <= l.x * gridSize + gridSize 
-      && l.y * gridSize <= ypos && ypos <= l.y * gridSize + gridSize)
-      return i;
-    ++i;
-  }
-  return undefined;
-}
-
-function check_detector_visible(xpos, ypos)
-{
-  // check if we can see any of the detector from xpos, ypos
-
-  // first, check one beam to the center of the detector
-}
-
-function turn_lights_off()
-{
-  for (let l of lightsources)
-  {
-    l.active = false;
-  }
-}
-
+//////// LIGHT / SHADOW ALGS
 function get_visible_polygon(xpos, ypos, radius)
 {
   let viz_polygon = [];
@@ -796,196 +1073,69 @@ function get_visible_polygon(xpos, ypos, radius)
   return viz_polygon;
 }
 
-function draw() {
-
-  if (display_editor)
-    drawUI();
-
-  checkMouse();
-  let mx = mouseX;
-  let my = mouseY;
-  let mouse_updated = false;
-
-  if (oldx != mx || oldy != my)
+function remove_duplicate_viz_points(viz_polygon)
+{
+  if (viz_polygon.length === 0)
+    return;
+  
+  let p_index = 0;
+  while (p_index + 1 < viz_polygon.length)
   {
-    // get_visible_polygon(mx, my, 10);
-    // remove_duplicate_viz_points();
-    oldx = mx, oldy = my;
-    mouse_updated = true;
-  }
-
-  // check if we've selected any lights
-  if (mouse_updated)
-  {
-    detectorSelected = get_selected_light(mx, my);
-    if (detectorSelected !== undefined)
+    if (abs(viz_polygon[p_index].x - viz_polygon[p_index + 1].x) < 0.3 && abs(viz_polygon[p_index].y - viz_polygon[p_index + 1].y) < 0.3)
     {
-      lightsources[detectorSelected].seleted = true;
+      viz_polygon.splice(p_index, 1);
     }
     else
     {
-      for (i = 0; i < lightsources.length; ++i)
-      {
-        lightsources[i].seleted = false;
-      }
+      ++p_index;
     }
   }
-
-  strokeWeight(1);
-  for (x = 0 ; x < gridWidth; ++x)
-  {
-    for (y = 0; y < gridHeight; ++y)
-    {
-      let odd = ((x + y) % 2 === 0);
-      let p = (grid[x][y].permenant);
-      if (!grid[x][y].exist)
-      {
-        if (grid[x][y].fade > 0)
-          grid[x][y].fade -= 0.1;
-        stroke(empty_space_outline);
-        // lerp between the empty fill color and the color of whatever
-        // solid thing will be there
-        fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
-                        p ? solid_wall_permenant_fill : solid_wall_fill, 
-                        grid[x][y].fade));
-        square(x * gridSize, y * gridSize, gridSize);
-      }
-      else if (grid[x][y].exist)
-      {
-        if (grid[x][y].fade < 1)
-          grid[x][y].fade += 0.1;
-        stroke(solid_wall_outline);
-        // exact same thing as above!
-        fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
-                        p ? solid_wall_permenant_fill : solid_wall_fill, 
-                        grid[x][y].fade));
-        square(x * gridSize , y * gridSize, gridSize);
-      }
-
-      if (grid[x][y].unpassable)
-      {
-        strokeWeight(2);
-        stroke(170, 170, 170);
-        if (grid[x][y].permenant)
-        {
-          fill(170, 170, 170, 40);
-        }
-        square(x * gridSize + 1, y * gridSize + 1, gridSize - 3);
-
-        // TODO: Little glass lines on the windows?
-        // strokeWeight(1);
-        // for (j = 0; j < 5; ++ j)
-        // {
-        //  line(x * gridSize + 10 - j, y * gridSize - j, x * gridSize + j, y * gridSize + 10 + j);
-        // }
-
-      }
-    }
-  }
-
-  // draw walls
-  strokeWeight(2);
-  for (let e of edges)
-  {
-    stroke(edge_circle_color);
-    ellipse(e.sx, e.sy, 2, 2);
-    ellipse(e.ex, e.ey, 2, 2);
-
-    stroke(edge_color);
-    line(e.sx, e.sy, e.ex, e.ey);
-  }
-
-    // draw detectors
-    let all_active = true;
-
-    for (let d of detectors)
-    {
-      d.check_color();
-      if(!d.correct)
-        all_active = false;
-      d.draw_this();
-    }
-
-
-
-  // draw our light sources in a first pass
-  for (let l of lightsources)
-  {
-    l.draw_light();
-  }
-
-  // and then the lights themselves separately
-  for (let l of lightsources)
-  {
-    l.draw_this()
-  }
-
-
-
-  // draw cursor visibility
-  // draw cursor viz if mouse cursor isn't in a wall
-  if (show_mouse_illumination)
-  {
-    let cursor_viz = get_visible_polygon(mx, my, 1);
-    remove_duplicate_viz_points(cursor_viz);
-    noStroke();
-    fill(130, 130, 130, 30);
-
-    if (mx >= 0 && mx <= width && my >= 0 && my <= height)
-    {
-      let targetX = int(mx / gridSize);
-      let targetY = int(my / gridSize);
-      targetX = constrain(targetX, 0, gridWidth - 1);
-      targetY = constrain(targetY, 0, gridHeight - 1);
-
-      if (!grid[targetX][targetY].exist && cursor_viz.length > 1 )
-      {
-        beginShape();
-        vertex(mx, my);
-        for (i = 0; i < cursor_viz.length; ++i)
-          vertex(cursor_viz[i].x, cursor_viz[i].y);
-        vertex(cursor_viz[0].x, cursor_viz[0].y);
-        endShape();
-      }
-    }
-  }
-
-  strokeWeight(4);
-  stroke(90, 50);
-  for (x = 0 ; x < gridWidth; ++x)
-  {
-    for (y = 0; y < gridHeight; ++y)
-    {
-      if (grid[x][y].permenant)
-        square(x * gridSize, y * gridSize, gridSize);
-    }
-  }
-
-  if (all_active)
-  {
-    if (globalFade < 1)
-    {
-      globalFade += 0.01;
-    }
-    fill(48, 48, 48, globalFade * 255);
-    rect(0, 0, gameWidth, gameHeight);
-    if (globalFade >= 1)
-    {
-      ++difficulty_level;
-      initializeGrid();
-      turn_lights_off();
-      init_random_detectors();
-    }
-  }
-
-  if (!all_active && globalFade > 0)
-  {
-    globalFade -= 0.01;
-    fill(48, 48, 48, globalFade * 255);
-    rect(0, 0, gameWidth, gameHeight);
-  }
-
-  // no need to draw a dot where the cursor is I don't think?
-  // stroke(175, 0, 10);
-  // ellipse(mx, my, 2, 2);
 }
+
+function get_selected_light(xpos, ypos)
+{
+  // return index of the light that the cursor is over
+  let i = 0;
+  for (let l of lightsources)
+  {
+    if (l.x * gridSize <= xpos && xpos <= l.x * gridSize + gridSize 
+      && l.y * gridSize <= ypos && ypos <= l.y * gridSize + gridSize)
+      return i;
+    ++i;
+  }
+  return undefined;
+}
+
+function turn_lights_off()
+{
+  for (let l of lightsources)
+  {
+    l.active = false;
+  }
+}
+
+//////// OTHER
+function resetStuff()
+{
+  initializeGrid();
+  turn_lights_off();
+  //init_random_detectors(difficulty_to_detector_amount());
+  make_some_floor_unbuildable(difficulty_to_shrink_amount());
+  shrink_lights();
+  make_edges();
+}
+
+
+
+// use getItem and storeItem to locally store data
+
+// LEVEL FORMAT
+// we want this to end up as a STRING so we can save it easily
+// locally\
+
+// first, specify the size of the grid
+// The level will be a grid, with each cell defined to a TILE_TYPE
+// followed by a list of detectors
+//  - [x, y, r, g, b]
+// followed by a list of lights
+// - [x, y, r, g, b]
