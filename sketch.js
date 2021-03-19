@@ -15,18 +15,36 @@ let oldx, oldy;
 let grid = [];
 let edges = [];
 
+let detector_colors;
+
 let lightsources = [];
 let detectors = [];
 
-// let viz_polygon = [];
 let gridSize = 30;
-const gridWidth = 900 / gridSize;
-const gridHeight = 600 / gridSize;
+
+let globalFade = 0;
+
+const GRID_HALF = gridSize / 2;
+const GRID_THIRD = gridSize / 3;
+
+const gameHeight = 600;
+const gameWidth = 900;
+
+const uiHeight = 200;
+
+const gridWidth = gameWidth / gridSize;
+const gridHeight = gameHeight / gridSize;
 
 let detectorX = gridWidth - 5;
 let detectorY = gridHeight - 5;
 let detectorSelected = false;
 let detectorActive = true;
+
+let num_detectors = 5;
+
+let all_detectors_active = false;
+
+let display_editor = false;
 
 // Mouse state stuff
 const MOUSE_STATE_NORMAL = 0;
@@ -56,6 +74,16 @@ let empty_space_2_fill;
 let edge_color;
 let edge_circle_color;
 
+// tiles
+const EMPTY_FLOOR = 0;      // darker, no tiles
+const FLOOR_BUILDABLE = 1;  // tiles
+
+const PERMENANT_WALL = 2;
+const GLASS_WALL = 3;
+const GLASS_WALL_TOGGLABLE = 4;
+
+const DETECTOR_TILE = 5;
+
 class detector
 {
   constructor(x, y, r, g, b)
@@ -67,16 +95,18 @@ class detector
     this.g = g;
     this.b = b;
     this.correct = false;
+    grid[x][y].grid_type = DETECTOR_TILE;
     grid[x][y].permenant = true;
-    grid[x][y].unpassable = true;
+    // grid[x][y].unpassable = true;
   }
 
   check_color()
   {
 
 
-    let xpos = this.x * gridSize + (gridSize / 2);
-    let ypos = this.y * gridSize + (gridSize / 2);
+    let xp = this.x * gridSize + GRID_HALF;
+    let yp = this.y * gridSize + GRID_HALF;
+    let HALF_HALF = GRID_HALF / 2;
 
     let r = 0;
     let g = 0;
@@ -85,88 +115,90 @@ class detector
     // for each light detector, see if we can see them from
     // our current position.
 
-    // if we can, add their light values onto ours, then check if 
-    // we are the correct light value
-    for (let l of lightsources)
+    // check 5 locations to simulate more than just checking the point in the middle
+    let locs = [[xp - HALF_HALF, yp], [xp + HALF_HALF, yp], [xp, yp - HALF_HALF], [xp, yp + HALF_HALF], [xp, yp]];
+    for (let [xpos, ypos] of locs)
     {
-      if (!l.active)
-        continue;
-      let xtarget = l.x  * gridSize + (gridSize / 2);
-      let ytarget = l.y * gridSize + (gridSize / 2)
-
-
-      // draw the line between detector and light sources
-      // strokeWeight(2);
-      // stroke(255, 50);
-      // line(xtarget, ytarget, xpos, ypos);
-      // here is where we do our checks!
-
-      //// start of copied code from edge checking
-
-      // line segment1 is xtarget,ytarget to xpos, ypos
-      // line segment2 e2.sx, e2.sy to e2.ex, e2.ey
-      let has_intersection = false;
-
-      let min_px, min_py;
-
-      for (let e2 of edges) // check for ray intersection
+      // if we can, add their light values onto ours, then check if 
+      // we are the correct light value
+      for (let l of lightsources)
       {
+        if (!l.active)
+          continue;
+        let xtarget = l.x  * gridSize + (gridSize / 2);
+        let ytarget = l.y * gridSize + (gridSize / 2)
 
-        let s1_x = xpos - xtarget;     
-        let s1_y = ypos - ytarget;
-        let s2_x = e2.ex - e2.sx;     
-        let s2_y = e2.ey - e2.sy;
 
-        let s = (-s1_y * (xtarget - e2.sx) + s1_x * (ytarget - e2.sy)) / (-s2_x * s1_y + s1_x * s2_y);
-        let t = ( s2_x * (ytarget - e2.sy) - s2_y * (xtarget - e2.sx)) / (-s2_x * s1_y + s1_x * s2_y);
+        // draw the line between detector and light sources
+        // strokeWeight(2);
+        // stroke(255, 50);
+        // line(xtarget, ytarget, xpos, ypos);
+        // here is where we do our checks!
 
-        // if we have an intersection
-        if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
+        //// start of copied code from edge checking
+
+        // line segment1 is xtarget,ytarget to xpos, ypos
+        // line segment2 e2.sx, e2.sy to e2.ex, e2.ey
+        let has_intersection = false;
+
+        let min_px, min_py;
+
+        for (let e2 of edges) // check for ray intersection
         {
-          min_px = xtarget + (t * s1_x);
-          min_py = ytarget + (t * s1_y);
-          has_intersection = true;
-          break;
+
+          let s1_x = xpos - xtarget;     
+          let s1_y = ypos - ytarget;
+          let s2_x = e2.ex - e2.sx;     
+          let s2_y = e2.ey - e2.sy;
+
+          let s = (-s1_y * (xtarget - e2.sx) + s1_x * (ytarget - e2.sy)) / (-s2_x * s1_y + s1_x * s2_y);
+          let t = ( s2_x * (ytarget - e2.sy) - s2_y * (xtarget - e2.sx)) / (-s2_x * s1_y + s1_x * s2_y);
+
+          // if we have an intersection
+          if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
+          {
+            min_px = xtarget + (t * s1_x);
+            min_py = ytarget + (t * s1_y);
+            has_intersection = true;
+            break;
+          }
+        }
+
+        // if (has_intersection)
+        // {
+        //   // collect the color from the light source
+        //   strokeWeight(2);
+        //   stroke(255, 255, 255);
+        //   ellipse(min_px, min_py, 4, 4);
+        //   ///// end of copied code from edge checking
+        // }
+
+        if (!has_intersection)
+        {
+          //print("Got light from: " + l.c);
+          r += l.r;
+          g += l.g;
+          b += l.b;
+          // print("L.r: " + l.r);
+          // print("L.g: " + l.g);
+          // print("L.b: " + l.b);
         }
       }
-
-      // if (has_intersection)
-      // {
-      //   // collect the color from the light source
-      //   strokeWeight(2);
-      //   stroke(255, 255, 255);
-      //   ellipse(min_px, min_py, 4, 4);
-      //   ///// end of copied code from edge checking
-      // }
-
-      if (!has_intersection)
+      if (r === this.r && g === this.g && b == this.b)
       {
-        //print("Got light from: " + l.c);
-        r += l.r;
-        g += l.g;
-        b += l.b;
-        // print("L.r: " + l.r);
-        // print("L.g: " + l.g);
-        // print("L.b: " + l.b);
+        this.correct = true;
+        return;
       }
     }
-    if (r === this.r && g === this.g && b == this.b)
-    {
-      this.correct = true;
-    }
-    else
-    {
-      this.correct = false;
-    }
-
+    this.correct = false;
   }
 
   draw_this()
   {
-    stroke(47);
+    stroke(16);
     noFill();
     ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.4, gridSize * 0.4);
-    ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.9, gridSize * 0.9);
+    ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.95, gridSize * 0.95);
     //fill(this.c);
     if (this.correct)
     {
@@ -184,7 +216,7 @@ class detector
 
     stroke(this.c);
     noFill();
-    ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.8, gridSize * 0.8);
+    ellipse(this.x * gridSize + (gridSize / 2), this.y * gridSize + (gridSize / 2), gridSize * 0.85, gridSize * 0.85);
   }
 }
 
@@ -318,6 +350,7 @@ class grid_obj
     this.fade = 0;
     this.permenant = false;
     this.unpassable = false;
+    this.grid_type = EMPTY_FLOOR;
   }
 }
 
@@ -331,8 +364,25 @@ class viz_poly_point
   }
 }
 
+function clear_grid_spot(x, y)
+{
+  grid[x][y].grid_type = EMPTY_FLOOR;
+  grid[x][y].permenant = false;
+  grid[x][y].unpassable = false;
+  grid[x][y].exist = false;
+}
+
+function resetStuff()
+{
+  initializeGrid();
+  init_light_sources();
+  init_random_detectors();
+}
+
 function setup() {
-  createCanvas(900, 600);
+  // createCanvas(gameWidth, gameHeight + uiHeight);
+  createCanvas(gameWidth, gameHeight);
+  
   for (x = 0; x < gridWidth; ++x)
   {
     grid[x] = [];
@@ -343,6 +393,8 @@ function setup() {
   }
 
   initializeGrid();
+  init_light_sources();
+  init_random_detectors();
 
   solid_wall_fill = color(155, 155, 155);
   solid_wall_permenant_fill = color(180, 180, 180);
@@ -356,7 +408,29 @@ function setup() {
 
   // some UI stuff
   resetButton = createButton('Reset');
-  resetButton.mousePressed(initializeGrid);
+  resetButton.mousePressed(resetStuff);
+
+  detector_colors = [color(255, 255, 255), color(0, 0, 0), color(255, 0, 0), color(0, 255, 0),
+                    color(0, 0, 255), color(255, 255, 0), color(255, 0, 255), color(0, 255, 255)];
+}
+
+function drawUI()
+{
+  fill(37, 37, 37);
+  rect(0, gameHeight, gameWidth, gameHeight + uiHeight);
+
+  // draw detector selector
+  let i = 0;
+  for (let c of detector_colors)
+  {
+    fill(c);
+    ellipse(10 + (i * 30) + 15, gameHeight + 25, 30);
+    ++i;
+  }
+  textSize(32);
+  fill(220);
+  text("light", 10, gameHeight + 75);
+  text("detector", 10, gameHeight + 110);
 }
 
 function initializeGrid()
@@ -366,39 +440,20 @@ function initializeGrid()
   {
     for (y = 0; y < gridHeight; ++y)
     {
-      grid[x][y].exist = false;
+      //grid[x][y].exist = false;
+      clear_grid_spot(x, y);
       if (x === 0 || x === gridWidth - 1 || y === 0 || y === gridHeight - 1)
       {
         grid[x][y].exist = true;
         grid[x][y].permenant = true;
       }
-      if (y === gridHeight / 2)
-      {
-        if (x <= 5 || x >= gridWidth - 5)
-        {
-          grid[x][y].exist = true;
-          grid[x][y].permenant = true;  
-        }
-        else
-        {
-          if (( x <= 10 || x >= gridWidth - 10))
-          {
-            grid[x][y].unpassable = true;
-            grid[x][y].permenant = true;
-          }
-
-          if (13 <= x && x <= gridWidth - 13)
-          {
-            grid[x][y].unpassable = true;
-            grid[x][y].permenant = false;
-            grid[x][y].exist = true;
-          }
-        }
-      }
     }
   }
   make_edges();
+}
 
+function init_light_sources()
+{
   // init lights
   lightsources = []
   let source = new light_source(gridWidth - 5, gridHeight - 5, false, 255, 0, 0);
@@ -407,13 +462,32 @@ function initializeGrid()
   lightsources.push(source);
   source = new light_source(5, gridWidth / 2, false, 0, 0, 255);
   lightsources.push(source);
+}
 
+function init_random_detectors()
+{
   // detectors
   detectors = []
-  let d = new detector(5, 5, 255, 255, 255);
-  detectors.push(d);
-  d = new detector(gridWidth - 5, 5, 0, 0, 0);
-  detectors.push(d);
+
+  // we could raise the difficulty by adding more checkers
+  for (i = 0 ; i < num_detectors; ++ i)
+  {
+    let col_val = [0, 255];
+    let r = random(col_val);
+    let g = random(col_val);
+    let b = random(col_val);
+    let xp = int(random(2, gridWidth - 2));
+    let yp = int(random(2, gridHeight - 2));
+    while (grid[xp][yp].grid_type != EMPTY_FLOOR)
+    {
+      xp = int(random(2, gridWidth - 2));
+      yp = int(random(2, gridHeight - 2));
+    }
+    // TODO: If this chosen spot is a detector or a lightsource,
+    // reject this position and try again
+    let d = new detector(xp, yp, r, g, b);
+    detectors.push(d);
+  }
 }
 
 function remove_duplicate_viz_points(viz_polygon)
@@ -540,6 +614,7 @@ function checkMouse()
   if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height)
     return;
 
+  // TODO: clean up spaghetti mouse code
   if (mouseIsPressed)
   {
     selected_light = get_selected_light(mouseX, mouseY);
@@ -593,6 +668,9 @@ function checkMouse()
     else if (mouse_state == MOUSE_STATE_DRAG)
     {
       // we're dragging a light around
+
+      // This will need to be a bit more complicated since rn with a fast enough
+      // mouse swipe you can go through walls
       if (!grid[targetX][targetY].exist && !grid[targetX][targetY].unpassable)
       {
         lightsources[dragged_light].x = targetX;
@@ -707,6 +785,9 @@ function get_visible_polygon(xpos, ypos, radius)
 
 function draw() {
 
+  if (display_editor)
+    drawUI();
+
   checkMouse();
   let mx = mouseX;
   let my = mouseY;
@@ -749,6 +830,8 @@ function draw() {
         if (grid[x][y].fade > 0)
           grid[x][y].fade -= 0.1;
         stroke(empty_space_outline);
+        // lerp between the empty fill color and the color of whatever
+        // solid thing will be there
         fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
                         p ? solid_wall_permenant_fill : solid_wall_fill, 
                         grid[x][y].fade));
@@ -759,6 +842,7 @@ function draw() {
         if (grid[x][y].fade < 1)
           grid[x][y].fade += 0.1;
         stroke(solid_wall_outline);
+        // exact same thing as above!
         fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
                         p ? solid_wall_permenant_fill : solid_wall_fill, 
                         grid[x][y].fade));
@@ -798,12 +882,18 @@ function draw() {
     line(e.sx, e.sy, e.ex, e.ey);
   }
 
-    // // // draw detectors
+    // draw detectors
+    let all_active = true;
+
     for (let d of detectors)
     {
       d.check_color();
+      if(!d.correct)
+        all_active = false;
       d.draw_this();
     }
+
+
 
   // draw our light sources in a first pass
   for (let l of lightsources)
@@ -856,6 +946,28 @@ function draw() {
       if (grid[x][y].permenant)
         square(x * gridSize, y * gridSize, gridSize);
     }
+  }
+
+  if (all_active)
+  {
+    if (globalFade < 1)
+    {
+      globalFade += 0.01;
+    }
+    fill(48, 48, 48, globalFade * 255);
+    rect(0, 0, gameWidth, gameHeight);
+    if (globalFade >= 1)
+    {
+      initializeGrid();
+      init_random_detectors();
+    }
+  }
+
+  if (!all_active && globalFade > 0)
+  {
+    globalFade -= 0.01;
+    fill(48, 48, 48, globalFade * 255);
+    rect(0, 0, gameWidth, gameHeight);
   }
 
   // no need to draw a dot where the cursor is I don't think?
