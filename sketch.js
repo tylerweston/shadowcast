@@ -1,27 +1,33 @@
 /*
 ONLY draw the walls that the light makes visible
 
+- make player click through to next puzzle!
+  - Once they've solved a puzzle, let them look at it a bit! Bask in the glory!
+- editor
+- tiles: glass unfillable, glass fillable
+- high scores
+- storeItem / getItem to store local information
+  - if the player has a saved game, store it
+- encapsulate state in a better way
+  - right now it is kind of spread out and a bit icky how it is all implemented
+  - collect and fix that stuff up
+- change game grid size - allow this to be customized
 - make it work on mobile? 
   - single click to toggle light on and off, drag to move it  
   - fix webpage
-- editor
-- tiles: glass unfillable, glass fillable
-- save and load games, high scores
-- storeItem / getItem to store local information
-- encapsulate state in a better way
-- change game grid size
 - Game Modes:
+    - This will involve a main menu of some sort!
   - timer, countdown and every solution gets you some more time
   - more points for using less walls!
+  - mode where you can only activate one light at a time?
+    - press a button to check your solution, it is either wrong or right!
+- Make sure all detectors aren't the same color!
+- make R, G, B keys toggle their lights in random mode
 */
 
 // global variables
-
-let oldx, oldy;
 let grid = [];
 let edges = [];
-
-let detector_colors;
 
 let lightsources = [];
 let detectors = [];
@@ -29,43 +35,38 @@ let detectors = [];
 let gridSize = 30;
 
 let globalFade = 0;
-let difficulty_increase = 0;
+let saveFade = 0;
 
 const GRID_HALF = gridSize / 2;
 const GRID_THIRD = gridSize / 3;
 
 const gameHeight = 600;
 const gameWidth = 900;
-
 const uiHeight = 200;
 
 const gridWidth = gameWidth / gridSize;
 const gridHeight = gameHeight / gridSize;
 
-let detectorX = gridWidth - 5;
-let detectorY = gridHeight - 5;
-let detectorSelected = false;
-let detectorActive = true;
 
+let current_level = undefined;  // The currently loaded level, there can be only one!
 let difficulty_level = 1;
-
-let all_detectors_active = false;
+let all_detectors_active = false; // this is for random games
 
 let display_editor = false;
 
+let show_intro = true;
 let show_tutorial = true;
 let waiting_for_tutorial_unclick = false;
 
 // Mouse state stuff
+let oldx, oldy;
 const MOUSE_STATE_NORMAL = 0;
 const MOUSE_STATE_DRAG = 1;
 const MOUSE_STATE_DROPPED_DRAG = 2;
+let mouse_state = MOUSE_STATE_NORMAL;
 let selected_light = undefined;
 let dragged_light = undefined;
-let mouse_state = MOUSE_STATE_NORMAL;
 let already_clicked = false;
-
-// Do we add extra illumination at cursor?
 let show_mouse_illumination = true;
 
 // Constants to help with edge detection
@@ -74,7 +75,30 @@ const SOUTH = 1;
 const EAST = 2;
 const WEST = 3; 
 
-// color for walls
+// ------+--------+----
+// r g b | color  | # 
+// ------+--------+----
+// 0 0 0 | black  | 0
+// 0 0 1 | blue   | 1
+// 0 1 0 | green  | 2
+// 0 1 1 | cyan   | 3
+// 1 0 0 | red    | 4
+// 1 0 1 | magenta| 5
+// 1 1 0 | yellow | 6
+// 1 1 1 | white  | 7
+//-------+--------+----
+const BLACK = 0;
+const BLUE = 1;
+const GREEN = 2;
+const CYAN = 3;
+const RED = 4;
+const MAGENTA = 5;
+const YELLOW = 6;
+const WHITE = 7;
+
+
+
+// color for walls (maybe make this a class?)
 let solid_wall_outline;
 let solid_wall_fill;
 let solid_wall_permenant_fill;
@@ -85,9 +109,13 @@ let edge_color;
 let edge_circle_color;
 let font_color;
 
+// list of all possible detector colors
+let detector_colors;
+
 // tiles
 const FLOOR_EMPTY = 0;      // darker, no tiles
 const FLOOR_BUILDABLE = 1;  // tiles
+const FLOOR_BUILT = 6;      // buildable and built on
 
 const PERMENANT_WALL = 2;
 const GLASS_WALL = 3;
@@ -95,7 +123,143 @@ const GLASS_WALL_TOGGLABLE = 4;
 
 const DETECTOR_TILE = 5;
 
+// main game states
+const STATE_SETUP = -1;
+const STATE_INTRO = 0;
+const STATE_MAIN_MENU = 1;
+const STATE_LOADLEVEL = 6;
+const STATE_GAME = 2;
+const STATE_EDITOR = 3;
+const STATE_OPTIONS = 4;
+const STATE_ABOUT = 5;
+const STATE_NEW_RANDOM_GAME = 7;
+
+let game_state = STATE_SETUP;
+
+// play mode
+const GAMEMODE_RANDOM = 0;
+const GAMEMODE_LEVELS = 1;
+
+let intro_timer = 0;
+
 //////// CLASSES
+class level
+{
+  constructor()
+  {
+    // we don't know the size until we load the level data!
+    this.xsize = 0;
+    this.ysize = 0;
+    this.grid = [];
+  }
+
+  initialize_grid()
+  {
+    // initialize an array of grid here
+    this.grid = [];
+    for (var x = 0; x < this.xsize; ++x)
+    {
+      this.grid[x] = [];
+      for (var y = 0; y < this.ysize; ++y)
+      {
+        this.grid[x][y] = new grid_obj();
+      }
+    }
+  }
+
+  set_level_data(level_data)
+  {
+    this.level_data = level_data;
+  }
+
+  save_level(lights, detectors)
+  {
+    // generate a string from this level object
+    let level_string = "";
+    let xsize_str = (this.xsize < 10 ? "0": "") + String(this.xsize);
+    let ysize_str = (this.xsize < 10 ? "0": "") + String(this.ysize);
+    level_string += xsize_str;
+    level_string += ysize_str;
+
+    // mode: assume random for now
+    // TODO: Figure out where this information comes from, if we're in the editor or single level <--------------------
+    // mode, then this will be different!!
+    level_string += "r";
+    level_string += (difficulty_level < 10 ? "0": "") + String(difficulty_level);
+
+
+    let cur_char = "";
+    for (var x = 0; x < this.xsize; ++x)
+    {
+      for (var y = 0; y < this.ysize; ++y)
+      {
+        switch (this.grid[x][y].grid_type)
+        {
+          case DETECTOR_TILE: cur_char = "5"; break;
+          case FLOOR_EMPTY: cur_char = "0"; break;      
+          case FLOOR_BUILDABLE: 
+            if (!this.grid[x][y].exist) 
+            {
+              cur_char = "1"; 
+              break;
+            }
+            else if (this.grid[x][y].exist)
+            {
+              cur_char = "6";
+              break;
+            }
+          //case FLOOR_BUILT: cur_char = "6"; break;     
+          case PERMENANT_WALL: cur_char = "2"; break;
+          case GLASS_WALL: cur_char = "3"; break;
+          case GLASS_WALL_TOGGLABLE: cur_char = "4"; break;
+          default: cur_char = "x"; break;
+        }
+        level_string += cur_char;
+      }
+    }
+    // write number of light sources
+    let ls_num = (lights.length < 10 ? "0": "") + String(lights.length);
+    level_string += ls_num;
+    for (let l of lights)
+    {
+      let light_x = (l.x < 10 ? "0": "") + String(l.x);
+      let light_y = (l.y < 10 ? "0": "") + String(l.y);
+      let num_v = 0;
+      if (l.r == 255)
+        num_v += 4;
+      if (l.g == 255)
+        num_v += 2;
+      if (l.b == 255)
+        num_v += 1;
+      let light_c = String(num_v);
+      let light_on = "0";
+      if (l.active)
+        light_on = "1";
+      level_string += light_x + light_y + light_c + light_on;
+    }
+
+    // write detectors and their positions
+    let d_num = (detectors.length < 10 ? "0": "") + String(detectors.length);
+    level_string += d_num
+    for (let d of detectors)
+    {
+      let d_x = (d.x < 10 ? "0": "") + String(d.x);
+      let d_y = (d.y < 10 ? "0": "") + String(d.y);
+      let num_v = 0;
+      if (d.r == 255)
+        num_v += 4;
+      if (d.g == 255)
+        num_v += 2;
+      if (d.b == 255)
+        num_v += 1;
+      let d_c = String(num_v);
+      level_string += d_x + d_y + d_c;
+    }
+    saveFade = 1;
+    storeItem("savedgame", level_string);
+  }
+}
+
 class detector
 {
   constructor(x, y, r, g, b)
@@ -109,7 +273,7 @@ class detector
     this.correct = false;
     this.anim_cycle = random(TWO_PI);
     this.anim_speed = ((random() + 1) / 25) + 0.0025;
-    set_grid(x, y, DETECTOR_TILE);
+
   }
 
   check_color()
@@ -231,15 +395,19 @@ class detector
   draw_this()
   {
     noStroke();
-    fill(27);
-    square(this.x * gridSize + 1, this.y * gridSize + 1, gridSize - 2);
+    fill(37);
+    square(this.x * gridSize, this.y * gridSize, gridSize);
 
-    let default_size = 0.75;
-    default_size *= (sin(this.anim_cycle) + 4) / 5;
+    let default_size = 0.8;
+    default_size *= (sin(this.anim_cycle) + 7) / 8;
     this.anim_cycle += this.anim_speed;
     if (this.anim_cycle > TWO_PI)
       this.anim_cycle = 0;
-    strokeWeight(4);
+    strokeWeight(7);
+    stroke(4);
+    ellipse(this.x * gridSize + GRID_HALF, this.y * gridSize + GRID_HALF, gridSize * default_size, gridSize * default_size);
+
+    strokeWeight(5);
     stroke(this.c);
     if (this.correct)
     {
@@ -401,30 +569,17 @@ class viz_poly_point
 function setup() {
   // createCanvas(gameWidth, gameHeight + uiHeight);
   createCanvas(gameWidth, gameHeight);
-  
-  for (x = 0; x < gridWidth; ++x)
-  {
-    grid[x] = [];
-    for (y = 0; y < gridHeight; ++y)
-    {
-      grid[x][y] = new grid_obj();
-    }
-  }
-
-  initializeGrid();
-  init_light_sources();
-
-  // init_random_detectors();
-  random_level();
-
   initialize_colors();
 
-  // some UI stuff
+  // some UI stuff for testing, remove at some point
   resetButton = createButton('Reset Grid');
   resetButton.mousePressed(resetStuff);
 
-  detector_colors = [color(255, 255, 255), color(0, 0, 0), color(255, 0, 0), color(0, 255, 0),
-                    color(0, 0, 255), color(255, 255, 0), color(255, 0, 255), color(0, 255, 255)];
+  if (show_intro)
+    game_state = STATE_INTRO;
+  else
+    game_state = STATE_NEW_RANDOM_GAME;
+
 }
 
 function initialize_colors() {
@@ -440,11 +595,28 @@ function initialize_colors() {
   edge_circle_color = color(80, 80, 80);
 
   font_color = color(35, 35, 35);
+
+  // ------+--------+----
+  // r g b | color  | # 
+  // ------+--------+----
+  // 0 0 0 | black  | 0
+  // 0 0 1 | blue   | 1
+  // 0 1 0 | green  | 2
+  // 0 1 1 | cyan   | 3
+  // 1 0 0 | red    | 4
+  // 1 0 1 | magenta| 5
+  // 1 1 0 | yellow | 6
+  // 1 1 1 | white  | 7
+  //-------+--------+----
+
+  detector_colors = [color(0, 0, 0), color(0, 0, 255), color(0, 255, 0), color(0, 255, 255), 
+    color(255, 0, 0), color(255, 0, 255), color(255, 255, 0), color(255, 255, 255)];
 }
 
 function checkMouse()
 {
-  if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height)
+  let grid = current_level.grid;
+  if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height)  // screen bound checks
     return;
 
   // TODO: clean up spaghetti mouse code
@@ -457,7 +629,8 @@ function checkMouse()
     // this can be outside our canvas, ignore clicks outside the canvas
     let targetX = int(mouseX / gridSize);
     let targetY = int(mouseY / gridSize);
-    if (targetX <= 0 || targetY <= 0 || targetX >= gridWidth - 1 || targetY >= gridHeight - 1)
+    // TODO: These come from level
+    if (targetX <= 0 || targetY <= 0 || targetX >= current_level.xsize - 1 || targetY >= current_level.ysize - 1)
       return;
 
     if (!already_clicked)
@@ -473,13 +646,11 @@ function checkMouse()
         }
         else
         {
-          //detectorActive = !detectorActive;
           lightsources[selected_light].active = !lightsources[selected_light].active;
         }
       }
     }
 
-    //if (!mouseOverDetector(mouseX, mouseY))
     if (mouse_state == MOUSE_STATE_NORMAL)
     {
       if (mouseButton === RIGHT)
@@ -544,73 +715,75 @@ function keyPressed() {
   } else if (keyCode === RIGHT_ARROW) {
     difficulty_level++;
     random_level();
+  } else if (key === 's') {
+    current_level.save_level(lightsources, detectors);
+  } else if (key === 'l') {
+    //current_level = load_level(getItem("savedgame"));
+    load_level(getItem("savedgame"));
   }
 }
 
 //////// MAP
-function initializeGrid()
+function initializeGrid(which_grid)
 {
   // initialize grid
   for (x = 0; x < gridWidth; ++x)
   {
     for (y = 0; y < gridHeight; ++y)
     {
-      set_grid(x, y, FLOOR_BUILDABLE);
+      set_grid(which_grid, x, y, FLOOR_BUILDABLE);
       if (x === 0 || x === gridWidth - 1 || y === 0 || y === gridHeight - 1)
       {
-        set_grid(x, y, PERMENANT_WALL);
+        set_grid(which_grid, x, y, PERMENANT_WALL);
       }
     }
   }
 }
 
-function set_grid(x, y, type)
+function set_grid(which_grid, x, y, type)
 {
   switch(type)
   {
     case FLOOR_EMPTY:
-      grid[x][y].grid_type = FLOOR_EMPTY;
-      grid[x][y].exist = false;
-      grid[x][y].permenant = true;
-      grid[x][y].unpassable = true;
+      which_grid[x][y].grid_type = FLOOR_EMPTY;
+      which_grid[x][y].exist = false;
+      which_grid[x][y].permenant = true;
+      which_grid[x][y].unpassable = true;
       break;
     case PERMENANT_WALL:
-      grid[x][y].grid_type = PERMENANT_WALL;
-      grid[x][y].exist = true;
-      grid[x][y].permenant = true;
-      grid[x][y].unpassable = true;
+      which_grid[x][y].grid_type = PERMENANT_WALL;
+      which_grid[x][y].exist = true;
+      which_grid[x][y].permenant = true;
+      which_grid[x][y].unpassable = true;
       break;
     case FLOOR_BUILDABLE:
-      grid[x][y].grid_type = FLOOR_BUILDABLE;
-      grid[x][y].exist = false;
-      grid[x][y].permenant = false;
-      grid[x][y].unpassable = false;
+      which_grid[x][y].grid_type = FLOOR_BUILDABLE;
+      which_grid[x][y].exist = false;
+      which_grid[x][y].permenant = false;
+      which_grid[x][y].unpassable = false;
       break;
     case DETECTOR_TILE:
-      grid[x][y].grid_type = DETECTOR_TILE;
-      grid[x][y].exist = false
-      grid[x][y].permenant = true;
-      grid[x][y].unpassable = false;
+      which_grid[x][y].grid_type = DETECTOR_TILE;
+      which_grid[x][y].exist = false
+      which_grid[x][y].permenant = true;
+      which_grid[x][y].unpassable = false;
       break;
 
   }
 }
 
-function clear_grid_spot(x, y)
+function clear_grid_spot(which_grid, x, y)
 {
-  grid[x][y].grid_type = FLOOR_EMPTY;
-  grid[x][y].permenant = false;
-  grid[x][y].unpassable = false;
-  grid[x][y].exist = false;
+  which_grid[x][y].grid_type = FLOOR_EMPTY;
+  which_grid[x][y].permenant = false;
+  which_grid[x][y].unpassable = false;
+  which_grid[x][y].exist = false;
 }
 
-//////// DRAWING 
-// DRAW gets called EVERY frame, this is the MAIN GAME LOOP
-function draw() {
-
-  if (display_editor)
-    drawUI();
-
+//////// STATES
+function do_game()
+{
+  let grid = current_level.grid;
   checkMouse();
   let mx = mouseX;
   let my = mouseY;
@@ -660,9 +833,9 @@ function draw() {
       all_active = false;
   }
 
-  draw_detectors();
+  draw_detectors(); // these eventually will take current_level as well?
 
-  draw_light_sources();
+  draw_light_sources(); // these eventually will take current_level as well?
 
   // draw cursor viz if mouse cursor isn't in a wall
   draw_mouse_illumination(mx, my);
@@ -708,63 +881,126 @@ function draw() {
   fill(font_color);
   text("Level: " + difficulty_level, 0, gridSize - 4);
 
+  if (saveFade > 0)
+  {
+    saveFade -= 0.1;
+    fill(255, saveFade * 255);
+    rect(0, 0, gameWidth, gameHeight);
+  }
+
   if (show_tutorial)
     tutorial();
 
 }
 
+function do_intro()
+{
+  blendMode(ADD);
+  let random_cols = [color(255, 0, 0), color(0, 255, 0), color(0, 0, 255)];
+  if (intro_timer < 2500)
+  {
+    intro_timer += deltaTime;
+    if (intro_timer < 2300)
+      fill(0);
+    else
+    {
+      fill(255);
+    }
+    rect(0, 0, width, height);
+    stroke(255, random(80));
+    let xrand = random(width);
+    let yrand = random(height - 100);
+    // line (xrand, yrand, xrand + random(10) - 5, yrand + random(200) + 80);
+    noStroke();
+    fill(random(random_cols), random(50));
+    textSize(72);
+    textAlign(CENTER, CENTER);
+    text("a tw game", 0, 0, width, height + (intro_timer * random(3, 7) % 800) - 400);
+    strokeWeight(2);
+    blendMode(MULTIPLY);
+    stroke(0);
+    fill(240);
+    text("a tw game", 0, 0, width, height);
+  }
+  else
+  {
+    blendMode(BLEND);
+    textAlign(LEFT, BASELINE);
+    game_state = STATE_NEW_RANDOM_GAME;
+  }
+}
+
+//////// DRAWING 
+// DRAW gets called EVERY frame, this is the MAIN GAME LOOP
+function draw() {
+  //if (game_state === STATE_GAME)
+  switch (game_state)
+  {
+    case STATE_NEW_RANDOM_GAME:
+      setup_random_game();
+      break;
+    case STATE_INTRO:
+      do_intro();
+      break;
+    case STATE_GAME:
+      do_game();
+      break;
+  }
+}
+
 function draw_walls_and_floors()
 {
+  let lvl = current_level;
   strokeWeight(1);
-  for (x = 0 ; x < gridWidth; ++x)
+  for (x = 0 ; x < lvl.xsize; ++x)
   {
-    for (y = 0; y < gridHeight; ++y)
+    for (y = 0; y < lvl.ysize; ++y)
     {
       let odd = ((x + y) % 2 === 0);
-      let p = (grid[x][y].permenant);
+      let p = (lvl.grid[x][y].permenant); // This should be programmed into the level
 
-      if (!grid[x][y].exist)  // EMPTY SPACES
+      if (!lvl.grid[x][y].exist)  // EMPTY SPACES
       {
 
-        if (grid[x][y].grid_type == FLOOR_EMPTY)
+        if (lvl.grid[x][y].grid_type == FLOOR_EMPTY)
         {
           stroke(25, 25, 25);
           fill(13, 13, 13);
           square(x * gridSize, y * gridSize, gridSize);
         }
 
-        else if (grid[x][y].grid_type == FLOOR_BUILDABLE)
+        else if (lvl.grid[x][y].grid_type == FLOOR_BUILDABLE)
         {
-          if (grid[x][y].fade > 0)
-            grid[x][y].fade -= 0.1;
+          if (lvl.grid[x][y].fade > 0)
+            lvl.grid[x][y].fade -= 0.1;
           stroke(empty_space_outline);
           // lerp between the empty fill color and the color of whatever
           // solid thing will be there
           fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
                           p ? solid_wall_permenant_fill : solid_wall_fill, 
-                          grid[x][y].fade));
+                          lvl.grid[x][y].fade));
+
           square(x * gridSize, y * gridSize, gridSize);
         }
-
       }
 
-      else if (grid[x][y].exist)  // SOLID WALLS
+      else if (lvl.grid[x][y].exist)  // SOLID WALLS
       {
-        if (grid[x][y].fade < 1)
-          grid[x][y].fade += 0.1;
+        if (lvl.grid[x][y].fade < 1)
+        lvl.grid[x][y].fade += 0.1;
         stroke(solid_wall_outline);
         // exact same thing as above!
         fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
                         p ? solid_wall_permenant_fill : solid_wall_fill, 
-                        grid[x][y].fade));
+                        lvl.grid[x][y].fade));
         square(x * gridSize , y * gridSize, gridSize);
       }
 
-      if (grid[x][y].grid_type == GLASS_WALL_TOGGLABLE || grid[x][y] == GLASS_WALL)
+      if (lvl.grid[x][y].grid_type == GLASS_WALL_TOGGLABLE || lvl.grid[x][y] == GLASS_WALL)
       {
         strokeWeight(2);
         stroke(170, 170, 170);
-        if (grid[x][y].permenant)
+        if (lvl.grid[x][y].permenant)
         {
           fill(170, 170, 170, 40);
         }
@@ -821,6 +1057,7 @@ function draw_light_sources()
 
 function draw_mouse_illumination(mx, my)
 {
+  let grid = current_level.grid;
   if (show_mouse_illumination)
   {
     let cursor_viz = get_visible_polygon(mx, my, 1);
@@ -867,14 +1104,137 @@ function drawUI()
   text("detector", 10, gameHeight + 110);
 }
 
+//////// LEVEL SAVE / LOAD
+function load_level(level_string)
+{
+  // create a new level
+  var level_string_index = 4;
+  let new_lvl = new level();
+
+  // read xsize
+  let xsize = level_string.substring(0, 2);
+  let ysize = level_string.substring(2, 4);
+  new_lvl.xsize = xsize;
+  new_lvl.ysize = ysize;
+  new_lvl.initialize_grid();
+
+  // read 1 char to switch random save vs editor save.
+  let read_mode = level_string.charAt(level_string_index++);
+  if (read_mode === "r")  // random mode
+  {
+    // read 2 char for current level
+    // switch game state to RANDOM_GAME
+    let cl = parseInt(level_string.substring(level_string_index, level_string_index + 2));
+    level_string_index += 2;
+    // cl is now the saved difficulty
+    difficulty_level = cl;
+  }
+  else if (read_mode === "e")
+  {
+
+  }
+
+  for (var x = 0; x < xsize; ++x)
+  {
+    for (var y = 0; y < ysize; ++y)
+    {
+      let cur_ch = level_string.charAt(level_string_index++);
+      //set_grid(new_lvl.grid, x, y, parseInt(cur_ch));
+      switch (parseInt(cur_ch))
+      {
+        case DETECTOR_TILE: set_grid(new_lvl.grid, x, y, DETECTOR_TILE); break;
+        case FLOOR_EMPTY: set_grid(new_lvl.grid, x, y, FLOOR_EMPTY); break;      
+        case FLOOR_BUILDABLE: set_grid(new_lvl.grid, x, y, FLOOR_BUILDABLE); break;     
+        case FLOOR_BUILT:
+          set_grid(new_lvl.grid, x, y, FLOOR_BUILDABLE); 
+          new_lvl.grid[x][y].exist = true;
+          break; 
+        case PERMENANT_WALL: set_grid(new_lvl.grid, x, y, PERMENANT_WALL); break;
+        case GLASS_WALL: set_grid(new_lvl.grid, x, y, GLASS_WALL); break;
+        case GLASS_WALL_TOGGLABLE: set_grid(new_lvl.grid, x, y, GLASS_WALL_TOGGLABLE); break;
+      }
+    }
+  }
+
+  let loaded_lights = [];
+  // next two char are number of light sources
+  let n_lights = level_string.substring(level_string_index, level_string_index + 2);
+  level_string_index += 2;
+  for (var light_i = 0; light_i < n_lights; ++light_i)
+  {
+    // read two chars x pos
+    let lx = parseInt(level_string.substring(level_string_index, level_string_index + 2));
+    level_string_index += 2;
+    // read two chars y pos
+    let ly = parseInt(level_string.substring(level_string_index, level_string_index + 2));
+    level_string_index += 2;
+    // read one char light color
+    let lc = parseInt(level_string.charAt(level_string_index++));
+    let la = level_string.charAt(level_string_index++);
+    // read one char active
+    let light_col = detector_colors[lc];
+    let new_light = new light_source(lx, ly, la == "1", red(light_col), green(light_col), blue(light_col));
+    loaded_lights.push(new_light);
+  }
+
+  let loaded_detectors = [];
+  let n_d = level_string.substring(level_string_index, level_string_index + 2);
+  level_string_index += 2;
+  for (var d_i = 0; d_i < n_d; ++d_i)
+  {
+    // read two chars x pos
+    let dx = parseInt(level_string.substring(level_string_index, level_string_index + 2));
+    level_string_index += 2;
+
+    // read two chars y pos
+    let dy = parseInt(level_string.substring(level_string_index, level_string_index + 2));
+    level_string_index += 2;
+     
+    // read one char light colors
+    let dc = parseInt(level_string.charAt(level_string_index++));
+
+    // read one char active
+    let detector_col = detector_colors[dc];
+    let new_detector = new detector(dx, dy, red(detector_col), green(detector_col), blue(detector_col));
+    loaded_detectors.push(new_detector);
+  }
+
+  detectors = loaded_detectors;
+  lightsources = loaded_lights;
+  current_level = new_lvl;
+  make_edges();
+}
+
+//////// LEVEL EDIT
+
 //////// RANDOM GAME MODE
+function setup_random_game()
+{
+  init_light_sources();
+  // check if we have a saved game
+  let save = getItem("savedgame");
+  if (!save)
+    random_level();
+  else
+    load_level(save);
+  game_state = STATE_GAME;
+}
+
 function random_level()
 {
-  initializeGrid();
+  let new_random_level = new level();
+  new_random_level.xsize = gridWidth;
+  new_random_level.ysize = gridHeight;
+  new_random_level.initialize_grid();
+
+  initializeGrid(new_random_level.grid);
   turn_lights_off();
-  init_random_detectors(difficulty_to_detector_amount());
-  make_some_floor_unbuildable(difficulty_to_shrink_amount());
+  init_random_detectors(new_random_level, difficulty_to_detector_amount());
+  make_some_floor_unbuildable(new_random_level.grid, difficulty_to_shrink_amount());
   shrink_lights();
+  current_level = new_random_level;
+  // save current level
+  current_level.save_level(lightsources, detectors);
   make_edges();
 }
 
@@ -891,13 +1251,11 @@ function init_light_sources()
   lightsources.push(source);
 }
 
-function init_random_detectors(num_detectors)
+function init_random_detectors(lvl, num_detectors)
 {
   // initialize a randomized array of detectors
-  // detectors
   detectors = []
 
-  // we could raise the difficulty by adding more checkers
   for (i = 0 ; i < num_detectors; ++ i)
   {
     let col_val = [0, 255];
@@ -910,19 +1268,51 @@ function init_random_detectors(num_detectors)
       g = 255;
       b = 255;
     }
-    let xp = int(random(2, gridWidth - 2));
-    let yp = int(random(2, gridHeight - 2));
-    let gtype = grid[xp][yp].grid_type;
-    while (gtype != FLOOR_EMPTY && gtype != FLOOR_BUILDABLE)
+
+    let xp;
+    let yp;
+    let gtype;
+
+    // only allow to pop-up on empty or buildable floor
+    while (true)
     {
-      xp = int(random(2, gridWidth - 2));
-      yp = int(random(2, gridHeight - 2));
-      gtype = grid[xp][yp].grid_type;
+
+      xp = int(random(2, lvl.xsize - 2));
+      yp = int(random(2, lvl.ysize - 2));
+      gtype = lvl.grid[xp][yp].grid_type;
+      // Don't let us pop-up on lightsources as well, since it is
+      // hard to notice
+      for (let l of lightsources)
+      {
+        if (l.x == xp && l.y == yp)
+        {
+          gtype = -1;
+          break;
+        }
+      }
+      // Don't pop up next to detectors that are already on the
+      // ground
+      for (xoff = - 1; xoff <= 1; ++xoff)
+      {
+        for (yoff = -1; yoff <= 1; ++yoff)
+        {
+          if (xoff === 0 && yoff === 0)
+            continue;
+          if (lvl.grid[xp + xoff][yp + yoff].grid_type == DETECTOR_TILE)
+          {
+            gtype = -1;
+            break;
+          }
+        }
+      }
+
+      if (gtype == FLOOR_EMPTY || gtype == FLOOR_BUILDABLE) // places we can build
+        break;
     }
-    // TODO: If this chosen spot is a detector or a lightsource,
-    // reject this position and try again
+
     let d = new detector(xp, yp, r, g, b);
     detectors.push(d);
+    set_grid(lvl.grid, xp, yp, DETECTOR_TILE);
   }
 }
 
@@ -933,7 +1323,7 @@ function difficulty_to_detector_amount()
   if (difficulty_level <= 3)
     return difficulty_level;
   if (difficulty_level <= 6)
-    return difficulty_level - 2;
+    return difficulty_level - 1;
   if (difficulty_level <= 9)
     return difficulty_level - 3;
   return int(2 + difficulty_level / 2);
@@ -949,7 +1339,9 @@ function difficulty_to_shrink_amount()
     return 3;
   if (difficulty_level <= 15)
     return 4;
-  return 5;
+  if (difficulty_level <= 20)
+    return 5;
+  return 6;
 }
 
 function shrink_lights()
@@ -969,7 +1361,7 @@ function shrink_lights()
   }
 }
 
-function make_some_floor_unbuildable(shrink_amount)
+function make_some_floor_unbuildable(which_grid, shrink_amount)
 {
   // bring in some floor from the outside
   for (x = 1 ; x < gridWidth - 1; ++x)
@@ -978,7 +1370,7 @@ function make_some_floor_unbuildable(shrink_amount)
     {
       if (x < shrink_amount || gridWidth - 1 < x + shrink_amount || y < shrink_amount || gridHeight - 1 < y + shrink_amount)
       {
-        set_grid(x, y, FLOOR_EMPTY);
+        set_grid(which_grid, x, y, FLOOR_EMPTY);
       }
     }
   }
@@ -987,6 +1379,7 @@ function make_some_floor_unbuildable(shrink_amount)
 //////// EDGE ALG
 function make_edges()
 {
+  let grid = current_level.grid;
   edges = [];
   // clear edges
   for (x = 0; x < gridWidth; ++x)
@@ -1194,11 +1587,8 @@ function turn_lights_off()
 //////// OTHER
 function resetStuff()
 {
-  initializeGrid();
+  initializeGrid(current_level.grid);
   turn_lights_off();
-  //init_random_detectors(difficulty_to_detector_amount());
-  make_some_floor_unbuildable(difficulty_to_shrink_amount());
-  shrink_lights();
   make_edges();
 }
 
@@ -1209,6 +1599,12 @@ function tutorial()
   let over_btn = false;
   if ((width / 2) - 30 < mx && mx < (width / 2) + 10 && 380 <= my && my <= 420)
     over_btn = true;
+
+  // shadow
+  noStroke();
+  fill (0, 70);
+  rect(gridSize * 2 + GRID_HALF, gridSize * 2 + GRID_HALF, width - gridSize * 4, height - gridSize * 4);
+
 
   stroke(190, 190, 190);
   fill (35);
@@ -1221,7 +1617,8 @@ function tutorial()
   let s = "Tutorial\n" +
    "Use left click to make walls, right click to remove walls.\n" +
     "Drag lights with left mouse, switch with right.\n"+
-    "Get all detectors lit up the correct color to proceed.";
+    "Get all detectors lit up the correct color to proceed.\n"+
+    "Press S to save current game, L to reload a saved game.\n";
   strokeWeight(1);
   fill(180);
   stroke(130);
@@ -1242,11 +1639,10 @@ function tutorial()
     fill(0, 0, 0);
   }
   stroke(130);
-  strokeWeight(1);
+  strokeWeight(2);
   text("OK", (width / 2) - 10, 400);
 
   textAlign(LEFT, BASELINE);
-  // TODO: Don't send extra click up!
   if (mouseIsPressed && over_btn)
   {
     show_tutorial = false;
