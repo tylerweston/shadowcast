@@ -1,8 +1,6 @@
 /*
 ONLY draw the walls that the light makes visible
 
-- make player click through to next puzzle!
-  - Once they've solved a puzzle, let them look at it a bit! Bask in the glory!
 - editor
 - tiles: glass unfillable, glass fillable
 - high scores
@@ -39,6 +37,8 @@ let gridSize = 30;
 let globalFade = 0;
 let saveFade = 0;
 
+let highest_score_changed = 0;
+
 const GRID_HALF = gridSize / 2;
 const GRID_THIRD = gridSize / 3;
 
@@ -57,7 +57,7 @@ let highest_score;
 
 let display_editor = false;
 
-let show_intro = false;
+let show_intro = true;
 let show_tutorial = false;
 let show_menu = false;
 let waiting_for_tutorial_unclick = false;
@@ -587,8 +587,6 @@ function setup() {
   createCanvas(gameWidth, gameHeight);
   initialize_colors();
 
-  storeItem("savedgame", null);
-
   if (show_intro)
     game_state = STATE_INTRO;
   else
@@ -598,8 +596,8 @@ function setup() {
 
 function initialize_colors() {
   solid_wall_fill = color(145, 145, 145);
-  solid_wall_permenant_fill = color(180, 180, 180);
-  solid_wall_outline = color(160, 160, 160);
+  solid_wall_permenant_fill = color(150, 150, 150);
+  solid_wall_outline = color(120, 120, 120);
 
   empty_space_fill = color(33, 33, 33);
   empty_space_2_fill = color(37, 37, 37);
@@ -797,6 +795,8 @@ function keyPressed() {
     current_level.save_level(lightsources, detectors);
   } else if (key === 'l') {
     load_level(getItem("savedgame"));
+  } else if (key === 'q') {
+    storeItem("high_random_score", null);
   }
 }
 
@@ -974,6 +974,13 @@ function do_game()
   textSize(gridSize - 2);
   fill(font_color);
   text("level: " + difficulty_level, 0 + GRID_HALF, gridSize - 4);
+
+  if (highest_score_changed > 0)
+  {
+    fill(lerpColor(font_color, color(255, 255, 255), highest_score_changed));
+    highest_score_changed -= deltaTime / 5000;
+  }
+
   text("high score: " + highest_score, 0 + GRID_HALF, gridHeight * gridSize - 4);
 
   if (mouse_over_menu)
@@ -1405,11 +1412,11 @@ function setup_random_game()
   difficulty_level = 1;
   init_light_sources();
   // check if we have a saved game
-  let save = getItem("savedgame");
-  if (!save)
+  let saved_g = getItem("savedgame");
+  if (!saved_g)
     random_level();
   else
-    load_level(save);
+    load_level(saved_g);
   highest_score = getItem("high_random_score")
   if (highest_score == null)
     highest_score = 0;
@@ -1438,6 +1445,7 @@ function random_level()
   {
     storeItem("high_random_score", difficulty_level);
     highest_score = difficulty_level;
+    highest_score_changed = 1;
   }
 }
 
@@ -1577,9 +1585,12 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
       }
     }
   }
-  for (i = 0; i < difficulty_level; ++i)
+  if (difficulty_level > 5)
   {
-    set_grid(which_grid, int(random(1, gridWidth - 2)), int(random(1, gridHeight - 2)), FLOOR_EMPTY);
+    for (i = 0; i < difficulty_level - 3; ++i)
+    {
+      set_grid(which_grid, int(random(1, gridWidth - 2)), int(random(1, gridHeight - 2)), FLOOR_EMPTY);
+    }
   }
 }
 
