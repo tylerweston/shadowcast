@@ -1021,7 +1021,7 @@ function do_game()
     new_total_fade -= deltaTime / 1500;
     strokeWeight(1);
     stroke(37);
-    fill(92);
+    fill(font_color);
     let xfadepos = ((highest_score_display_timer > 0) ? 5 : 4);
     if (highest_score_display_timer > 0)
       xfadepos += String(highest_score).length;
@@ -1032,7 +1032,7 @@ function do_game()
   }
 
 
-
+  fill(font_color);
   if (mouse_over_menu)
     fill(255);
   
