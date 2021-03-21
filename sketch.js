@@ -38,6 +38,7 @@ let globalFade = 0;
 let saveFade = 0;
 
 let highest_score_changed = 0;
+let highest_score_display_timer = 0;
 
 const GRID_HALF = gridSize / 2;
 const GRID_THIRD = gridSize / 3;
@@ -54,6 +55,10 @@ let current_level = undefined;  // The currently loaded level, there can be only
 let difficulty_level = 1;
 let all_detectors_active = false; // this is for random games
 let highest_score;
+
+let new_total;
+let new_total_fade;
+let new_scoring_system = 0;
 
 let display_editor = false;
 
@@ -200,6 +205,18 @@ class level
     // mode, then this will be different!!
     level_string += "r";
     level_string += (difficulty_level < 10 ? "0": "") + String(difficulty_level);
+
+    let new_score_string = "";
+    if (new_scoring_system < 10)
+      new_score_string = "   " + String(new_scoring_system);
+    else if (new_scoring_system < 100)
+      new_score_string = "  " + String(new_scoring_system);
+    else if (new_scoring_system < 1000)
+      new_score_string = " " + String(new_scoring_system);
+    else if (new_scoring_system < 10000)
+      new_score_string = String(new_score_string);
+    
+    level_string += new_score_string;
 
 
     let cur_char = "";
@@ -981,7 +998,40 @@ function do_game()
     highest_score_changed -= deltaTime / 5000;
   }
 
-  text("high score: " + highest_score, 0 + GRID_HALF, gridHeight * gridSize - 4);
+  // bottom left will either say your CURRENT SCORE
+  // the HIGH SCORE
+  // or display the points you JUST GOT
+
+  // new_total = difficulty_level + detectors.length - count_walls_used(current_level);
+  // new_total_fade = 1;
+
+
+  if (highest_score_display_timer > 0)
+  {
+    highest_score_display_timer -= deltaTime / 1000;
+    text("high score: " + highest_score, 0 + GRID_HALF, gridHeight * gridSize - 4);
+  }
+  else
+  {
+    text("score: " + new_scoring_system, 0 + GRID_HALF, gridHeight * gridSize - 4);
+  }
+
+  if (new_total_fade > 0)
+  {
+    new_total_fade -= deltaTime / 1500;
+    strokeWeight(1);
+    stroke(37);
+    fill(92);
+    let xfadepos = ((highest_score_display_timer > 0) ? 5 : 4);
+    if (highest_score_display_timer > 0)
+      xfadepos += String(highest_score).length;
+    else
+      xfadepos += String(new_scoring_system).length;
+    xfadepos *= gridSize;
+    text("+" + new_total, xfadepos, gridHeight * gridSize - 4 + (new_total_fade * 10));
+  }
+
+
 
   if (mouse_over_menu)
     fill(255);
@@ -1065,11 +1115,29 @@ function do_level_transition_out()
   rect(0, 0, gameWidth, gameHeight);
   if (globalFade >= 1)
   {
+    // count our score here
+    new_total = difficulty_level + detectors.length - count_walls_used(current_level);
+    new_total_fade = 1;
+    new_scoring_system += new_total > 0 ? new_total : 0;
     ++difficulty_level;
     random_level();
     make_edges();
     game_state = STATE_RANDOM_LEVEL_TRANSITION_IN
   }
+}
+
+function count_walls_used(lvl)
+{
+  let total_seen = 0;
+  for (let x = 0; x < lvl.xsize; ++x)
+  {
+    for (let y = 0; y < lvl.ysize; ++y)
+    {
+      if (lvl.grid[x][y].exists)
+        ++total_seen;
+    }
+  }
+  return total_seen;
 }
 
 function do_level_transition_in()
@@ -1314,6 +1382,9 @@ function load_level(level_string)
     level_string_index += 2;
     // cl is now the saved difficulty
     difficulty_level = cl;
+    let current_new_score = parseInt(level_string.substring(level_string_index, level_string_index + 4));
+    level_string_index += 4;
+    new_scoring_system = current_new_score;
   }
   else if (read_mode === "e")
   {
@@ -1410,6 +1481,7 @@ function load_level(level_string)
 function setup_random_game()
 {
   difficulty_level = 1;
+  new_scoring_system = 0;
   init_light_sources();
   // check if we have a saved game
   let saved_g = getItem("savedgame");
@@ -1420,6 +1492,7 @@ function setup_random_game()
   highest_score = getItem("high_random_score")
   if (highest_score == null)
     highest_score = 0;
+  highest_score_display_timer = 5;
   game_state = STATE_GAME;
 }
 
@@ -1441,11 +1514,12 @@ function random_level()
   make_edges();
   // check if we're a high score, if we are, store us
   let high_score = getItem("high_random_score");
-  if (high_score == null || high_score < difficulty_level)
+  if (high_score == null || high_score < new_scoring_system)
   {
-    storeItem("high_random_score", difficulty_level);
-    highest_score = difficulty_level;
+    storeItem("high_random_score", new_scoring_system);
+    highest_score = new_scoring_system;
     highest_score_changed = 1;
+    highest_score_display_timer = 10;
   }
 }
 
@@ -1829,7 +1903,7 @@ function tutorial()
   waiting_for_tutorial_unclick = true;
   let mx = mouseX, my = mouseY;
   let over_btn = false;
-  if ((width / 2) - 30 < mx && mx < (width / 2) + 10 && 380 <= my && my <= 420)
+  if ((width / 2) - 30 < mx && mx < (width / 2) + 10 && 460 <= my && my <= 500)
     over_btn = true;
 
   // shadow
@@ -1850,7 +1924,8 @@ function tutorial()
    "Use left click to make walls, right click to remove walls.\n" +
     "Drag lights with left mouse, switch with right.\n"+
     "Detectors are colored circles. Match colors to fill them.\n"+
-    "Fill all the detectors to advance.";
+    "Fill all the detectors to advance.\n" +
+    "Less walls means higher score.";
   strokeWeight(1);
   fill(180);
   stroke(130);
@@ -1862,7 +1937,7 @@ function tutorial()
   {
     noStroke();
     fill(255, 20);
-    ellipse((width / 2) - 10, 400, 60, 60);
+    ellipse((width / 2) - 10, 480, 60, 60);
 
     fill(255, 255, 255);
   }
@@ -1872,7 +1947,7 @@ function tutorial()
   }
   stroke(130);
   strokeWeight(2);
-  text("OK", (width / 2) - 10, 400);
+  text("OK", (width / 2) - 10, 480);
 
   textAlign(LEFT, BASELINE);
   if (mouseIsPressed && over_btn)
