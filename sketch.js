@@ -62,6 +62,9 @@ let show_tutorial = false;
 let show_menu = false;
 let waiting_for_tutorial_unclick = false;
 
+let next_level_available = false;
+let over_next_level = false;
+
 // Mouse state stuff
 let oldx, oldy;
 const MOUSE_STATE_NORMAL = 0;
@@ -71,7 +74,7 @@ let mouse_state = MOUSE_STATE_NORMAL;
 let selected_light = undefined;
 let dragged_light = undefined;
 let already_clicked = false;
-let show_mouse_illumination = true;
+let show_mouse_illumination = false;
 let mouse_over_menu = false;
 
 // Constants to help with edge detection
@@ -81,7 +84,7 @@ const EAST = 2;
 const WEST = 3; 
 
 // menu options
-const main_menu_options = ["save", "load", "reset grid", "reset game", "editor", "tutorial", "about"];
+const main_menu_options = ["save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"];
 let main_menu_selected = undefined;
 let menu_height = main_menu_options.length + 1;
 
@@ -141,6 +144,8 @@ const STATE_EDITOR = 3;
 const STATE_OPTIONS = 4;
 const STATE_ABOUT = 5;
 const STATE_NEW_RANDOM_GAME = 7;
+const STATE_RANDOM_LEVEL_TRANSITION_OUT = 8;
+const STATE_RANDOM_LEVEL_TRANSITION_IN = 9;
 
 let game_state = STATE_SETUP;
 
@@ -149,6 +154,7 @@ const GAMEMODE_RANDOM = 0;
 const GAMEMODE_LEVELS = 1;
 
 let intro_timer = 0;
+let next_button_bob_timer = 0;
 
 //////// CLASSES
 class level
@@ -623,7 +629,7 @@ function initialize_colors() {
 
 function handle_menu_selection()
 {
-  // "save", "load", "reset grid", "reset game", "editor", "about"
+  // "save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"
   switch (main_menu_selected)
   {
     case 0:
@@ -650,6 +656,9 @@ function handle_menu_selection()
       show_tutorial = true;
       break;
     case 6:
+      // options
+      break;
+    case 7:
       // about
       break;
   }
@@ -673,6 +682,12 @@ function checkMouse()
   {
     already_clicked = true;
     handle_menu_selection();
+  }
+
+  if (mouseIsPressed && over_next_level && next_level_available && !already_clicked)
+  {
+    already_clicked = true;
+    game_state = STATE_RANDOM_LEVEL_TRANSITION_OUT;
   }
 
   if (mouseIsPressed && mouse_over_menu && !already_clicked)
@@ -908,6 +923,12 @@ function do_game()
     }
   }
 
+  if (mouse_updated && next_level_available)
+  {
+    // check if we're in the lower right hand
+    over_next_level = ((gridWidth - 3) * gridSize <= mx && my >= (gridHeight - 1) * gridSize);
+  }
+
   // draw base grid (walls + floors)
   draw_walls_and_floors();
 
@@ -926,6 +947,7 @@ function do_game()
     if(!d.correct)
       all_active = false;
   }
+  next_level_available = all_active;
 
   draw_detectors(); // these eventually will take current_level as well?
 
@@ -946,40 +968,31 @@ function do_game()
     }
   }
 
-  // FADING IN/OUT STATE STUFF
-  if (all_active)
-  {
-    if (globalFade < 1)
-    {
-      globalFade += 0.01;
-    }
-    fill(48, 48, 48, globalFade * 255);
-    rect(0, 0, gameWidth, gameHeight);
-    if (globalFade >= 1)
-    {
-      ++difficulty_level;
-      random_level();
-      make_edges();
-    }
-  }
 
-  if (!all_active && globalFade > 0)
-  {
-    globalFade -= 0.01;
-    fill(48, 48, 48, globalFade * 255);
-    rect(0, 0, gameWidth, gameHeight);
-  }
 
   // Render any text that we have to
   textSize(gridSize - 2);
   fill(font_color);
-  text("level: " + difficulty_level, 0, gridSize - 4);
-  text("high score: " + highest_score, 0, gridHeight * gridSize - 4);
+  text("level: " + difficulty_level, 0 + GRID_HALF, gridSize - 4);
+  text("high score: " + highest_score, 0 + GRID_HALF, gridHeight * gridSize - 4);
 
   if (mouse_over_menu)
     fill(255);
   
-  text("menu", gridWidth * gridSize - (gridSize * 3), gridSize - 4);
+  text("menu", (gridWidth - 3) * gridSize, gridSize - 4);
+
+  if (next_level_available)
+  {
+    next_button_bob_timer += (deltaTime / 100);
+    if (next_button_bob_timer > TWO_PI)
+      next_button_bob_timer = 0;
+
+    if (over_next_level)
+      fill(255)
+    else
+      fill(font_color);
+    text("next", (gridWidth - 3) * gridSize, gridHeight * gridSize - 4 - sin(next_button_bob_timer));
+  }
 
   if (saveFade > 0)
   {
@@ -1033,6 +1046,37 @@ function do_intro()
   }
 }
 
+function do_level_transition_out()
+{
+  // FADING IN/OUT STATE STUFF
+  // global fade should start at 0
+  if (globalFade < 1)
+  {
+    globalFade += 0.5;
+  }
+  fill(48, 48, 48, globalFade * 255);
+  rect(0, 0, gameWidth, gameHeight);
+  if (globalFade >= 1)
+  {
+    ++difficulty_level;
+    random_level();
+    make_edges();
+    game_state = STATE_RANDOM_LEVEL_TRANSITION_IN
+  }
+}
+
+function do_level_transition_in()
+{
+  globalFade -= 0.5;
+  fill(48, 48, 48, globalFade * 255);
+  rect(0, 0, gameWidth, gameHeight);
+  if (globalFade < 0)
+  {
+    game_state = STATE_GAME;
+  }
+
+}
+
 //////// DRAWING 
 // DRAW gets called EVERY frame, this is the MAIN GAME LOOP
 function draw() {
@@ -1047,6 +1091,12 @@ function draw() {
       break;
     case STATE_GAME:
       do_game();
+      break;
+    case STATE_RANDOM_LEVEL_TRANSITION_OUT:
+      do_level_transition_out();
+      break;
+    case STATE_RANDOM_LEVEL_TRANSITION_IN:
+      do_level_transition_in();
       break;
   }
 }
@@ -1068,7 +1118,7 @@ function draw_menu()
       fill(253);
     else
       fill(157);
-    if (i === 1 || i === 4)
+    if (i === 1 || i === 4 || i == 6 || i == 7)
       fill(28);
     text(m, (gridWidth - 7) * gridSize, (i + 1) * gridSize );
     ++i;
