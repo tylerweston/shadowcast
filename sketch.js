@@ -1,10 +1,14 @@
 /*
 ONLY draw the walls that the light makes visible
 
+- why doesn't the game work with different dimensions?
+  - THIS has to do with the autoloading! We need a way to resize
+    the grid if a loaded game is of a different size, then we'll
+    center the 
+- difficulty balance in progression
 - editor
 - tiles: glass unfillable, glass fillable
-- high scores
-  - reset high score
+- speed mode
 - encapsulate state in a better way
   - right now it is kind of spread out and a bit icky how it is all implemented
   - collect and fix that stuff up
@@ -23,10 +27,11 @@ ONLY draw the walls that the light makes visible
 - give editor "LOAD" and "PLAY" functions, so individual levels will be used in there?
 - fix allowing tiles to be made on detectors!
 - don't allow holes to spawn on lights?
+- allow option to reset high score somewhere
 */
 
 // global variables
-let grid = [];
+
 let edges = [];
 
 let lightsources = [];
@@ -47,8 +52,8 @@ const gameHeight = 600;
 const gameWidth = 900;
 const uiHeight = 200;
 
-const gridWidth = gameWidth / gridSize;
-const gridHeight = gameHeight / gridSize;
+let gridWidth = gameWidth / gridSize;
+let gridHeight = gameHeight / gridSize;
 
 
 let current_level = undefined;  // The currently loaded level, there can be only one!
@@ -59,9 +64,11 @@ let highest_score;
 let new_total;
 let new_total_fade;
 let new_scoring_system = 0;
+let points_for_current_grid = 0;
 
+// this stuff should all be refactored into state machine stuff
 let display_editor = false;
-
+let editor_available = false;
 let show_intro = true;
 let show_tutorial = false;
 let show_menu = false;
@@ -70,11 +77,19 @@ let waiting_for_tutorial_unclick = false;
 let next_level_available = false;
 let over_next_level = false;
 
-// Mouse state stuff
+// Mouse state stuff  // This needs to GO, needs to get out of globals
 let oldx, oldy;
 const MOUSE_STATE_NORMAL = 0;
 const MOUSE_STATE_DRAG = 1;
 const MOUSE_STATE_DROPPED_DRAG = 2;
+
+const MOUSE_EVENT_OVER = 0;
+const MOUSE_EVENT_CLICK = 1;
+const MOUSE_EVENT_DRAG = 2;
+const MOUSE_EVENT_UNCLICK = 3;
+const MOUSE_EVENT_ENTER_REGION = 4;
+const MOUSE_EVENT_EXIT_REGION = 5;
+
 let mouse_state = MOUSE_STATE_NORMAL;
 let selected_light = undefined;
 let dragged_light = undefined;
@@ -143,18 +158,20 @@ const DETECTOR_TILE = 5;
 const STATE_SETUP = -1;
 const STATE_INTRO = 0;
 const STATE_MENU_LOADED = 1;
-const STATE_LOADLEVEL = 6;
 const STATE_GAME = 2;
+const STATE_SETUP_EDITOR = 10;
 const STATE_EDITOR = 3;
 const STATE_OPTIONS = 4;
 const STATE_ABOUT = 5;
+const STATE_LOADLEVEL = 6;
 const STATE_NEW_RANDOM_GAME = 7;
 const STATE_RANDOM_LEVEL_TRANSITION_OUT = 8;
 const STATE_RANDOM_LEVEL_TRANSITION_IN = 9;
 
+
 let game_state = STATE_SETUP;
 
-// play mode
+// play mode  // will this be rolled into state machine stuff??
 const GAMEMODE_RANDOM = 0;
 const GAMEMODE_LEVELS = 1;
 
@@ -162,6 +179,54 @@ let intro_timer = 0;
 let next_button_bob_timer = 0;
 
 //////// CLASSES
+class mouse_region
+{
+  constructor(x1, y1, x2, y2)
+  {
+    this.x1 = x1;
+    this.y1 = y1;
+    this.x2 = x2;
+    this.y2 = y2;
+  }
+}
+
+class mouse_handler
+{
+  constructor()
+  {
+    // nothing to do here
+    this.callback_map = {};
+    this.callback_map[MOUSE_EVENT_OVER] = [];
+    this.callback_map[MOUSE_EVENT_CLICK] = [];
+    this.callback_map[MOUSE_EVENT_DRAG] = [];
+    this.callback_map[MOUSE_EVENT_UNCLICK] = [];
+    this.callback_map[MOUSE_EVENT_ENTER_REGION] = [];
+    this.callback_map[MOUSE_EVENT_EXIT_REGION] = [];
+
+    this.clicked = mouseIsPressed;  // just in case the mouse is being held down when game is started? test this
+  }
+
+  handle()
+  {
+    // check 
+  }
+
+  register_event(region_name, mouse_region, mouse_event, callback)
+  {
+    // register 
+  }
+
+  remove_events(region_name)
+  {
+    // remove all events for region_name
+  }
+
+  remove_event(region_name, mouse_event)
+  {
+    // remove a single event for region_name
+  }
+}
+
 class level
 {
   constructor()
@@ -475,7 +540,7 @@ class light_source
 
     // This might not be the best way to do this but it could work for now?!
     this.c = color(r, g, b);
-    this.shadow_color = color(r, g, b, 105);
+    this.shadow_color = color(r, g, b, 55);
 
     this.dark_light = color(r / 2.5, g / 2.5, b / 2.5, 70);
     this.med_light = color(r / 2, g / 2, b / 2, 90);
@@ -601,8 +666,12 @@ class viz_poly_point
 
 //////// MAIN GAME
 function setup() {
+  // setup is called once at the start of the game
   createCanvas(gameWidth, gameHeight);
   initialize_colors();
+
+  // uncomment this to nuke bad saved game
+  // storeItem("savedgame", null);
 
   if (show_intro)
     game_state = STATE_INTRO;
@@ -612,8 +681,8 @@ function setup() {
 }
 
 function initialize_colors() {
-  solid_wall_fill = color(145, 145, 145);
-  solid_wall_permenant_fill = color(150, 150, 150);
+  solid_wall_fill = color(160, 160, 170);
+  solid_wall_permenant_fill = color(200, 200, 210);
   solid_wall_outline = color(120, 120, 120);
 
   empty_space_fill = color(33, 33, 33);
@@ -665,6 +734,8 @@ function handle_menu_selection()
       break;
     case 4:
       // editor
+      if (editor_available)
+        game_state = STATE_SETUP_EDITOR;
       break;
     case 5:
       // tutorial
@@ -688,27 +759,27 @@ function checkMouse()
   if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height)  // screen bound checks
     return;
 
-  // switch (game_state)
-  // {
-  //   case STATE_GAME:
-  // }
-
-  if (mouseIsPressed && show_menu && !already_clicked && (main_menu_selected != undefined))
+  if (mouseIsPressed && !already_clicked)
   {
-    already_clicked = true;
-    handle_menu_selection();
-  }
+    // we're a single click somewhere new!
+    if (show_menu && (main_menu_selected != undefined))
+    {
+      already_clicked = true;
+      handle_menu_selection();
+    }
 
-  if (mouseIsPressed && over_next_level && next_level_available && !already_clicked)
-  {
-    already_clicked = true;
-    game_state = STATE_RANDOM_LEVEL_TRANSITION_OUT;
-  }
+    if (over_next_level && next_level_available)
+    {
+      // we're clicking 
+      already_clicked = true;
+      game_state = STATE_RANDOM_LEVEL_TRANSITION_OUT;
+    }
 
-  if (mouseIsPressed && mouse_over_menu && !already_clicked)
-  {
-    already_clicked = true;
-    show_menu = true;
+    if (mouse_over_menu)
+    {
+      already_clicked = true;
+      show_menu = true;
+    }
   }
 
   // TODO: clean up spaghetti mouse code
@@ -721,7 +792,11 @@ function checkMouse()
     // this can be outside our canvas, ignore clicks outside the canvas
     let targetX = int(mouseX / gridSize);
     let targetY = int(mouseY / gridSize);
-    // TODO: These come from level
+
+    let old_light_x, old_light_y;
+    
+    let has_moved_light = false;
+
     if (targetX <= 0 || targetY <= 0 || targetX >= current_level.xsize - 1 || targetY >= current_level.ysize - 1)
       return;
 
@@ -733,11 +808,15 @@ function checkMouse()
       {
         if (mouseButton === LEFT)
         {
+          has_moved_light = false;
           mouse_state = MOUSE_STATE_DRAG;
           dragged_light = selected_light;
+          old_light_x = targetX;
+          old_light_y = targetY;
         }
         else
         {
+          // right click
           lightsources[selected_light].active = !lightsources[selected_light].active;
         }
       }
@@ -751,6 +830,7 @@ function checkMouse()
         // clear a grid
         if (!grid[targetX][targetY].permenant)
           grid[targetX][targetY].exist = 0;
+          points_for_current_grid = count_score();
       }
       else if (mouseButton === LEFT)
       {
@@ -759,6 +839,7 @@ function checkMouse()
         {
           grid[targetX][targetY].exist = 1;
           grid[targetX][targetY].fade = 0;
+          points_for_current_grid = count_score();
         }
       }
       make_edges();
@@ -771,30 +852,44 @@ function checkMouse()
 
       // This will need to be a bit more complicated since rn with a fast enough
       // mouse swipe you can go through walls
-      if (!grid[targetX][targetY].exist && !grid[targetX][targetY].unpassable)
+      if (!grid[targetX][targetY].exist && !grid[targetX][targetY].unpassable && grid[targetX][targetY].grid_type != DETECTOR_TILE)
       {
-        lightsources[dragged_light].x = targetX;
-        lightsources[dragged_light].y = targetY;
+        if (targetX != old_light_x || targetY != old_light_y)
+        {
+          lightsources[dragged_light].x = targetX;
+          lightsources[dragged_light].y = targetY;
+          has_moved_light = true;
+          old_light_x = targetX;
+          old_light_y = targetY;
+        }
       }
       else
       {
-        dragged_light = undefined;
         mouse_state = MOUSE_STATE_DROPPED_DRAG;
       }
     }
-    else
+    else if  (mouse_state == MOUSE_STATE_DROPPED_DRAG)
     {
       // do nothing?
       // we were dragging something but now we've dropped it
       // don't accept wall drawing or dragging input until another
       // mouse click
+      // if we didn't move the light at all, activate it
+      // console.log("In dragged drop state");
+      // console.log("Has moved light: " + has_moved_light);
+      // if (!has_moved_light)
+      //   dragged_light.active = !dragged_light.active;
+      // dragged_light = undefined;
     }
   }
   else
   {
     already_clicked = false;
     dragged_light = undefined;
-    mouse_state = MOUSE_STATE_NORMAL;
+    if (mouse_state == MOUSE_STATE_DRAG)
+      mouse_state = MOUSE_STATE_DROPPED_DRAG;
+    else
+      mouse_state = MOUSE_STATE_NORMAL;
   }
 }
 
@@ -812,10 +907,15 @@ function keyPressed() {
     current_level.save_level(lightsources, detectors);
   } else if (key === 'l') {
     load_level(getItem("savedgame"));
-  } else if (key === 'q') {
+  } 
+  else if (key === 'q') {
     storeItem("high_random_score", null);
   }
+  
+
 }
+
+//////// MOUSE HANDLING
 
 //////// MAP
 function initializeGrid(which_grid)
@@ -885,8 +985,6 @@ function do_game()
 
   if (oldx != mx || oldy != my)
   {
-    // get_visible_polygon(mx, my, 10);
-    // remove_duplicate_viz_points();
     oldx = mx, oldy = my;
     mouse_updated = true;
   }
@@ -985,8 +1083,6 @@ function do_game()
     }
   }
 
-
-
   // Render any text that we have to
   textSize(gridSize - 2);
   fill(font_color);
@@ -1002,10 +1098,6 @@ function do_game()
   // the HIGH SCORE
   // or display the points you JUST GOT
 
-  // new_total = difficulty_level + detectors.length - count_walls_used(current_level);
-  // new_total_fade = 1;
-
-
   if (highest_score_display_timer > 0)
   {
     highest_score_display_timer -= deltaTime / 1000;
@@ -1013,20 +1105,16 @@ function do_game()
   }
   else
   {
-    text("score: " + new_scoring_system, 0 + GRID_HALF, gridHeight * gridSize - 4);
+    text("score: " + new_scoring_system + " points: " + points_for_current_grid, 0 + GRID_HALF, gridHeight * gridSize - 4);
   }
 
   if (new_total_fade > 0)
   {
     new_total_fade -= deltaTime / 1500;
-    strokeWeight(1);
+    strokeWeight(2);
     stroke(37);
-    fill(font_color);
+    fill(255);
     let xfadepos = ((highest_score_display_timer > 0) ? 5 : 4);
-    if (highest_score_display_timer > 0)
-      xfadepos += String(highest_score).length;
-    else
-      xfadepos += String(new_scoring_system).length;
     xfadepos *= gridSize;
     text("+" + new_total, xfadepos, gridHeight * gridSize - 4 + (new_total_fade * 10));
   }
@@ -1116,28 +1204,15 @@ function do_level_transition_out()
   if (globalFade >= 1)
   {
     // count our score here
-    new_total = difficulty_level + detectors.length - count_walls_used(current_level);
+    new_total = count_score();
     new_total_fade = 1;
     new_scoring_system += new_total > 0 ? new_total : 0;
     ++difficulty_level;
     random_level();
     make_edges();
+    points_for_current_grid = count_score();
     game_state = STATE_RANDOM_LEVEL_TRANSITION_IN
   }
-}
-
-function count_walls_used(lvl)
-{
-  let total_seen = 0;
-  for (let x = 0; x < lvl.xsize; ++x)
-  {
-    for (let y = 0; y < lvl.ysize; ++y)
-    {
-      if (lvl.grid[x][y].exists)
-        ++total_seen;
-    }
-  }
-  return total_seen;
 }
 
 function do_level_transition_in()
@@ -1152,10 +1227,66 @@ function do_level_transition_in()
 
 }
 
+function tutorial()
+{
+  waiting_for_tutorial_unclick = true;
+  let mx = mouseX, my = mouseY;
+  let over_btn = false;
+  if ((width / 2) - 30 < mx && mx < (width / 2) + 10 && 460 <= my && my <= 500)
+    over_btn = true;
+
+  // shadow
+  noStroke();
+  fill (0, 70);
+  rect(gridSize * 2 + GRID_HALF, gridSize * 2 + GRID_HALF, width - gridSize * 4, height - gridSize * 4);
+
+  stroke(190, 190, 190);
+  fill (35);
+  strokeWeight(4);
+  rect(gridSize * 2, gridSize * 2, width - gridSize * 4, height - gridSize * 4);
+  fill(72);
+  rect(gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
+
+  let s = "Tutorial\n" +
+   "Use left click to make walls, right click to remove walls.\n" +
+    "Drag lights with left mouse, switch with right.\n"+
+    "Detectors are colored circles. Match colors to fill them.\n"+
+    "Fill all the detectors to advance.\n" +
+    "Less walls means higher points per board.";
+  strokeWeight(1);
+  fill(180);
+  stroke(130);
+  textSize(28);
+  textAlign(CENTER, CENTER);
+  text(s, gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
+
+  if (over_btn)
+  {
+    noStroke();
+    fill(255, 20);
+    ellipse((width / 2) - 10, 480, 60, 60);
+
+    fill(255, 255, 255);
+  }
+  else 
+  {
+    fill(0, 0, 0);
+  }
+  stroke(130);
+  strokeWeight(2);
+  text("OK", (width / 2) - 10, 480);
+
+  textAlign(LEFT, BASELINE);
+  if (mouseIsPressed && over_btn)
+  {
+    show_tutorial = false;
+  }
+
+}
+
 //////// DRAWING 
 // DRAW gets called EVERY frame, this is the MAIN GAME LOOP
 function draw() {
-  //if (game_state === STATE_GAME)
   switch (game_state)
   {
     case STATE_NEW_RANDOM_GAME:
@@ -1172,6 +1303,12 @@ function draw() {
       break;
     case STATE_RANDOM_LEVEL_TRANSITION_IN:
       do_level_transition_in();
+      break;
+    case STATE_SETUP_EDITOR:
+      do_setup_editor();
+      break;
+    case STATE_EDITOR:
+      do_editor();
       break;
   }
 }
@@ -1239,7 +1376,7 @@ function draw_walls_and_floors()
       else if (lvl.grid[x][y].exist)  // SOLID WALLS
       {
         if (lvl.grid[x][y].fade < 1)
-        lvl.grid[x][y].fade += 0.1;
+          lvl.grid[x][y].fade += 0.1;
         stroke(solid_wall_outline);
         // exact same thing as above!
         fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
@@ -1371,6 +1508,8 @@ function load_level(level_string)
   new_lvl.xsize = xsize;
   new_lvl.ysize = ysize;
   new_lvl.initialize_grid();
+  gridWidth = xsize;
+  gridHeight = ysize;
 
   // read 1 char to switch random save vs editor save.
   let read_mode = level_string.charAt(level_string_index++);
@@ -1472,10 +1611,173 @@ function load_level(level_string)
   detectors = loaded_detectors;
   lightsources = loaded_lights;
   current_level = new_lvl;
+
+  // if this is a random game, calculate the new board score
+  points_for_current_grid = count_score();
   make_edges();
 }
 
 //////// LEVEL EDIT
+
+function do_setup_editor()
+{
+  // ok, we need a new level
+  editor_lvl = new level();
+  editor_lvl.xsize = gridWidth;
+  editor_lvl.ysize = gridHeight;
+  editor_lvl.initialize_grid();
+  initializeGrid(editor_lvl.grid);
+  current_level = editor_lvl;
+
+  // clear light sources
+  lightsources = [];
+
+  // clear detectors
+  detectors = [];
+
+  make_edges();
+
+  // when we're done settin up
+  game_state = STATE_EDITOR;
+}
+
+function editorHandleMouse()
+{
+  let grid = current_level.grid;
+  if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height)  // screen bound checks
+    return;
+
+  // if a mouse is pressed here and it wasn't currently pressed
+  // it is a mouse button down event
+
+  // if a mouse is pressed here and it was currently pressed
+  // the mouse is being held down, ie, dragged.
+
+  // if mouse is not being pressed and it was currently pressed
+  // then it is a mouse up event
+}
+
+function do_editor()
+{
+  let grid = current_level.grid;
+
+  // this checkMouse() will be DIFFERENT!
+  editorHandleMouse();
+  let mx = mouseX;
+  let my = mouseY;
+  let mouse_updated = false;
+
+  if (oldx != mx || oldy != my)
+  {
+    oldx = mx, oldy = my;
+    mouse_updated = true;
+  }
+
+  // check if we've selected any lights
+  if (mouse_updated)
+  {
+    detectorSelected = get_selected_light(mx, my);
+    if (detectorSelected !== undefined)
+    {
+      lightsources[detectorSelected].seleted = true;
+    }
+    else
+    {
+      for (i = 0; i < lightsources.length; ++i)
+      {
+        lightsources[i].seleted = false;
+      }
+    }
+  }
+
+  // check if we're over the main menu button
+  if (mouse_updated)
+  {
+    if (mx >= (gridWidth - 3) * gridSize && my <= gridSize)
+    {
+      mouse_over_menu = true;
+    }
+    else
+    {
+      mouse_over_menu = false;
+    }
+  }
+
+  // check if we've moved off the menu if the menu is active
+  if (mouse_updated && show_menu)
+  {
+    if (mx <= (gridWidth - 8) * gridSize || my >= menu_height * gridSize)
+    {
+      show_menu = false;
+    }
+
+    // other wise, maybe we're selecting a new menu item
+    if ((gridWidth - 8) * gridSize <= mx && (menu_height * gridSize) >= my)
+    {
+      main_menu_selected = int(my / gridSize);
+    }
+    else
+    {
+      main_menu_selected = undefined;
+    }
+  }
+
+
+  // draw base grid (walls + floors)
+  draw_walls_and_floors();
+
+  // draw edges
+  draw_edges();
+
+  draw_detectors(); // these eventually will take current_level as well?
+
+  draw_light_sources(); // these eventually will take current_level as well?
+
+
+  // Draw glass (Extra tiles to draw would happen here?)
+  strokeWeight(4);
+  stroke(90, 50);
+  for (x = 0 ; x < gridWidth; ++x)
+  {
+    for (y = 0; y < gridHeight; ++y)
+    {
+      if (grid[x][y].grid_type == GLASS_WALL || grid[x][y].grid_type == GLASS_WALL_TOGGLABLE)
+        square(x * gridSize, y * gridSize, gridSize);
+    }
+  }
+
+  // draw editor UI components
+  draw_editor_ui();
+
+  // Render any text that we have to
+  textSize(gridSize - 2);
+  fill(font_color);
+  text("level: " + difficulty_level, 0 + GRID_HALF, gridSize - 4);
+
+  fill(font_color);
+  if (mouse_over_menu)
+    fill(255);
+  
+  text("menu", (gridWidth - 3) * gridSize, gridSize - 4);
+
+  if (show_tutorial)
+    tutorial(); // this can be the editor tutorial
+
+  if (show_menu)
+    draw_menu();
+
+}
+
+function draw_editor_ui()
+{
+  let i = 0;
+  for (let c of detector_colors)
+  {
+    let d = new detector(i++, gridHeight - 1, red(c), green(c), blue(c));
+    d.draw_this();
+  }
+  //(x, y, r, g, b)
+}
 
 //////// RANDOM GAME MODE
 function setup_random_game()
@@ -1521,6 +1823,7 @@ function random_level()
     highest_score_changed = 1;
     highest_score_display_timer = 10;
   }
+  points_for_current_grid = count_score();
 }
 
 function init_light_sources()
@@ -1893,79 +2196,29 @@ function turn_lights_off()
 //////// OTHER
 function resetStuff()
 {
+  // reset the grid (ie, all walls marked built (buildable + exist), will be changed to just buildable)
   reset_grid(current_level);
+  points_for_current_grid = count_score();
   turn_lights_off();
   make_edges();
 }
 
-function tutorial()
+function count_score()
 {
-  waiting_for_tutorial_unclick = true;
-  let mx = mouseX, my = mouseY;
-  let over_btn = false;
-  if ((width / 2) - 30 < mx && mx < (width / 2) + 10 && 460 <= my && my <= 500)
-    over_btn = true;
-
-  // shadow
-  noStroke();
-  fill (0, 70);
-  rect(gridSize * 2 + GRID_HALF, gridSize * 2 + GRID_HALF, width - gridSize * 4, height - gridSize * 4);
-
-
-  stroke(190, 190, 190);
-  fill (35);
-  strokeWeight(4);
-  rect(gridSize * 2, gridSize * 2, width - gridSize * 4, height - gridSize * 4);
-  fill(72);
-  rect(gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
-
-
-  let s = "Tutorial\n" +
-   "Use left click to make walls, right click to remove walls.\n" +
-    "Drag lights with left mouse, switch with right.\n"+
-    "Detectors are colored circles. Match colors to fill them.\n"+
-    "Fill all the detectors to advance.\n" +
-    "Less walls means higher score.";
-  strokeWeight(1);
-  fill(180);
-  stroke(130);
-  textSize(28);
-  textAlign(CENTER, CENTER);
-  text(s, gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
-
-  if (over_btn)
-  {
-    noStroke();
-    fill(255, 20);
-    ellipse((width / 2) - 10, 480, 60, 60);
-
-    fill(255, 255, 255);
-  }
-  else 
-  {
-    fill(0, 0, 0);
-  }
-  stroke(130);
-  strokeWeight(2);
-  text("OK", (width / 2) - 10, 480);
-
-  textAlign(LEFT, BASELINE);
-  if (mouseIsPressed && over_btn)
-  {
-    show_tutorial = false;
-  }
-
+  let score = difficulty_level + detectors.length - count_walls_used(current_level);
+  return score >= 0 ? score : 0;
 }
 
-// use getItem and storeItem to locally store data
-
-// LEVEL FORMAT
-// we want this to end up as a STRING so we can save it easily
-// locally\
-
-// first, specify the size of the grid
-// The level will be a grid, with each cell defined to a TILE_TYPE
-// followed by a list of detectors
-//  - [x, y, r, g, b]
-// followed by a list of lights
-// - [x, y, r, g, b]
+function count_walls_used(lvl)
+{
+  let total_seen = 0;
+  for (let x = 1; x < lvl.xsize - 1; ++x)
+  {
+    for (let y = 1; y < lvl.ysize - 1; ++y)
+    {
+      if (lvl.grid[x][y].exist)
+        ++total_seen;
+    }
+  }
+  return total_seen;
+}
