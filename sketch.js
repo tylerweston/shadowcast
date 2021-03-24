@@ -3,11 +3,6 @@ addjko
 
 ONLY draw the walls that the light makes visible
 
-- issue with points and loading boards? look into that
-- We are calling get_visible_polygons TOO MUCH! we only have to caculate
-  it once when we move a lightsource, we don't need to do it every frame!
-- can't stack light sources on top of each other, one will turn
-  off when it has another light dropped on it.
 - we could make filters for different colored lights by having
   r,g, and b edges, run the detection thing three times
   , solid walls would just exist in all three color planes?
@@ -105,9 +100,6 @@ const MOUSE_EVENT_ENTER_REGION = 4;
 const MOUSE_EVENT_EXIT_REGION = 5;
 
 let global_mouse_handler = undefined;
-
-
-
 
 // Constants to help with edge detection
 const NORTH = 0;
@@ -571,6 +563,15 @@ class gameplay_handler
     
   }
 
+  refresh_grid()
+  {
+
+    make_edges();
+    update_all_light_viz_polys();
+    points_for_current_grid = count_score();
+  }
+  
+
   can_drag(sx, sy, ex, ey)
   {
     // return true if you can drag a light from sx,sy to ex,ey
@@ -592,8 +593,9 @@ class gameplay_handler
     if (current_level.grid[_x][_y].grid_type === FLOOR_BUILDABLE)
     {
       set_grid(current_level.grid, _x, _y, FLOOR_BUILT);
-      make_edges();
-      points_for_current_grid = count_score();
+      // make_edges();
+      // points_for_current_grid = count_score();
+      this.refresh_grid();
     }
   }
 
@@ -604,8 +606,9 @@ class gameplay_handler
     if (current_level.grid[_x][_y].grid_type === FLOOR_BUILT)
     {
       set_grid(current_level.grid, _x, _y, FLOOR_BUILDABLE);
-      make_edges();
-      points_for_current_grid = count_score();
+      // make_edges();
+      // points_for_current_grid = count_score();
+      this.refresh_grid();
     }
   }
 
@@ -731,9 +734,9 @@ class detector
         }
         if (!has_intersection)
         {
-          r += l.r;
-          g += l.g;
-          b += l.b;
+          r += l.r; r = r <= 255 ? r : 255;
+          g += l.g; g = g <= 255 ? g : 255;
+          b += l.b; b = b <= 255 ? b : 255;
         }
       }
       // once we get here, we have r, g, and b values of a single
@@ -841,9 +844,11 @@ class light_source
     this.moved = false;
 
     this.dragged = false;
+    this.viz_polygon = [];
 
 
     // This might not be the best way to do this but it could work for now?!
+    // move this stuff to some color data structure
     this.c = color(r, g, b);
     this.shadow_color = color(r, g, b, 55);
 
@@ -874,23 +879,17 @@ class light_source
 
   }
 
+  get_new_viz_poly()
+  {
+    let cx = this.x * gridSize + gridSize / 2;
+    let cy = this.y * gridSize + gridSize / 2;
+    this.viz_polygon = get_visible_polygon(cx, cy, 10);
+    remove_duplicate_viz_points(this.viz_polygon);
+  }
+
   check_leave_grid()
   {
     this.selected = false;
-    // if (!this.dragged)
-    // {
-    //   this.selected = false;
-    // }
-    // else if (this.dragged)
-    // {
-    //   let xtarget = global_mouse_handler.get_targetx();
-    //   let ytarget = global_mouse_handler.get_targety();
-    //   line(this.x * gridSize, this.y * gridSize, this.xtarget * gridSize, this.ytarget * gridSize);
-    //   if (!current_level.grid[xtarget][ytarget].exist)
-    //   {
-    //     this.move(xtarget, ytarget);
-    //   }
-    // }
   }
 
   move(x, y)
@@ -903,6 +902,7 @@ class light_source
     this.ls_region.x2 = (x + 1) * gridSize;
     this.ls_region.y2 = (y + 1) * gridSize;
     global_mouse_handler.register_region(this.name, this.ls_region);
+    this.get_new_viz_poly();
   }
 
   click_light()
@@ -925,7 +925,7 @@ class light_source
 
   draw_light()
   {
-    if (this.active)
+    if (this.active && this.viz_polygon.length > 0)
     {
       blendMode(ADD);
       let cx = this.x * gridSize + gridSize / 2;
@@ -933,17 +933,17 @@ class light_source
       noStroke();
       fill(this.shadow_color);
 
-      let viz_polygon = get_visible_polygon(cx, cy, 10);
-      remove_duplicate_viz_points(viz_polygon);
-      if (viz_polygon && viz_polygon.length > 1)
-      {
-        beginShape();
-        vertex(cx, cy);
-        for (i = 0; i < viz_polygon.length; ++ i)
-          vertex(viz_polygon[i].x, viz_polygon[i].y);
-        vertex(viz_polygon[0].x, viz_polygon[0].y);
-        endShape();
-      }  
+      // let viz_polygon = get_visible_polygon(cx, cy, 10);
+      // remove_duplicate_viz_points(viz_polygon);
+      // if (viz_polygon && viz_polygon.length > 1)
+      // {
+      beginShape();
+      vertex(cx, cy);
+      for (i = 0; i < this.viz_polygon.length; ++ i)
+        vertex(this.viz_polygon[i].x, this.viz_polygon[i].y);
+      vertex(this.viz_polygon[0].x, this.viz_polygon[0].y);
+      endShape();
+      // }  
       blendMode(BLEND);
     }
   }
@@ -1086,6 +1086,7 @@ function initialize_colors() {
     color(255, 0, 0), color(255, 0, 255), color(255, 255, 0), color(255, 255, 255)];
 }
 
+//////// MAIN MENU
 function handle_menu_selection(menu_index)
 {
   if (!main_menu_accept_input)
@@ -1875,6 +1876,7 @@ function load_level(level_string)
   // if this is a random game, calculate the new board score
   points_for_current_grid = count_score();
   make_edges();
+  update_all_light_viz_polys();
 }
 
 //////// LEVEL EDIT
@@ -2085,6 +2087,7 @@ function random_level()
   // save current level
   current_level.save_level(lightsources, detectors);
   make_edges();
+  update_all_light_viz_polys();
   // check if we're a high score, if we are, store us
   let high_score = getItem("high_random_score");
   if (high_score == null || high_score < new_scoring_system)
@@ -2109,7 +2112,7 @@ function init_light_sources()
   source = new light_source(5, gridWidth / 2, false, 0, 0, 255);
   lightsources.push(source);
 
-  // // CMY lights
+  // CMY lights
   // let source = new light_source(gridHeight - 5, 5, false, 0, 255, 255);
   // lightsources.push(source);
   // source = new light_source(gridWidth - 5, gridHeight - 5, false, 255, 0, 255);
@@ -2483,6 +2486,14 @@ function turn_lights_off()
   for (let l of lightsources)
   {
     l.active = false;
+  }
+}
+
+function update_all_light_viz_polys()
+{
+  for (let l of lightsources)
+  {
+    l.get_new_viz_poly();
   }
 }
 
