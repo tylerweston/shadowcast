@@ -16,10 +16,22 @@ ONLY draw the walls that the light makes visible
 - editor
 - tiles: glass unfillable, glass fillable
 
+- different tutorial for editor
+- better way to navigate around the game - more main menu kinda thing
+- then the menu at top right will include an "exit to main menu" option
+- MAIN MENU
+- deactivate menu highlighting when menu is open
+- new game 
+  = random
+  - load level (paste a string)
+  -
+
+- move levels to base64 so they don't look so obvious and long
 - encapsulate state in a better way
   - right now it is kind of spread out and a bit icky how it is all implemented
   - collect and fix that stuff up
 - change game grid size - allow this to be customized - this might be implemented?
+  - just need some bits to resize themselves automatically
 - make it work on mobile? 
   - single click to toggle light on and off, drag to move it  
   - fix webpage
@@ -81,8 +93,8 @@ let points_for_current_grid = 0;
 // this stuff should all be refactored into state machine stuff
 // TODO: Bunch of little bits of state to clean up
 let display_editor = false;
-let editor_available = false;
-let show_intro = true;         // <--------------- intro flag
+let editor_available = true;
+let show_intro = false;         // <--------------- intro flag
 let show_tutorial = false;
 let show_menu = false;
 let main_menu_accept_input = false;
@@ -91,6 +103,13 @@ let mouse_over_menu = false;
 let over_btn = false;
 let next_level_available = false;
 let over_next_level = false;
+
+let hovered_item = undefined;
+let selected_item = undefined;
+
+let editor_level_name = "";
+
+let ghandler;
 
 // mouse events
 const MOUSE_EVENT_MOVE = 0;
@@ -137,9 +156,11 @@ const WHITE = 7;
 let solid_wall_outline;
 let solid_wall_fill;
 let solid_wall_permenant_fill;
-let empty_space_outline;
-let empty_space_fill;
-let empty_space_2_fill;
+let buildable_outline;
+let buildable_fill;
+let buildable_2_fill;
+let empty_outline;
+let empty_fill;
 let edge_color;
 let edge_circle_color;
 let font_color;
@@ -187,6 +208,8 @@ let intro_timer = 0;
 let next_button_bob_timer = 0;
 
 let grid_obj_id = 0;
+
+const TOTAL_EDITOR_ITEMS = 14;
 
 //////// CLASSES
 class mouse_region
@@ -388,6 +411,19 @@ class level
 
   save_level(lights, detectors)
   {
+    let level_string = this.generate_save_string(lights, detectors);
+    saveFade = 1;
+    storeItem("savedgame", level_string);
+  }
+
+  copy_save_string_to_clipboard(lights, detectors)
+  {
+    let t = this.generate_save_string(lights, detectors);
+    copyToClipboard(t);
+  }
+
+  generate_save_string(lights, detectors)
+  {
     // todo: Move this out of here! Saving should be the job
     // of something else, not the level class?
     // generate a string from this level object
@@ -473,9 +509,271 @@ class level
       let d_c = String(num_v);
       level_string += d_x + d_y + d_c;
     }
-    saveFade = 1;
-    storeItem("savedgame", level_string);
+
+    return level_string;
   }
+}
+
+class editor_handler
+{
+  // this class handles all of the gameplay for the core game
+  // include dragging lights, activating/deactivating lights, building walls
+  // and removing walls
+  constructor()
+  {
+    this.DRAWING_MODE = 0;
+    this.ERASING_MODE = 1;
+    this.DRAGGING_LIGHT_MODE = 2;
+    this.selected_light = undefined;
+    this.dragging_mode = undefined;
+    this.editor_mode = this.DRAWING_MODE;
+    this.game_region = new mouse_region(0, 0, width, height);
+    this.game_region.events[MOUSE_EVENT_MOVE] = () => { this.moved();};
+    this.game_region.events[MOUSE_EVENT_CLICK] = () => { this.clicked();};
+    this.game_region.events[MOUSE_EVENT_UNCLICK] = () => { this.unclicked();};
+    this.is_dragging = false;
+    global_mouse_handler.register_region("ehandler", this.game_region);
+    this.start_drag_x = undefined;
+    this.start_drag_y = undefined;
+    this.end_drag_x = undefined;
+    this.end_drag_y = undefined;
+  }
+
+  disable()
+  {
+    global_mouse_handler.disable_region("ehandler");
+  }
+
+  enable()
+  {
+    global_mouse_handler.enable_region("ehandler");
+  }
+
+  moved()
+  {
+    // // only do something if we're dragging!
+    // if (!this.is_dragging)
+    //   return;
+
+    let tx = global_mouse_handler.get_targetx();
+    let ty = global_mouse_handler.get_targety();
+
+    if (ty === gridHeight - 1)
+    {
+      if (tx <= TOTAL_EDITOR_ITEMS)
+      {
+        hovered_item = tx;
+      }
+    }
+
+    if (tx < 1 || gridWidth - 2 < tx || ty < 1 || gridHeight - 2 < ty)
+    {
+      this.is_dragging = false;
+      return;
+    }
+
+    // everything after here only happens if we're actually
+    // holding down a mouse button
+    if (!this.is_dragging)
+      return;
+    
+    if (this.dragging_mode === this.DRAWING_MODE)
+    {
+      this.try_build_wall(tx, ty);
+    }
+    else if (this.dragging_mode === this.ERASING_MODE)
+    {
+      // this will erase the area back to buildable floor!
+      this.try_erase_wall(tx, ty);
+    }
+    else if (this.dragging_mode === this.DRAGGING_LIGHT_MODE)
+    {
+      // we can drag lights OR detectors in this mode!
+      let tx = global_mouse_handler.get_targetx();
+      let ty = global_mouse_handler.get_targety();
+      if (tx != this.start_drag_x || ty != this.start_drag_y)
+      {
+        // Here, we have a starting drag position and an ending drag
+        // position. Eventually we will check a straight line here to
+        // make sure they are all unblocked to make this not cheesable
+        // for now, just make sure ending position is good
+        // console.log("Dragging light " + this.selected_light);
+        this.end_drag_x = tx;
+        this.end_drag_y = ty;
+        if (this.can_drag(this.start_drag_x, this.start_drag_y, this.end_drag_x, this.end_drag_y))
+        {
+          lightsources[this.selected_light].move(this.end_drag_x, this.end_drag_y);
+        }
+        else
+        {
+          // we've bumped into something, drop our light!
+          this.dragging_mode = undefined;
+          this.is_dragging = false;
+          this.selected_light = undefined;
+        }
+          // console.log("Dragged from " + this.start_drag_x + "," +
+        // this.start_drag_y + " to " + this.end_drag_x + "," + this.end_drag_y);
+        this.start_drag_x = tx;
+        this.start_drag_y = ty;
+      }
+    }
+    
+  }
+
+  refresh_grid()
+  {
+    make_edges();
+    update_all_light_viz_polys();
+    points_for_current_grid = count_score();
+  }
+  
+
+  can_drag(sx, sy, ex, ey)
+  {
+    // all that matters is that the 
+    // return true if you can drag a light from sx,sy to ex,ey
+    if (is_target_a_light(ex, ey))
+      return false;
+
+    if (current_level.grid[ex][ey].grid_type === FLOOR_BUILDABLE ||
+      current_level.grid[ex][ey].grid_type === FLOOR_EMPTY)
+      return true;
+    
+    // TODO: CHECK ALL grids along this line and make sure they are ALL
+    // passable!
+    return false;
+  }
+
+  try_build_wall(_x, _y)
+  {
+    if (_x <= 0 || gridWidth - 1 <= _x || _y <= 0 || gridHeight - 1 <= _y)
+      return;
+
+    switch(selected_item)
+    {
+      case 11:
+      // PERMENANT_WALL
+        set_grid(current_level.grid, _x, _y, PERMENANT_WALL);
+        this.refresh_grid();
+        break;
+      case 12:
+      // GLASS_WALL
+        set_grid(current_level.grid, _x, _y, GLASS_WALL);
+        this.refresh_grid();
+        break;
+      case 13:
+      // FLOOR_BUILDABLE
+        set_grid(current_level.grid, _x, _y, FLOOR_BUILDABLE);
+        this.refresh_grid();
+        break;
+      case 14:
+      // FLOOR_EMPTY
+        set_grid(current_level.grid, _x, _y, FLOOR_EMPTY);
+        this.refresh_grid();
+        break;
+
+    }
+  }
+
+  try_erase_wall(_x, _y)
+  {
+    if (_x <= 1 || _x >= gridWidth - 2 || _y <= 1 || _y >= gridHeight - 2)
+      return;
+    // TODO: If we've erased a light or detector, we have
+    // to remove it from our list
+    set_grid(current_level.grid, _x, _y, FLOOR_EMPTY);
+    this.refresh_grid();
+  }
+
+  clicked()
+  {
+    // this is the same thing as assuming something created later will deal with
+    // this mouse input instead of us
+    if (show_menu || show_tutorial)  // hack for now to not draw stuff on grid while menu is open
+      return;
+    let px = global_mouse_handler.mx;
+    let py = global_mouse_handler.my;
+
+    let tx = global_mouse_handler.get_targetx();
+    let ty = global_mouse_handler.get_targety();
+
+    if (ty === gridHeight - 1 && tx <= TOTAL_EDITOR_ITEMS)
+    {
+      selected_item = tx;
+    }
+
+    if (tx <= 0 || gridWidth - 1 <= tx || ty <= 0 || gridHeight - 1 <= ty)
+      return; // all other clicks we only care about in game area
+
+    let gl = get_selected_light(px, py);
+    if (gl !== undefined)
+    {
+      this.is_dragging = true;
+      this.selected_light = gl;
+      this.dragging_mode = this.DRAGGING_LIGHT_MODE;
+      this.start_drag_x = global_mouse_handler.get_targetx();
+      this.start_drag_y = global_mouse_handler.get_targety();
+      return;
+    }
+
+    // IF we have a lightsource or detector as our selected item
+    // we want to add it to the grid here!!
+
+    if (this.editor_mode === this.DRAWING_MODE)
+    {
+      // if we have selected a light or detector right now,
+      // we just put a single item on the map AND DON'T
+      // enter drag mode
+      if (selected_item <= 10)
+      {
+
+        if (selected_item <= 7)
+        {
+          // we're a detector with color equivalent to
+          // detector_colors[selected_item]
+          let _dc = detector_colors[selected_item];
+          let d = new detector(tx, ty, red(_dc), green(_dc), blue(_dc));
+          detectors.push(d);
+          set_grid(current_level.grid, tx, ty, DETECTOR_TILE);
+        }
+        else
+        {
+          // we're a light source
+          //  8 = r
+          //  9 = g
+          // 10 = b
+          let _r = (selected_item == 8) ? 255 : 0;
+          let _g = (selected_item == 9) ? 255 : 0;
+          let _b = (selected_item == 10) ? 255 : 0;
+          let _lc = new light_source(tx, ty, false, _r, _g, _b);
+          lightsources.push(_lc);
+          update_all_light_viz_polys();
+        }
+      }
+      else
+      {
+        // enter building mode
+        this.dragging_mode = this.DRAWING_MODE;
+        this.is_dragging = true;
+        this.try_build_wall(tx, ty);
+      }
+    }
+    else if (this.editor_mode === this.ERASING_MODE)
+    {
+      // IF we have the ERASE TOOL selected
+      // erasing mode
+      this.dragging_mode = this.ERASING_MODE;
+      this.is_dragging = true;
+      this.try_erase_wall(tx, ty);
+    }
+
+  }
+
+  unclicked()
+  {
+    this.is_dragging = false;
+  }
+
 }
 
 class gameplay_handler
@@ -518,9 +816,14 @@ class gameplay_handler
     if (!this.is_dragging)
       return;
 
+
+
     let tx = global_mouse_handler.get_targetx();
     let ty = global_mouse_handler.get_targety();
     
+    if (tx < 0 || gridWidth - 1 < tx || ty < 0 || gridHeight - 1 < ty)
+     return;
+
     if (this.dragging_mode === this.DRAWING_MODE)
     {
       this.try_build_wall(tx, ty);
@@ -623,7 +926,6 @@ class gameplay_handler
     let gl = get_selected_light(px, py);
     if (gl !== undefined)
     {
-      // console.log("Clicked light " + gl);
       this.is_dragging = true;
       this.selected_light = gl;
       this.dragging_mode = this.DRAGGING_LIGHT_MODE;
@@ -1060,9 +1362,12 @@ function initialize_colors() {
   solid_wall_permenant_fill = color(200, 200, 210);
   solid_wall_outline = color(120, 120, 120);
 
-  empty_space_fill = color(33, 33, 33);
-  empty_space_2_fill = color(37, 37, 37);
-  empty_space_outline = color(43, 43, 43);
+  buildable_fill = color(33, 33, 33);
+  buildable_2_fill = color(37, 37, 37);
+  buildable_outline = color(43, 43, 43);
+
+  empty_outline = color(25, 25, 25);
+  empty_fill = color(13, 13, 13);
 
   edge_color = color(90, 90, 90);
   edge_circle_color = color(80, 80, 80);
@@ -1203,12 +1508,17 @@ function keyPressed() {
     difficulty_level++;
     random_level();
   } else if (key === 's') {
-    current_level.save_level(lightsources, detectors);
+    current_level.copy_save_string_to_clipboard(lightsources, detectors);
   } else if (key === 'l') {
     load_level(getItem("savedgame"));
   } 
   else if (key === 'q') {
     storeItem("high_random_score", null);
+  }
+  else if (key === 'e') {
+    let lvl_txt = copyFromClipboard();
+    console.log("level: " + lvl_txt);
+    load_level(lvl_txt);
   }
   
 
@@ -1267,6 +1577,12 @@ function set_grid(which_grid, x, y, type)
       which_grid[x][y].exist = false
       which_grid[x][y].permenant = true;
       which_grid[x][y].unpassable = false;
+      break;
+    case GLASS_WALL:
+      which_grid[x][y].grid_type = GLASS_WALL;
+      which_grid[x][y].exist = false;
+      which_grid[x][y].permenant = true;
+      which_grid[x][y].unpassable = true;
       break;
 
   }
@@ -1330,16 +1646,7 @@ function do_game()
   // draw_mouse_illumination(mx, my);
 
   // Draw glass (Extra tiles to draw would happen here?)
-  strokeWeight(4);
-  stroke(90, 50);
-  for (x = 0 ; x < gridWidth; ++x)
-  {
-    for (y = 0; y < gridHeight; ++y)
-    {
-      if (grid[x][y].grid_type == GLASS_WALL || grid[x][y].grid_type == GLASS_WALL_TOGGLABLE)
-        square(x * gridSize, y * gridSize, gridSize);
-    }
-  }
+  draw_glass();
 
   // Render any text that we have to
   textSize(gridSize - 2);
@@ -1463,12 +1770,15 @@ function do_level_transition_out()
   // global fade should start at 0
   if (globalFade < 1)
   {
-    globalFade += 0.5;
+    globalFade += deltaTime / 200;
   }
   fill(48, 48, 48, globalFade * 255);
   rect(0, 0, gameWidth, gameHeight);
   if (globalFade >= 1)
   {
+    // this is what is going to change around depending on what
+    // game mode we are in.
+
     // count our score here
     new_total = count_score();
     new_total_fade = 1;
@@ -1483,7 +1793,7 @@ function do_level_transition_out()
 
 function do_level_transition_in()
 {
-  globalFade -= 0.5;
+  globalFade -= deltaTime / 500;
   fill(48, 48, 48, globalFade * 255);
   rect(0, 0, gameWidth, gameHeight);
   if (globalFade < 0)
@@ -1616,10 +1926,26 @@ function draw_menu()
     else
       fill(157);
 
-    if (i === 1 || i === 4 || i == 6 || i == 7)
+    if (i === 1 || (i === 4 && !editor_available) || i == 6 || i == 7)
       fill(28);
     text(m, (gridWidth - 7) * gridSize, (i + 1) * gridSize );
     ++i;
+  }
+}
+
+function draw_glass()
+{
+  let lvl = current_level;
+  noFill();
+  strokeWeight(4);
+  stroke(90, 50);
+  for (x = 0 ; x < lvl.xsize; ++x)
+  {
+    for (y = 0; y < lvl.ysize; ++y)
+    {
+      if (lvl.grid[x][y].grid_type == GLASS_WALL || lvl.grid[x][y].grid_type == GLASS_WALL_TOGGLABLE)
+        square(x * gridSize, y * gridSize, gridSize);
+    }
   }
 }
 
@@ -1639,8 +1965,10 @@ function draw_walls_and_floors()
 
         if (lvl.grid[x][y].grid_type == FLOOR_EMPTY)
         {
-          stroke(25, 25, 25);
-          fill(13, 13, 13);
+          // stroke(25, 25, 25);
+          // fill(13, 13, 13);
+          stroke(empty_outline);
+          fill(empty_fill);
           square(x * gridSize, y * gridSize, gridSize);
         }
 
@@ -1648,10 +1976,10 @@ function draw_walls_and_floors()
         {
           if (lvl.grid[x][y].fade > 0)
             lvl.grid[x][y].fade -= 0.1;
-          stroke(empty_space_outline);
+          stroke(buildable_outline);
           // lerp between the empty fill color and the color of whatever
           // solid thing will be there
-          fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
+          fill(lerpColor( odd ? buildable_fill : buildable_2_fill, 
                           p ? solid_wall_permenant_fill : solid_wall_fill, 
                           lvl.grid[x][y].fade));
 
@@ -1665,7 +1993,7 @@ function draw_walls_and_floors()
           lvl.grid[x][y].fade += 0.1;
         stroke(solid_wall_outline);
         // exact same thing as above!
-        fill(lerpColor( odd ? empty_space_fill : empty_space_2_fill, 
+        fill(lerpColor( odd ? buildable_fill : buildable_2_fill, 
                         p ? solid_wall_permenant_fill : solid_wall_fill, 
                         lvl.grid[x][y].fade));
         square(x * gridSize , y * gridSize, gridSize);
@@ -1760,25 +2088,6 @@ function draw_mouse_illumination(mx, my)
       }
     }
   }
-}
-
-function drawUI()
-{
-  fill(37, 37, 37);
-  rect(0, gameHeight, gameWidth, gameHeight + uiHeight);
-
-  // draw detector selector
-  let i = 0;
-  for (let c of detector_colors)
-  {
-    fill(c);
-    ellipse(10 + (i * 30) + 15, gameHeight + 25, 30);
-    ++i;
-  }
-  textSize(32);
-  fill(220);
-  text("light", 10, gameHeight + 75);
-  text("detector", 10, gameHeight + 110);
 }
 
 //////// LEVEL SAVE / LOAD
@@ -1883,6 +2192,9 @@ function load_level(level_string)
 
 function do_setup_editor()
 {
+  // setup editor handler
+  let ehandler = new editor_handler();
+
   // ok, we need a new level
   editor_lvl = new level();
   editor_lvl.xsize = gridWidth;
@@ -1899,93 +2211,16 @@ function do_setup_editor()
 
   make_edges();
 
+  // make sure game handler isn't running any more
+  ghandler.disable();
+
   // when we're done settin up
   game_state = STATE_EDITOR;
-}
-
-function editorHandleMouse()
-{
-  // this will all happen in a class gameplay handler like thing above now
-  // driven by events from the user
-  let grid = current_level.grid;
-  if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height)  // screen bound checks
-    return;
-
-  // if a mouse is pressed here and it wasn't currently pressed
-  // it is a mouse button down event
-
-  // if a mouse is pressed here and it was currently pressed
-  // the mouse is being held down, ie, dragged.
-
-  // if mouse is not being pressed and it was currently pressed
-  // then it is a mouse up event
 }
 
 function do_editor()
 {
   let grid = current_level.grid;
-
-  // this checkMouse() will be DIFFERENT!
-  editorHandleMouse();
-  let mx = mouseX;
-  let my = mouseY;
-  let mouse_updated = false;
-
-  if (oldx != mx || oldy != my)
-  {
-    oldx = mx, oldy = my;
-    mouse_updated = true;
-  }
-
-  // check if we've selected any lights
-  if (mouse_updated)
-  {
-    detectorSelected = get_selected_light(mx, my);
-    if (detectorSelected !== undefined)
-    {
-      lightsources[detectorSelected].selected = true;
-    }
-    else
-    {
-      for (i = 0; i < lightsources.length; ++i)
-      {
-        lightsources[i].selected = false;
-      }
-    }
-  }
-
-  // check if we're over the main menu button
-  if (mouse_updated)
-  {
-    if (mx >= (gridWidth - 3) * gridSize && my <= gridSize)
-    {
-      mouse_over_menu = true;
-    }
-    else
-    {
-      mouse_over_menu = false;
-    }
-  }
-
-  // check if we've moved off the menu if the menu is active
-  if (mouse_updated && show_menu)
-  {
-    if (mx <= (gridWidth - 8) * gridSize || my >= menu_height * gridSize)
-    {
-      show_menu = false;
-    }
-
-    // other wise, maybe we're selecting a new menu item
-    if ((gridWidth - 8) * gridSize <= mx && (menu_height * gridSize) >= my)
-    {
-      main_menu_selected = int(my / gridSize);
-    }
-    else
-    {
-      main_menu_selected = undefined;
-    }
-  }
-
 
   // draw base grid (walls + floors)
   draw_walls_and_floors();
@@ -1999,24 +2234,25 @@ function do_editor()
 
 
   // Draw glass (Extra tiles to draw would happen here?)
-  strokeWeight(4);
-  stroke(90, 50);
-  for (x = 0 ; x < gridWidth; ++x)
+  draw_glass();
+
+  let all_active = true;
+  for (let d of detectors)
   {
-    for (y = 0; y < gridHeight; ++y)
-    {
-      if (grid[x][y].grid_type == GLASS_WALL || grid[x][y].grid_type == GLASS_WALL_TOGGLABLE)
-        square(x * gridSize, y * gridSize, gridSize);
-    }
+    d.check_color();
+    if(!d.correct)
+      all_active = false;
   }
 
   // draw editor UI components
   draw_editor_ui();
 
+  strokeWeight(4);
+  stroke(90, 50);
   // Render any text that we have to
   textSize(gridSize - 2);
   fill(font_color);
-  text("level: " + difficulty_level, 0 + GRID_HALF, gridSize - 4);
+  text("level: " + editor_level_name, 0 + GRID_HALF, gridSize - 4);
 
   fill(font_color);
   if (mouse_over_menu)
@@ -2037,16 +2273,98 @@ function draw_editor_ui()
   let i = 0;
   for (let c of detector_colors)
   {
-    let d = new detector(i++, gridHeight - 1, red(c), green(c), blue(c));
-    d.draw_this();
+    draw_detector_at_grid_spot(i++, gridHeight - 1, c);
   }
-  //(x, y, r, g, b)
+  draw_light_at_grid_spot(i++, gridHeight - 1, color(255, 0, 0));
+  draw_light_at_grid_spot(i++, gridHeight - 1, color(0, 255, 0));
+  draw_light_at_grid_spot(i++, gridHeight - 1, color(0, 0, 255));
+
+  draw_map_tiles(11, gridHeight - 1);
+
+  // highlight selected item
+  if (hovered_item !== undefined)
+  {
+    strokeWeight(3);
+    noFill();
+    stroke(255, 255, 0, 125);
+    square(gridSize * hovered_item, (gridHeight - 1) * gridSize, gridSize);
+  }
+
+  if (selected_item !== undefined)
+  {
+    strokeWeight(3);
+    noFill();
+    stroke(255, 0, 0, 125);
+    square(gridSize * selected_item, (gridHeight - 1) * gridSize, gridSize);
+  }
+
+}
+
+function draw_detector_at_grid_spot(_x, _y, _c)
+{
+  noStroke();
+  fill(37);
+  square(_x * gridSize, _y * gridSize, gridSize);
+
+  let default_size = 0.8;
+  strokeWeight(7);
+  if (red(_c) == 0 && green(_c) == 0 && blue(_c) == 0)
+    stroke(170);
+  else
+    stroke(4);
+  ellipse(_x * gridSize + GRID_HALF, _y * gridSize + GRID_HALF, gridSize * default_size, gridSize * default_size);
+
+  strokeWeight(5);
+  stroke(_c);
+  noFill();
+  ellipse(_x * gridSize + GRID_HALF, _y * gridSize + GRID_HALF, gridSize * default_size, gridSize * default_size);
+  
+}
+
+function draw_light_at_grid_spot(_x, _y, _c)
+{
+  stroke(_c);
+  fill(_c);
+  ellipse(_x * gridSize + (gridSize / 2), _y * gridSize + (gridSize / 2), gridSize * 0.85, gridSize * 0.85);
+
+}
+
+function draw_map_tiles(_x, _y)
+{
+  // draw the tiles starting at _x and _y position
+  strokeWeight(1);
+  // first permenant wall
+  stroke(solid_wall_outline);
+  fill(solid_wall_permenant_fill);
+  square(_x * gridSize, _y * gridSize, gridSize);
+  ++_x;
+
+  // glass wall
+  strokeWeight(4);
+  stroke(90, 50);
+  fill(buildable_fill);
+  square(_x * gridSize, _y * gridSize, gridSize);
+  ++_x;
+
+  // buildable space
+  strokeWeight(1);
+  stroke(buildable_outline);
+  fill(buildable_fill);
+  square(_x * gridSize, _y * gridSize, gridSize);
+  ++_x;
+
+  // empty space
+  stroke(empty_outline);
+  fill(empty_fill);
+  square(_x * gridSize, _y * gridSize, gridSize);
+  ++_x;
+
 }
 
 //////// RANDOM GAME MODE
 function setup_random_game()
 {
-  let ghandler = new gameplay_handler();
+  ghandler = new gameplay_handler();
   // next level button, will start hidden and disabled
   let next_region = new mouse_region((gridWidth - 3) * gridSize, (gridHeight - 1) * gridSize, gridWidth * gridSize, gridHeight * gridSize);
   next_region.events[MOUSE_EVENT_CLICK] = () => { game_state = STATE_RANDOM_LEVEL_TRANSITION_OUT; };
@@ -2069,6 +2387,11 @@ function setup_random_game()
     highest_score = 0;
   highest_score_display_timer = 5;
   game_state = STATE_GAME;
+}
+
+function tear_down_random_game()
+{
+  global_mouse_handler.disable("ghandler"); // remove entirely at some point!
 }
 
 function random_level()
@@ -2251,6 +2574,8 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
   {
     for (i = 0; i < difficulty_level - 3; ++i)
     {
+      // TODO: Make sure this doesn't happen on one of the lights?
+      // or say it's a feature, not a bug
       set_grid(which_grid, int(random(1, gridWidth - 2)), int(random(1, gridHeight - 2)), FLOOR_EMPTY);
     }
   }
@@ -2566,4 +2891,39 @@ function color_to_string(c)
   {
     return "cyan";
   }
+}
+
+// from https://stackoverflow.com/questions/33855641/copy-output-of-a-javascript-variable-to-the-clipboard
+function copyToClipboard(text) {
+  var dummy = document.createElement("textarea");
+  // to avoid breaking orgain page when copying more words
+  // cant copy when adding below this code
+  // dummy.style.display = 'none'
+  document.body.appendChild(dummy);
+  //Be careful if you use texarea. setAttribute('value', value), which works with "input" does not work with "textarea". – Eduard
+  dummy.value = text;
+  dummy.select();
+  document.execCommand("copy");
+  document.body.removeChild(dummy);
+}
+
+function get_level_and_load()
+{
+  let prompt = window.prompt("Enter level code:","");
+
+}
+
+
+function copyFromClipboard() {
+  var dummy = document.createElement("textarea");
+  // to avoid breaking orgain page when copying more words
+  // cant copy when adding below this code
+  // dummy.style.display = 'none'
+  document.body.appendChild(dummy);
+  dummy.focus();
+  document.execCommand("paste");
+  let rval = dummy.textContent;
+  document.body.removeChild(dummy);
+  console.log("Value in copy from clipboard: " + rval);
+  return rval;
 }
