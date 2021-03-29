@@ -1,8 +1,21 @@
 /*
 addjko
 
+documentation for now:
+  - press s get a copiable version of the current level and possibly copy
+    it to the clipboard
+  - press e to bring up a box where you can enter a saved level
+
 ONLY draw the walls that the light makes visible
 
+- move main menu down a bit to fit in room for title
+- 
+- mouse state can get wacky between level transitions sometimes
+- NAMES for LIGHTS added to GLOBAL MOUSE HANDLER
+  need to be unique so make sure to track the number of R, G, B lights
+  added and number the names
+- deleting detectors doesn't look like its working
+- add undo so you can undo the last couple blocks you drew
 - we could make filters for different colored lights by having
   r,g, and b edges, run the detection thing three times
   , solid walls would just exist in all three color planes?
@@ -15,6 +28,9 @@ ONLY draw the walls that the light makes visible
 - difficulty balance in progression
 - editor
 - tiles: glass unfillable, glass fillable
+- better way to show top score for timed game
+  - this will be a screen that will offer "try again" or
+  "main menu"?
 
 - different tutorial for editor
 - better way to navigate around the game - more main menu kinda thing
@@ -32,11 +48,8 @@ ONLY draw the walls that the light makes visible
   - collect and fix that stuff up
 - change game grid size - allow this to be customized - this might be implemented?
   - just need some bits to resize themselves automatically
-- make it work on mobile? 
-  - single click to toggle light on and off, drag to move it  
-  - fix webpage
+- fix webpage
 - Game Modes:
-    - This will involve a main menu of some sort!
   - timer, countdown and every solution gets you some more time
     - speed mode
   - more points for using less walls!
@@ -49,7 +62,6 @@ ONLY draw the walls that the light makes visible
 - Make sure all detectors aren't the same color!
 - make R, G, B keys toggle their lights in random mode
 - give editor "LOAD" and "PLAY" functions, so individual levels will be used in there?
-- fix allowing tiles to be made on detectors!
 - don't allow holes to spawn on lights?
 - allow option to reset high score somewhere
 */
@@ -90,13 +102,17 @@ let new_total_fade;
 let new_scoring_system = 0;
 let points_for_current_grid = 0;
 
+let time_remaining = 0;
+let total_time_played = 0;
+
 // this stuff should all be refactored into state machine stuff
 // TODO: Bunch of little bits of state to clean up
 let display_editor = false;
-let editor_available = true;
-let show_intro = false;         // <--------------- intro flag
+let editor_available = false;
+let show_intro = true;         // <--------------- intro flag
 let show_tutorial = false;
 let show_menu = false;
+let top_menu_accept_input = false;
 let main_menu_accept_input = false;
 let show_mouse_illumination = false;
 let mouse_over_menu = false;
@@ -106,6 +122,7 @@ let over_next_level = false;
 
 let hovered_item = undefined;
 let selected_item = undefined;
+let in_erase_mode = false;
 
 let editor_level_name = "";
 
@@ -127,9 +144,14 @@ const EAST = 2;
 const WEST = 3; 
 
 // menu options
-const main_menu_options = ["save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"];
+let top_menu_options = ["main menu", "save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"];
+let top_menu_selected = undefined;
+let top_menu_height = top_menu_options.length + 1;
+
+
+let main_menu_options = ["new random", "new timed", "load", "options", "about"];
 let main_menu_selected = undefined;
-let menu_height = main_menu_options.length + 1;
+let main_menu_height = main_menu_options.length + 1;
 
 // ------+--------+----
 // r g b | color  | # 
@@ -182,27 +204,32 @@ const DETECTOR_TILE = 5;
 // main game states
 const STATE_SETUP = -1;
 const STATE_INTRO = 0;
-const STATE_MENU_LOADED = 1;
+const STATE_MAIN_MENU_SETUP = 15;
+const STATE_MAIN_MENU = 1;
+const STATE_MAIN_MENU_TEARDOWN = 16;
 const STATE_GAME = 2;
 const STATE_SETUP_EDITOR = 10;
 const STATE_EDITOR = 3;
 const STATE_OPTIONS = 4;
 const STATE_ABOUT = 5;
 const STATE_LOADLEVEL = 6;
-const STATE_NEW_RANDOM_GAME = 7;
+const STATE_NEW_GAME = 7;
 const STATE_RANDOM_LEVEL_TRANSITION_OUT = 8;
 const STATE_RANDOM_LEVEL_TRANSITION_IN = 9;
+const STATE_TIME_GAME_OVER = 14;
 
 const STATE_PREPARE_TUTORIAL = 11;
 const STATE_TUTORIAL = 12;
 const STATE_TEARDOWN_TUTORIAL = 13;
-
 
 let game_state = STATE_SETUP;
 
 // play mode  // will this be rolled into state machine stuff??
 const GAMEMODE_RANDOM = 0;
 const GAMEMODE_LEVELS = 1;
+const GAMEMODE_TIME = 2;
+
+let current_gamemode = GAMEMODE_RANDOM;
 
 let intro_timer = 0;
 let next_button_bob_timer = 0;
@@ -212,6 +239,24 @@ let grid_obj_id = 0;
 const TOTAL_EDITOR_ITEMS = 14;
 
 //////// CLASSES
+class gamemode
+{
+  constructor()
+  {
+    // this will run at the start of the game to setup ny
+    // game mode specific stuff needed
+    this.initialization_function = undefined;
+    // between each level, this function is executed
+    // here is where things like keeping track of scoring, etc.
+    // would happen
+    this.level_transition_function = undefined;
+    // any game mode specific UI stuff happens here
+    this.ui_drawing_function = undefined;
+    // what happens when the grid is reset
+    this.reset_grid_function = undefined;
+  }
+}
+
 class mouse_region
 {
   constructor(x1, y1, x2, y2)
@@ -245,7 +290,6 @@ class mouse_handler
     // each REGISTERED REGION keeps track of it's own events!
     // so a REGION is REGISTERED with any/all events
     // this REGION will be a KEY into a MAP
-    // should some of these events be states?
     this.mx = mouseX;
     this.my = mouseY;
 
@@ -258,6 +302,7 @@ class mouse_handler
 
     this.clicked = mouseIsPressed;  // just in case the mouse is being held down when game is started? test this
   }
+
   get_targetx()
   {
     return int(this.mx / gridSize);
@@ -273,12 +318,12 @@ class mouse_handler
     // we should iterate over this backwards and the FIRST region
     // we encounter that can handle this event does, this way we can
     // stack regions
-    for (const [key, region] of Object.entries(this.registered_regions)) {
-      if (!region.enabled)
+    for (const [key, _region] of Object.entries(this.registered_regions)) {
+      if (!_region.enabled)
         continue;
-      if (region.mouse_over && event_key in region.events)
+      if (_region.mouse_over && event_key in _region.events)
       {
-          region.events[event_key]();
+        _region.events[event_key]();
       }
     }
   }
@@ -351,20 +396,20 @@ class mouse_handler
   {
     // check all registered regions and figure out which the mouse
     // is over
-    for (const [key, value] of Object.entries(this.registered_regions)) {
-      if (value.update_mouse_over(_mx, _my))  // returns TRUE if it's updated mouse over
+    for (const [key, _region] of Object.entries(this.registered_regions)) {
+      if (_region.update_mouse_over(_mx, _my))  // returns TRUE if it's updated mouse over
       {
-        if (value.mouse_over)
+        if (_region.mouse_over)
         {
           // this region is active now, which means it used to not be
           // so we entered the region
-          if (MOUSE_EVENT_ENTER_REGION in value.events)
-            value.events[MOUSE_EVENT_ENTER_REGION]();
+          if (MOUSE_EVENT_ENTER_REGION in _region.events)
+            _region.events[MOUSE_EVENT_ENTER_REGION]();
         }
         else
         {
-          if (MOUSE_EVENT_EXIT_REGION in value.events)
-            value.events[MOUSE_EVENT_EXIT_REGION]();
+          if (MOUSE_EVENT_EXIT_REGION in _region.events)
+            _region.events[MOUSE_EVENT_EXIT_REGION]();
         }
       }
     }
@@ -419,7 +464,7 @@ class level
   copy_save_string_to_clipboard(lights, detectors)
   {
     let t = this.generate_save_string(lights, detectors);
-    copyToClipboard(t);
+    show_level_code_and_offer_copy(t);
   }
 
   generate_save_string(lights, detectors)
@@ -523,8 +568,9 @@ class editor_handler
   {
     this.DRAWING_MODE = 0;
     this.ERASING_MODE = 1;
-    this.DRAGGING_LIGHT_MODE = 2;
+    this.DRAGGING_ITEM_MODE = 2;
     this.selected_light = undefined;
+    this.selected_detector = undefined;
     this.dragging_mode = undefined;
     this.editor_mode = this.DRAWING_MODE;
     this.game_region = new mouse_region(0, 0, width, height);
@@ -537,6 +583,10 @@ class editor_handler
     this.start_drag_y = undefined;
     this.end_drag_x = undefined;
     this.end_drag_y = undefined;
+
+    this.num_red_detectors = 0;
+    this.num_blue_detectors = 0;
+    this.num_green_detectors = 0;
   }
 
   disable()
@@ -586,7 +636,7 @@ class editor_handler
       // this will erase the area back to buildable floor!
       this.try_erase_wall(tx, ty);
     }
-    else if (this.dragging_mode === this.DRAGGING_LIGHT_MODE)
+    else if (this.dragging_mode === this.DRAGGING_ITEM_MODE)
     {
       // we can drag lights OR detectors in this mode!
       let tx = global_mouse_handler.get_targetx();
@@ -602,7 +652,10 @@ class editor_handler
         this.end_drag_y = ty;
         if (this.can_drag(this.start_drag_x, this.start_drag_y, this.end_drag_x, this.end_drag_y))
         {
-          lightsources[this.selected_light].move(this.end_drag_x, this.end_drag_y);
+          if (this.selected_light !== null)
+            lightsources[this.selected_light].move(this.end_drag_x, this.end_drag_y);
+          else if (this.selected_detector !== null)
+            detectors[this.selected_detector].move(this.end_drag_x, this.end_drag_y);
         }
         else
         {
@@ -610,6 +663,7 @@ class editor_handler
           this.dragging_mode = undefined;
           this.is_dragging = false;
           this.selected_light = undefined;
+          this.selected_detector = undefined;
         }
           // console.log("Dragged from " + this.start_drag_x + "," +
         // this.start_drag_y + " to " + this.end_drag_x + "," + this.end_drag_y);
@@ -701,19 +755,43 @@ class editor_handler
     {
       selected_item = tx;
     }
+    if (ty === gridHeight - 1 && tx === 15)
+    {
+      in_erase_mode = !in_erase_mode;
+      if (in_erase_mode)
+        this.editor_mode = this.ERASING_MODE;
+      else
+        this.editor_mode = this.DRAWING_MODE;
+    }
 
     if (tx <= 0 || gridWidth - 1 <= tx || ty <= 0 || gridHeight - 1 <= ty)
       return; // all other clicks we only care about in game area
 
-    let gl = get_selected_light(px, py);
-    if (gl !== undefined)
+    if (this.editor_mode != this.ERASING_MODE)
     {
-      this.is_dragging = true;
-      this.selected_light = gl;
-      this.dragging_mode = this.DRAGGING_LIGHT_MODE;
-      this.start_drag_x = global_mouse_handler.get_targetx();
-      this.start_drag_y = global_mouse_handler.get_targety();
-      return;
+      let gl = get_selected_light(px, py);
+      if (gl !== undefined)
+      {
+        this.is_dragging = true;
+        this.selected_light = gl;
+        this.selected_detector = null;
+        this.dragging_mode = this.DRAGGING_ITEM_MODE;
+        this.start_drag_x = tx;
+        this.start_drag_y = ty;
+        return;
+      }
+
+      let dt = get_selected_detector(px, py);
+      if (dt !== undefined)
+      {
+        this.is_dragging = true;
+        this.selected_light = null;
+        this.selected_detector = dt;
+        this.dragging_mode = this.DRAGGING_ITEM_MODE;
+        this.start_drag_x = tx;
+        this.start_drag_y = ty;
+        return;
+      }
     }
 
     // IF we have a lightsource or detector as our selected item
@@ -760,11 +838,22 @@ class editor_handler
     }
     else if (this.editor_mode === this.ERASING_MODE)
     {
+      let gl = get_selected_light(px, py);
+      let dt = get_selected_detector(px, py);
       // IF we have the ERASE TOOL selected
       // erasing mode
-      this.dragging_mode = this.ERASING_MODE;
-      this.is_dragging = true;
-      this.try_erase_wall(tx, ty);
+      // this.dragging_mode = this.ERASING_MODE;
+      // this.is_dragging = true;
+      // this.try_erase_wall(tx, ty);
+      if (gl !== undefined)
+      {
+        // erase_lightsource(gl);
+        this.erase_lightsource(gl, tx, ty);
+      }
+      if (dt !== undefined)
+      {
+        this.erase_detector(dt, tx, ty);
+      }
     }
 
   }
@@ -774,6 +863,16 @@ class editor_handler
     this.is_dragging = false;
   }
 
+  erase_detector(_dt, _x, _y)
+  {
+    set_grid(current_level.grid, _x, _y, FLOOR_BUILDABLE);
+    detectors.splice(_dt, 1);
+  }
+
+  erase_lightsource(_gl, _x, _y)
+  {
+    lightsources.splice(_gl, 1);
+  }
 }
 
 class gameplay_handler
@@ -1120,6 +1219,15 @@ class detector
     }
     ellipse(this.x * gridSize + GRID_HALF, this.y * gridSize + GRID_HALF, gridSize * default_size, gridSize * default_size);
   }
+
+  move(_x, _y)
+  {
+    set_grid(current_level.grid, this.x, this.y, FLOOR_BUILDABLE);
+    this.x = _x;
+    this.y = _y;
+    set_grid(current_level.grid, this.x, this.y, DETECTOR_TILE);
+    this.check_color();
+  }
 }
 
 class light_source
@@ -1176,7 +1284,7 @@ class light_source
 
     this.ls_region.events[MOUSE_EVENT_ENTER_REGION] = () => { this.selected = true; };
     this.ls_region.events[MOUSE_EVENT_EXIT_REGION] = () => this.check_leave_grid();
-    this.name = color_to_string(this.c);
+    this.name = color_to_string(this.c) + detectors.length;
     global_mouse_handler.register_region(this.name, this.ls_region);
 
   }
@@ -1353,7 +1461,7 @@ function setup() {
   if (show_intro)
     game_state = STATE_INTRO;
   else
-    game_state = STATE_NEW_RANDOM_GAME;
+    game_state = STATE_MAIN_MENU_SETUP;
 
 }
 
@@ -1392,42 +1500,126 @@ function initialize_colors() {
 }
 
 //////// MAIN MENU
-function handle_menu_selection(menu_index)
+function do_setup_main_menu()
+{
+  // it will be a region that will contain sub-regions for each menu option?
+  let i = 0;
+  for (let m of main_menu_options)
+  {
+    let reg = new mouse_region(0, i * gridSize, gridSize * gridWidth, (i + 1) * gridSize);
+    reg.events[MOUSE_EVENT_CLICK] = () => handle_main_menu_selection(int(global_mouse_handler.my / gridSize));
+    reg.events[MOUSE_EVENT_ENTER_REGION] = () => {main_menu_selected = int(global_mouse_handler.my / gridSize);};
+    global_mouse_handler.register_region(m, reg);
+    ++i;
+  }
+  main_menu_accept_input = true;
+  game_state = STATE_MAIN_MENU;
+}
+
+function do_main_menu()
+{
+  main_menu_accept_input = true;
+  fill(37);
+  rect(0, 0, width, height);
+
+  // display menu options
+  textSize(gridSize);
+  var i = 0;
+  stroke(0);
+  strokeWeight(2);
+  for (let m of main_menu_options)
+  {
+    if (main_menu_selected === i)
+      fill(253);
+    else
+      fill(157);
+
+    if (i == 2 || i == 3 || i == 4)
+      fill(12);
+    text(m, (gridWidth - 17) * gridSize, (i + 1) * gridSize );
+    ++i;
+  }
+
+}
+
+function teardown_main_menu()
+{
+  // TODO: Instead of carrying this bit of state, we should
+  // just be using the mouses event system to enable/disable
+  // the menu buttons when we need them or not
+  main_menu_accept_input = false;
+}
+
+function handle_main_menu_selection(menu_index)
 {
   if (!main_menu_accept_input)
+    return;
+
+    switch (menu_index)
+  {
+    case 0:
+      teardown_main_menu();
+      current_gamemode = GAMEMODE_RANDOM;
+      game_state = STATE_NEW_GAME;
+      break;
+    case 1:
+      teardown_main_menu();
+      current_gamemode = GAMEMODE_TIME;
+      game_state = STATE_NEW_GAME;
+      break;
+    case 2:
+      teardown_main_menu();
+      break;
+    case 3:
+      teardown_main_menu();
+      break;
+    case 4:
+      teardown_main_menu();
+      break;
+  }
+}
+
+//////// TOP MENU
+function handle_top_menu_selection(menu_index)
+{
+  if (!top_menu_accept_input)
     return;
   // "save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"
   switch (menu_index)
   {
     case 0:
+      // exit to main menu
+      game_state = STATE_MAIN_MENU; // or just main menu?
+      break;
+    case 1:
       // save
       current_level.save_level(lightsources, detectors);
       break;
-    case 1:
-      break;
     case 2:
+      break;
+    case 3:
       // reset grid
       resetStuff();
       break;
-    case 3:
+    case 4:
       // reset game
       // TODO: Are you sure box!
       storeItem("savedgame", null);
-      game_state = STATE_NEW_RANDOM_GAME;
+      game_state = STATE_NEW_GAME;
       break;
-    case 4:
+    case 5:
       // editor
       if (editor_available)
         game_state = STATE_SETUP_EDITOR;
       break;
-    case 5:
+    case 6:
       // tutorial
       game_state = STATE_PREPARE_TUTORIAL;
       break;
-    case 6:
+    case 7:
       // options
       break;
-    case 7:
+    case 8:
       // about
       break;
   }
@@ -1435,16 +1627,17 @@ function handle_menu_selection(menu_index)
 
 function launch_menu()
 {
-  global_mouse_handler.disable_region("main_menu");
+  // send mouse off event to top_menu to disable high-lighting? 
+  global_mouse_handler.disable_region("top_menu");
   enable_menu();
   show_menu = true;
 }
 
 function enable_menu()
 {
-  global_mouse_handler.enable_region("opened_main_menu");
+  global_mouse_handler.enable_region("opened_top_menu");
   show_menu = true;
-  for (let m of main_menu_options)
+  for (let m of top_menu_options)
   {
     global_mouse_handler.enable_region(m);
   }
@@ -1452,10 +1645,10 @@ function enable_menu()
 
 function disable_menu()
 {
-  main_menu_accept_input = false;
-  global_mouse_handler.disable_region("opened_main_menu");
+  top_menu_accept_input = false;
+  global_mouse_handler.disable_region("opened_top_menu");
   show_menu = false;
-  for (let m of main_menu_options)
+  for (let m of top_menu_options)
   {
     global_mouse_handler.disable_region(m);
   }
@@ -1464,7 +1657,7 @@ function disable_menu()
 function close_menu()
 {
   disable_menu();
-  global_mouse_handler.enable_region("main_menu");
+  global_mouse_handler.enable_region("top_menu");
   show_menu = false;
 }
 
@@ -1476,21 +1669,21 @@ function make_menu()
   menu_region.events[MOUSE_EVENT_CLICK] = () => { launch_menu(); };
   menu_region.events[MOUSE_EVENT_ENTER_REGION] = () => {mouse_over_menu = true;};
   menu_region.events[MOUSE_EVENT_EXIT_REGION] = () => {mouse_over_menu = false;};
-  global_mouse_handler.register_region("main_menu", menu_region);
+  global_mouse_handler.register_region("top_menu", menu_region);
   // initialize the menu handler and region stuff
   
-  open_menu_region = new mouse_region((gridWidth - 8) * gridSize, 0, gridWidth * gridSize, menu_height * gridSize);
+  open_menu_region = new mouse_region((gridWidth - 8) * gridSize, 0, gridWidth * gridSize, top_menu_height * gridSize);
   open_menu_region.events[MOUSE_EVENT_EXIT_REGION] = () => {close_menu();};
-  open_menu_region.events[MOUSE_EVENT_UNCLICK] = () => {main_menu_accept_input = true;}
-  global_mouse_handler.register_region("opened_main_menu", open_menu_region);
+  open_menu_region.events[MOUSE_EVENT_UNCLICK] = () => {top_menu_accept_input = true;}
+  global_mouse_handler.register_region("opened_top_menu", open_menu_region);
   
   // it will be a region that will contain sub-regions for each menu option?
   let i = 0;
-  for (let m of main_menu_options)
+  for (let m of top_menu_options)
   {
     let reg = new mouse_region((gridWidth - 8) * gridSize, i * gridSize, gridSize * gridWidth, (i + 1) * gridSize);
-    reg.events[MOUSE_EVENT_CLICK] = () => handle_menu_selection(int(global_mouse_handler.my / gridSize));
-    reg.events[MOUSE_EVENT_ENTER_REGION] = () => {main_menu_selected = int(global_mouse_handler.my / gridSize);};
+    reg.events[MOUSE_EVENT_CLICK] = () => handle_top_menu_selection(int(global_mouse_handler.my / gridSize));
+    reg.events[MOUSE_EVENT_ENTER_REGION] = () => {top_menu_selected = int(global_mouse_handler.my / gridSize);};
     global_mouse_handler.register_region(m, reg);
     ++i;
   }
@@ -1510,15 +1703,14 @@ function keyPressed() {
   } else if (key === 's') {
     current_level.copy_save_string_to_clipboard(lightsources, detectors);
   } else if (key === 'l') {
-    load_level(getItem("savedgame"));
+    try_load_level(getItem("savedgame"));
   } 
   else if (key === 'q') {
     storeItem("high_random_score", null);
   }
   else if (key === 'e') {
-    let lvl_txt = copyFromClipboard();
-    console.log("level: " + lvl_txt);
-    load_level(lvl_txt);
+    let lvl_txt = get_level_and_load();
+    try_load_level(lvl_txt);
   }
   
 
@@ -1597,6 +1789,7 @@ function clear_grid_spot(which_grid, x, y)
 }
 
 //////// STATES
+
 function do_game()
 {
   let grid = current_level.grid;
@@ -1621,6 +1814,12 @@ function do_game()
   }
   let old_next_level_available = next_level_available;
   next_level_available = all_active;
+
+  // if we're in time attack, transition right away
+  if (all_active && current_gamemode === GAMEMODE_TIME)
+  {
+    game_state = STATE_RANDOM_LEVEL_TRANSITION_OUT;
+  }
 
   // change in status of ability to go to next level
   if (old_next_level_available != next_level_available)
@@ -1653,36 +1852,6 @@ function do_game()
   fill(font_color);
   text("level: " + difficulty_level, 0 + GRID_HALF, gridSize - 4);
 
-  if (highest_score_changed > 0)
-  {
-    fill(lerpColor(font_color, color(255, 255, 255), highest_score_changed));
-    highest_score_changed -= deltaTime / 5000;
-  }
-
-  // bottom left will either say your CURRENT SCORE
-  // the HIGH SCORE
-  // or display the points you JUST GOT
-
-  if (highest_score_display_timer > 0)
-  {
-    highest_score_display_timer -= deltaTime / 1000;
-    text("high score: " + highest_score, 0 + GRID_HALF, gridHeight * gridSize - 4);
-  }
-  else
-  {
-    text("score: " + new_scoring_system + " points: " + points_for_current_grid, 0 + GRID_HALF, gridHeight * gridSize - 4);
-  }
-
-  if (new_total_fade > 0)
-  {
-    new_total_fade -= deltaTime / 1500;
-    strokeWeight(2);
-    stroke(37);
-    fill(255);
-    let xfadepos = ((highest_score_display_timer > 0) ? 5 : 4);
-    xfadepos *= gridSize;
-    text("+" + new_total, xfadepos, gridHeight * gridSize - 4 + (new_total_fade * 10));
-  }
 
 
   fill(font_color);
@@ -1691,17 +1860,21 @@ function do_game()
   
   text("menu", (gridWidth - 3) * gridSize, gridSize - 4);
 
-  if (next_level_available)
-  {
-    next_button_bob_timer += (deltaTime / 100);
-    if (next_button_bob_timer > TWO_PI)
-      next_button_bob_timer = 0;
 
-    if (over_next_level)
-      fill(255)
-    else
-      fill(font_color);
-    text("next", (gridWidth - 3) * gridSize, gridHeight * gridSize - 4 - sin(next_button_bob_timer));
+
+  if (current_gamemode === GAMEMODE_RANDOM)
+  {
+    random_game_ui();
+  }
+  if (current_gamemode === GAMEMODE_TIME)
+  {
+    if (time_remaining > 0)
+      time_remaining -= deltaTime / 1000;
+    if (time_remaining <= 0)
+    {
+      game_state = STATE_TIME_GAME_OVER;
+    }
+    time_game_ui();
   }
 
   if (saveFade > 0)
@@ -1723,7 +1896,14 @@ function do_intro()
 {
   blendMode(ADD);
   let random_cols = [color(255, 0, 0), color(0, 255, 0), color(0, 0, 255)];
-  if (intro_timer < 3000)
+  if (intro_timer === 0)
+  {
+    intro_timer += deltaTime;
+    textSize(72);
+    textAlign(CENTER, CENTER);
+    offs = 0;
+  }
+  else if (intro_timer < 3000)
   {
     intro_timer += deltaTime;
     if (intro_timer < 2000)
@@ -1739,10 +1919,18 @@ function do_intro()
     // line (xrand, yrand, xrand + random(10) - 5, yrand + random(200) + 80);
     noStroke();
     fill(random(random_cols), random(50));
-    textSize(72);
-    textAlign(CENTER, CENTER);
+
     // if (intro_timer < 1500)
-    text("a tw game", 0, 0, width, height + (intro_timer * random(1, 6) % 800) - 400);
+    text("a tw game", 0, 0, width, height + (intro_timer * random(1, 13) % 900) - 450);
+    // text("a tw game", 0, 0, width, height + offs);
+    // if (random(100) < 10)
+    // {
+    //   offs = (intro_timer * random(1, 13) % 900) - 450;
+    // }
+    // else
+    // {
+    //   offs += 10;
+    // }
     // else
     // text("addico", 0, 0, width, height + (intro_timer * random(3, 7) % 800) - 400);
     strokeWeight(2);
@@ -1760,7 +1948,7 @@ function do_intro()
   {
     blendMode(BLEND);
     textAlign(LEFT, BASELINE);
-    game_state = STATE_NEW_RANDOM_GAME;
+    game_state = STATE_MAIN_MENU_SETUP;
   }
 }
 
@@ -1770,7 +1958,7 @@ function do_level_transition_out()
   // global fade should start at 0
   if (globalFade < 1)
   {
-    globalFade += deltaTime / 200;
+    globalFade += deltaTime / 50;
   }
   fill(48, 48, 48, globalFade * 255);
   rect(0, 0, gameWidth, gameHeight);
@@ -1778,22 +1966,35 @@ function do_level_transition_out()
   {
     // this is what is going to change around depending on what
     // game mode we are in.
+    if (current_gamemode === GAMEMODE_RANDOM)
+    {
+      // count our score here
+      new_total = count_score();
+      new_total_fade = 1;
+      new_scoring_system += new_total > 0 ? new_total : 0;
+      ++difficulty_level;
+      random_level();
+      make_edges();
+      points_for_current_grid = count_score();
+    }
 
-    // count our score here
-    new_total = count_score();
-    new_total_fade = 1;
-    new_scoring_system += new_total > 0 ? new_total : 0;
-    ++difficulty_level;
-    random_level();
-    make_edges();
-    points_for_current_grid = count_score();
-    game_state = STATE_RANDOM_LEVEL_TRANSITION_IN
+    if (current_gamemode === GAMEMODE_TIME)
+    {
+      time_remaining += 10;
+      total_time_played += 10;
+      // TODO: Display this somewhere
+      ++difficulty_level;
+      time_level();
+      make_edges();
+    }
+
+    game_state = STATE_RANDOM_LEVEL_TRANSITION_IN;
   }
 }
 
 function do_level_transition_in()
 {
-  globalFade -= deltaTime / 500;
+  globalFade -= deltaTime / 10;
   fill(48, 48, 48, globalFade * 255);
   rect(0, 0, gameWidth, gameHeight);
   if (globalFade < 0)
@@ -1869,14 +2070,22 @@ function tutorial()
   textAlign(LEFT, BASELINE);
 }
 
+function setup_game()
+{
+  if (current_gamemode === GAMEMODE_RANDOM)
+    setup_random_game();
+  if (current_gamemode === GAMEMODE_TIME)
+    setup_time_game();
+}
+
 //////// DRAWING 
 // DRAW gets called EVERY frame, this is the MAIN GAME LOOP
 function draw() {
   global_mouse_handler.handle();  // do mouse stuff
   switch (game_state)
   {
-  case STATE_NEW_RANDOM_GAME:
-    setup_random_game();
+  case STATE_NEW_GAME:
+    setup_game();
     break;
   case STATE_INTRO:
     do_intro();
@@ -1889,6 +2098,9 @@ function draw() {
     break;
   case STATE_RANDOM_LEVEL_TRANSITION_IN:
     do_level_transition_in();
+    break;
+  case STATE_TIME_GAME_OVER:
+    do_show_time_results();
     break;
   case STATE_SETUP_EDITOR:
     do_setup_editor();
@@ -1905,6 +2117,15 @@ function draw() {
   case STATE_TEARDOWN_TUTORIAL:
     tear_down_tutorial();
     break;
+  case STATE_MAIN_MENU_SETUP:
+    do_setup_main_menu();
+    break;
+  case STATE_MAIN_MENU:
+    do_main_menu();
+    break;
+  case STATE_MAIN_MENU_TEARDOWN:
+    teardown_main_menu();
+    break;
   }
 }
 
@@ -1913,20 +2134,20 @@ function draw_menu()
   fill(37, 210);
   stroke(12);
   strokeWeight(2);
-  rect((gridWidth - 8) * gridSize, 0, gridWidth * gridSize, gridSize * menu_height);
+  rect((gridWidth - 8) * gridSize, 0, gridWidth * gridSize, gridSize * top_menu_height);
 
   // display menu options
   var i = 0;
   stroke(0);
   strokeWeight(2);
-  for (let m of main_menu_options)
+  for (let m of top_menu_options)
   {
-    if (main_menu_selected === i)
+    if (top_menu_selected === i)
       fill(253);
     else
       fill(157);
 
-    if (i === 1 || (i === 4 && !editor_available) || i == 6 || i == 7)
+    if (i === 2 || (i === 5 && !editor_available) || i == 7 || i == 8)
       fill(28);
     text(m, (gridWidth - 7) * gridSize, (i + 1) * gridSize );
     ++i;
@@ -2091,6 +2312,20 @@ function draw_mouse_illumination(mx, my)
 }
 
 //////// LEVEL SAVE / LOAD
+function try_load_level(level_string)
+{
+  // this should be a failsafe in case I accidentally corrupt
+  // peoples saved games?
+  try 
+  {
+    load_level(level_string);
+  } catch (err) {
+    storeItem("savedgame", null);
+    return false;
+  }
+  return true;
+}
+
 function load_level(level_string)
 {
   // create a new level
@@ -2247,6 +2482,14 @@ function do_editor()
   // draw editor UI components
   draw_editor_ui();
 
+  if (in_erase_mode)
+  {
+    noStroke();
+    fill(255, 0, 0, 50);
+    square(global_mouse_handler.get_targetx() * gridSize, 
+    global_mouse_handler.get_targety() * gridSize, gridSize);
+  }
+
   strokeWeight(4);
   stroke(90, 50);
   // Render any text that we have to
@@ -2281,6 +2524,8 @@ function draw_editor_ui()
 
   draw_map_tiles(11, gridHeight - 1);
 
+  draw_garbage_can(15, gridHeight - 1);
+
   // highlight selected item
   if (hovered_item !== undefined)
   {
@@ -2298,6 +2543,22 @@ function draw_editor_ui()
     square(gridSize * selected_item, (gridHeight - 1) * gridSize, gridSize);
   }
 
+  if (in_erase_mode)
+  {
+    strokeWeight(2);
+    fill(127, 0, 0, 50);
+    stroke(255, 0, 0);
+    square(15 * gridSize, (gridHeight - 1) * gridSize, gridSize);
+  }
+
+}
+
+function draw_garbage_can(_x, _y)
+{
+  stroke(255, 0, 0);
+  strokeWeight(2);
+  line(_x * gridSize, _y * gridSize, (_x + 1) * gridSize, (_y + 1) * gridSize);
+  line(_x * gridSize, (_y + 1) * gridSize, (_x + 1) * gridSize, _y * gridSize);
 }
 
 function draw_detector_at_grid_spot(_x, _y, _c)
@@ -2361,6 +2622,63 @@ function draw_map_tiles(_x, _y)
 
 }
 
+//////// TIME ATTACK MODE
+function setup_time_game()
+{
+  ghandler = new gameplay_handler();
+  // next level button, will start hidden and disabled
+  let next_region = new mouse_region((gridWidth - 3) * gridSize, (gridHeight - 1) * gridSize, gridWidth * gridSize, gridHeight * gridSize);
+  next_region.events[MOUSE_EVENT_CLICK] = () => { game_state = STATE_RANDOM_LEVEL_TRANSITION_OUT; };
+  next_region.events[MOUSE_EVENT_ENTER_REGION] = () => { over_next_level = true; };
+  next_region.events[MOUSE_EVENT_EXIT_REGION] = () => { over_next_level = false; };
+  next_region.enabled = false;
+  global_mouse_handler.register_region("next_btn", next_region);
+
+  difficulty_level = 1;   // todo: shouldn't be hard coded here
+  time_remaining = 20;    // todo: shouldn't be hard coded here
+  total_time_played = time_remaining;
+  init_light_sources();
+  time_level();
+  game_state = STATE_GAME;
+}
+
+function time_level()
+{
+  // change how this level is made
+  let new_random_level = new level();
+  new_random_level.xsize = gridWidth;
+  new_random_level.ysize = gridHeight;
+  new_random_level.initialize_grid();
+
+  initializeGrid(new_random_level.grid);
+  turn_lights_off();
+  init_random_detectors(new_random_level, difficulty_to_detector_amount());
+  make_some_floor_unbuildable(new_random_level.grid, difficulty_to_shrink_amount());
+  shrink_lights();
+  current_level = new_random_level;
+  // save current level
+  make_edges();
+  update_all_light_viz_polys();
+
+}
+
+function tear_down_time_game()
+{
+  global_mouse_handler.disable("ghandler"); // remove entirely at some point!
+}
+
+function time_game_ui()
+{
+  fill(font_color);
+  text("time left: " + int(time_remaining), 0 + GRID_HALF, gridHeight * gridSize - 4);
+}
+
+function do_show_time_results()
+{
+  // TODO: Fancy show this!
+  console.log("Scored: " + total_time_played);
+  game_state = STATE_NEW_GAME;
+}
 //////// RANDOM GAME MODE
 function setup_random_game()
 {
@@ -2379,9 +2697,15 @@ function setup_random_game()
   // check if we have a saved game
   let saved_g = getItem("savedgame");
   if (!saved_g)
+  {
     random_level();
+  }
   else
-    load_level(saved_g);
+  {
+    let loaded_success = try_load_level(saved_g);
+    if (!loaded_success)
+      random_level();
+  }
   highest_score = getItem("high_random_score")
   if (highest_score == null)
     highest_score = 0;
@@ -2392,6 +2716,56 @@ function setup_random_game()
 function tear_down_random_game()
 {
   global_mouse_handler.disable("ghandler"); // remove entirely at some point!
+}
+
+function random_game_ui()
+{
+  if (next_level_available)
+  {
+    next_button_bob_timer += (deltaTime / 100);
+    if (next_button_bob_timer > TWO_PI)
+      next_button_bob_timer = 0;
+
+    if (over_next_level)
+      fill(255)
+    else
+      fill(font_color);
+    text("next", (gridWidth - 3) * gridSize, gridHeight * gridSize - 4 - sin(next_button_bob_timer));
+  }
+
+  fill(font_color);
+  if (highest_score_changed > 0)
+  {
+    fill(lerpColor(font_color, color(255, 255, 255), highest_score_changed));
+    highest_score_changed -= deltaTime / 5000;
+  }
+
+  // bottom left will either say your CURRENT SCORE
+  // the HIGH SCORE
+  // or display the points you JUST GOT
+
+
+  if (highest_score_display_timer > 0)
+  {
+    highest_score_display_timer -= deltaTime / 1000;
+    text("high score: " + highest_score, 0 + GRID_HALF, gridHeight * gridSize - 4);
+  }
+  else
+  {
+    text("score: " + new_scoring_system + " points: " + points_for_current_grid, 0 + GRID_HALF, gridHeight * gridSize - 4);
+  }
+
+  if (new_total_fade > 0)
+  {
+    new_total_fade -= deltaTime / 1500;
+    strokeWeight(2);
+    stroke(37);
+    fill(255);
+    let xfadepos = ((highest_score_display_timer > 0) ? 5 : 4);
+    xfadepos *= gridSize;
+    text("+" + new_total, xfadepos, gridHeight * gridSize - 4 + (new_total_fade * 10));
+  }
+
 }
 
 function random_level()
@@ -2547,13 +2921,13 @@ function shrink_lights()
   for (let l of lightsources)
   {
     if (l.x < shrunk)
-      l.x = shrunk;
+      l.move(shrunk, l.y);
     if (l.x > gridWidth - shrunk - 1)
-      l.x = gridWidth - shrunk - 1;
+      l.move(gridWidth - shrunk - 1, l.y);
     if (l.y < shrunk)
-      l.y = shrunk;
+      l.move(l.x, shrunk);
     if (l.y > gridHeight - shrunk - 1)
-      l.y = gridHeight - shrunk - 1;
+      l.move(l.x, gridHeight - shrunk - 1);
   }
 }
 
@@ -2823,8 +3197,24 @@ function update_all_light_viz_polys()
 }
 
 //////// OTHER
+function get_selected_detector(xpos, ypos)
+{
+  // return index of the light that the cursor is over
+  let i = 0;
+  for (let d of detectors)
+  {
+    if (d.x * gridSize <= xpos && xpos <= d.x * gridSize + gridSize 
+      && d.y * gridSize <= ypos && ypos <= d.y * gridSize + gridSize)
+      return i;
+    ++i;
+  }
+  return undefined;
+}
+
 function resetStuff()
 {
+
+  // reset_grid_function
   // reset the grid (ie, all walls marked built (buildable + exist), will be changed to just buildable)
   reset_grid(current_level);
   points_for_current_grid = count_score();
@@ -2895,6 +3285,8 @@ function color_to_string(c)
 
 // from https://stackoverflow.com/questions/33855641/copy-output-of-a-javascript-variable-to-the-clipboard
 function copyToClipboard(text) {
+  // NOTE: We don't always want to do this, or at least prompt the user
+  // if they had something important on their clipboard!
   var dummy = document.createElement("textarea");
   // to avoid breaking orgain page when copying more words
   // cant copy when adding below this code
@@ -2907,23 +3299,18 @@ function copyToClipboard(text) {
   document.body.removeChild(dummy);
 }
 
+function show_level_code_and_offer_copy(text)
+{
+  let prompt = window.prompt("Press OK to copy to clipboard", text);
+  if (!prompt)
+    return;
+  copyToClipboard(text);
+}
+
 function get_level_and_load()
 {
   let prompt = window.prompt("Enter level code:","");
-
-}
-
-
-function copyFromClipboard() {
-  var dummy = document.createElement("textarea");
-  // to avoid breaking orgain page when copying more words
-  // cant copy when adding below this code
-  // dummy.style.display = 'none'
-  document.body.appendChild(dummy);
-  dummy.focus();
-  document.execCommand("paste");
-  let rval = dummy.textContent;
-  document.body.removeChild(dummy);
-  console.log("Value in copy from clipboard: " + rval);
-  return rval;
+  if (!prompt)
+    return;
+  return prompt;
 }
