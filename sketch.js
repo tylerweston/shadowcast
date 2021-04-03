@@ -8,12 +8,13 @@ documentation for now:
 
 ONLY draw the walls that the light makes visible
 
-- move main menu down a bit to fit in room for title
-- 
+- something broken with just setting is_dragging false to eat mouse input
+  between level transitions
 - mouse state can get wacky between level transitions sometimes
-- NAMES for LIGHTS added to GLOBAL MOUSE HANDLER
-  need to be unique so make sure to track the number of R, G, B lights
-  added and number the names
+  - in a timed game, when we automatically transition to the next level
+    we want to change the mouse state so that we aren't in drawing mode
+    anymore!
+- timer game should be a bit easier to play
 - deleting detectors doesn't look like its working
 - add undo so you can undo the last couple blocks you drew
 - we could make filters for different colored lights by having
@@ -31,6 +32,8 @@ ONLY draw the walls that the light makes visible
 - better way to show top score for timed game
   - this will be a screen that will offer "try again" or
   "main menu"?
+- make a button or ui class or something like that that will make creating
+  buttons easier
 
 - different tutorial for editor
 - better way to navigate around the game - more main menu kinda thing
@@ -108,7 +111,7 @@ let total_time_played = 0;
 // this stuff should all be refactored into state machine stuff
 // TODO: Bunch of little bits of state to clean up
 let display_editor = false;
-let editor_available = false;
+let editor_available = true;
 let show_intro = true;         // <--------------- intro flag
 let show_tutorial = false;
 let show_menu = false;
@@ -120,6 +123,12 @@ let over_btn = false;
 let next_level_available = false;
 let over_next_level = false;
 
+let over_play_again_btn = false;
+let over_main_menu_btn = false;
+let need_setup_show_time_results = true;;
+
+let need_setup_main_menu = true;
+
 let hovered_item = undefined;
 let selected_item = undefined;
 let in_erase_mode = false;
@@ -127,6 +136,7 @@ let in_erase_mode = false;
 let editor_level_name = "";
 
 let ghandler;
+let ehandler = null;
 
 // mouse events
 const MOUSE_EVENT_MOVE = 0;
@@ -149,7 +159,7 @@ let top_menu_selected = undefined;
 let top_menu_height = top_menu_options.length + 1;
 
 
-let main_menu_options = ["new random", "new timed", "load", "options", "about"];
+let main_menu_options = ["random", "timed", "editor", "load", "options", "about"];
 let main_menu_selected = undefined;
 let main_menu_height = main_menu_options.length + 1;
 
@@ -216,11 +226,13 @@ const STATE_LOADLEVEL = 6;
 const STATE_NEW_GAME = 7;
 const STATE_RANDOM_LEVEL_TRANSITION_OUT = 8;
 const STATE_RANDOM_LEVEL_TRANSITION_IN = 9;
-const STATE_TIME_GAME_OVER = 14;
 
 const STATE_PREPARE_TUTORIAL = 11;
 const STATE_TUTORIAL = 12;
 const STATE_TEARDOWN_TUTORIAL = 13;
+
+const STATE_SETUP_SHOW_TIME_RESULTS = 17;
+const STATE_SHOW_TIME_RESULTS = 18;
 
 let game_state = STATE_SETUP;
 
@@ -233,6 +245,7 @@ let current_gamemode = GAMEMODE_RANDOM;
 
 let intro_timer = 0;
 let next_button_bob_timer = 0;
+let global_light_id = 0;
 
 let grid_obj_id = 0;
 
@@ -584,6 +597,7 @@ class editor_handler
     this.end_drag_x = undefined;
     this.end_drag_y = undefined;
 
+
     this.num_red_detectors = 0;
     this.num_blue_detectors = 0;
     this.num_green_detectors = 0;
@@ -897,6 +911,11 @@ class gameplay_handler
     this.start_drag_y = undefined;
     this.end_drag_x = undefined;
     this.end_drag_y = undefined;
+  }
+
+  stop_dragging()
+  {
+    this.is_dragging = false;
   }
 
   disable()
@@ -1284,7 +1303,8 @@ class light_source
 
     this.ls_region.events[MOUSE_EVENT_ENTER_REGION] = () => { this.selected = true; };
     this.ls_region.events[MOUSE_EVENT_EXIT_REGION] = () => this.check_leave_grid();
-    this.name = color_to_string(this.c) + detectors.length;
+    this.name = color_to_string(this.c) + global_light_id;
+    ++global_light_id;
     global_mouse_handler.register_region(this.name, this.ls_region);
 
   }
@@ -1502,17 +1522,22 @@ function initialize_colors() {
 //////// MAIN MENU
 function do_setup_main_menu()
 {
-  // it will be a region that will contain sub-regions for each menu option?
-  let i = 0;
-  for (let m of main_menu_options)
+  if (need_setup_main_menu)
   {
-    let reg = new mouse_region(0, i * gridSize, gridSize * gridWidth, (i + 1) * gridSize);
-    reg.events[MOUSE_EVENT_CLICK] = () => handle_main_menu_selection(int(global_mouse_handler.my / gridSize));
-    reg.events[MOUSE_EVENT_ENTER_REGION] = () => {main_menu_selected = int(global_mouse_handler.my / gridSize);};
-    global_mouse_handler.register_region(m, reg);
-    ++i;
+    // it will be a region that will contain sub-regions for each menu option?
+    let i = 0;
+    for (let m of main_menu_options)
+    {
+      let reg = new mouse_region(0, (i + 1) * gridSize * 2, gridSize * gridWidth, (i + 2) * gridSize * 2);
+      reg.events[MOUSE_EVENT_CLICK] = () => handle_main_menu_selection(int(global_mouse_handler.my / (gridSize * 2)) - 1);
+      reg.events[MOUSE_EVENT_ENTER_REGION] = () => {main_menu_selected = int(global_mouse_handler.my / (gridSize * 2)) - 1;};
+      global_mouse_handler.register_region(m + "main_menu", reg);
+      ++i;
+    }
+    need_setup_main_menu = false;
   }
   main_menu_accept_input = true;
+  enable_main_menu();
   game_state = STATE_MAIN_MENU;
 }
 
@@ -1523,10 +1548,14 @@ function do_main_menu()
   rect(0, 0, width, height);
 
   // display menu options
-  textSize(gridSize);
+  textSize(gridSize * 2);
   var i = 0;
   stroke(0);
   strokeWeight(2);
+
+  fill(255);
+  text("spectro", (gridWidth - 17) * gridSize, gridSize * 2);
+
   for (let m of main_menu_options)
   {
     if (main_menu_selected === i)
@@ -1534,12 +1563,20 @@ function do_main_menu()
     else
       fill(157);
 
-    if (i == 2 || i == 3 || i == 4)
+    if ((i == 2 && !editor_available) || i == 3 || i == 4)
       fill(12);
-    text(m, (gridWidth - 17) * gridSize, (i + 1) * gridSize );
+    text(m, (gridWidth - 17) * gridSize, (i + 2) * gridSize * 2);
     ++i;
   }
 
+}
+
+function enable_main_menu()
+{
+  for (let m of main_menu_options)
+  {
+    global_mouse_handler.enable_region(m + "main_menu");
+  }
 }
 
 function teardown_main_menu()
@@ -1548,6 +1585,12 @@ function teardown_main_menu()
   // just be using the mouses event system to enable/disable
   // the menu buttons when we need them or not
   main_menu_accept_input = false;
+
+  // disable main menu options
+  for (let m of main_menu_options)
+  {
+    global_mouse_handler.disable_region(m + "main_menu");
+  }
 }
 
 function handle_main_menu_selection(menu_index)
@@ -1568,7 +1611,11 @@ function handle_main_menu_selection(menu_index)
       game_state = STATE_NEW_GAME;
       break;
     case 2:
-      teardown_main_menu();
+      if (editor_available)
+      {
+        game_state = STATE_SETUP_EDITOR;
+        teardown_main_menu();
+      }
       break;
     case 3:
       teardown_main_menu();
@@ -1585,11 +1632,22 @@ function handle_top_menu_selection(menu_index)
   if (!top_menu_accept_input)
     return;
   // "save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"
+  // Top menu selection will change depending on current state and 
+  // if the editor is active.
+
+  // if editor is active
+  // main menu
+  // save
+  // load
+  // reset grid
+  // ?? play ??
+  // tutorial
+  // ?? options ??
   switch (menu_index)
   {
     case 0:
       // exit to main menu
-      game_state = STATE_MAIN_MENU; // or just main menu?
+      game_state = STATE_MAIN_MENU_SETUP; // or just main menu?
       break;
     case 1:
       // save
@@ -1872,7 +1930,7 @@ function do_game()
       time_remaining -= deltaTime / 1000;
     if (time_remaining <= 0)
     {
-      game_state = STATE_TIME_GAME_OVER;
+      game_state = STATE_SETUP_SHOW_TIME_RESULTS;
     }
     time_game_ui();
   }
@@ -1983,6 +2041,7 @@ function do_level_transition_out()
       time_remaining += 10;
       total_time_played += 10;
       // TODO: Display this somewhere
+      ghandler.stop_dragging(); // this is broken!
       ++difficulty_level;
       time_level();
       make_edges();
@@ -2099,9 +2158,6 @@ function draw() {
   case STATE_RANDOM_LEVEL_TRANSITION_IN:
     do_level_transition_in();
     break;
-  case STATE_TIME_GAME_OVER:
-    do_show_time_results();
-    break;
   case STATE_SETUP_EDITOR:
     do_setup_editor();
     break;
@@ -2125,6 +2181,12 @@ function draw() {
     break;
   case STATE_MAIN_MENU_TEARDOWN:
     teardown_main_menu();
+    break;
+  case STATE_SETUP_SHOW_TIME_RESULTS:
+    do_setup_show_time_results();
+    break;
+  case STATE_SHOW_TIME_RESULTS:
+    do_show_time_results();
     break;
   }
 }
@@ -2428,7 +2490,8 @@ function load_level(level_string)
 function do_setup_editor()
 {
   // setup editor handler
-  let ehandler = new editor_handler();
+  if (!ehandler)
+    ehandler = new editor_handler();
 
   // ok, we need a new level
   editor_lvl = new level();
@@ -2447,7 +2510,8 @@ function do_setup_editor()
   make_edges();
 
   // make sure game handler isn't running any more
-  ghandler.disable();
+  if (ghandler)
+    ghandler.disable();
 
   // when we're done settin up
   game_state = STATE_EDITOR;
@@ -2673,11 +2737,111 @@ function time_game_ui()
   text("time left: " + int(time_remaining), 0 + GRID_HALF, gridHeight * gridSize - 4);
 }
 
+function do_setup_show_time_results()
+{
+  if (need_setup_show_time_results)
+  {
+    // TODO: Tweak to find better placement
+    let x1 = gridWidth * 4;
+    let y1 = (gridHeight - 4) * gridSize;
+    let x2 = gridWidth * 7;
+    let y2 = (gridHeight - 3) * gridSize;
+    // fill(255, 0, 0);
+    // rect(x1, y1, x2 - x1, y2 - y1);
+    let play_again_btn = new mouse_region(x1, y1, x2, y2);
+    play_again_btn.events[MOUSE_EVENT_ENTER_REGION] = () => { over_play_again_btn = true; };
+    play_again_btn.events[MOUSE_EVENT_EXIT_REGION] = () => { over_play_again_btn = false; };
+    play_again_btn.events[MOUSE_EVENT_CLICK] = () => { play_again_from_time_results(); };
+    global_mouse_handler.register_region("time_result_play_again_btn", play_again_btn);
+
+    // TODO: Tweak to find better placement
+    x1 = gridWidth * 9;
+    y1 = (gridHeight - 4) * gridSize;
+    x2 = gridWidth * 12;
+    y2 = (gridHeight - 3) * gridSize;
+    // fill(0, 255, 0);
+    // rect(x1, y1, x2 - x1, y2 - y1);
+    let back_main_menu_btn = new mouse_region(x1, y1, x2, y2);
+    back_main_menu_btn.events[MOUSE_EVENT_ENTER_REGION] = () => { over_main_menu_btn = true; };
+    back_main_menu_btn.events[MOUSE_EVENT_EXIT_REGION] = () => { over_main_menu_btn = false; };
+    back_main_menu_btn.events[MOUSE_EVENT_CLICK] = () => { go_back_to_main_menu_from_time_results(); };
+    global_mouse_handler.register_region("time_result_back_main_menu_btn", back_main_menu_btn);
+
+    // setup show time results
+    need_setup_show_time_results = false;
+  }
+  // enable our button regions
+  global_mouse_handler.enable_region("time_result_back_main_menu_btn");
+  game_state = STATE_SHOW_TIME_RESULTS;
+}
+
+function play_again_from_time_results()
+{
+  teardown_show_time_results();
+  game_state = STATE_NEW_GAME;
+}
+
+function go_back_to_main_menu_from_time_results()
+{
+  teardown_show_time_results();
+  game_state = STATE_MAIN_MENU_SETUP;
+}
+
 function do_show_time_results()
 {
   // TODO: Fancy show this!
-  console.log("Scored: " + total_time_played);
-  game_state = STATE_NEW_GAME;
+
+  // shadow
+  noStroke();
+  fill (0, 70);
+  rect(gridSize * 2 + GRID_HALF, gridSize * 2 + GRID_HALF, width - gridSize * 4, height - gridSize * 4);
+
+  stroke(190, 190, 190);
+  fill (35);
+  strokeWeight(4);
+  rect(gridSize * 2, gridSize * 2, width - gridSize * 4, height - gridSize * 4);
+  fill(72);
+  rect(gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
+  strokeWeight(1);
+  stroke(255);
+  textSize(gridSize);
+  text("Total time played: " + total_time_played, gridSize * 5, gridSize * 5);
+
+  let x1 = gridWidth * 4;
+  let y1 = (gridHeight - 4) * gridSize;
+  let x2 = gridWidth * 7;
+  let y2 = (gridHeight - 3) * gridSize;
+  // fill(255, 0, 0);
+  // rect(x1, y1, x2 - x1, y2 - y1);
+  if (over_play_again_btn)
+    fill(255);
+  else
+    fill(font_color);
+  // TOOD: Draw highlight if we're over play again button
+  text("again", x1, y2);
+
+  x1 = gridWidth * 9;
+  y1 = (gridHeight - 4) * gridSize;
+  x2 = gridWidth * 12;
+  y2 = (gridHeight - 3) * gridSize;
+  // fill(0, 255, 0);
+  // rect(x1, y1, x2 - x1, y2 - y1);
+  if (over_main_menu_btn)
+    fill(255);
+  else
+    fill(font_color);
+  // TODO: Draw highlight if we're over main menu button
+  text("menu", x1, y2);
+
+// todo: play again or main menu buttons
+
+  // game_state = STATE_NEW_GAME;
+}
+
+function teardown_show_time_results()
+{
+  global_mouse_handler.disable_region("time_result_play_again_btn");
+  // disable our mouse events for our buttons
 }
 //////// RANDOM GAME MODE
 function setup_random_game()
@@ -3213,7 +3377,9 @@ function get_selected_detector(xpos, ypos)
 
 function resetStuff()
 {
-
+  // This is only the reset function in a TIMED or RANDOM game
+  // in editor mode, it should ENTIRELY reset the level (remove
+  // detectors and lights as well).
   // reset_grid_function
   // reset the grid (ie, all walls marked built (buildable + exist), will be changed to just buildable)
   reset_grid(current_level);
