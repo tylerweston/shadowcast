@@ -1,22 +1,38 @@
 /*
-addjko
+spectro
+
+// top menu changes:
+// editor:
+// - "main menu", "save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"
+// reset game should become ... play? test? something like that?
+// load should be enabled
+
+// random game:
+// stays the same? no load? change load to undo or something? where would undo fit into all this?
+
+// timed game:
+// 
 
 documentation for now:
   - press s get a copiable version of the current level and possibly copy
     it to the clipboard
   - press e to bring up a box where you can enter a saved level
 
-ONLY draw the walls that the light makes visible
+ONLY draw the walls that the light makes visible?
 
+- change flooring from automatically tiled to user adjustable?
+  - keep SOME random floor options, but fluff them up!
 - something broken with just setting is_dragging false to eat mouse input
-  between level transitions
+  between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
   - in a timed game, when we automatically transition to the next level
     we want to change the mouse state so that we aren't in drawing mode
     anymore!
+- better flash juice
+- problem: can drag lights onto empty floor! Only in editor?
 - timer game should be a bit easier to play
 - deleting detectors doesn't look like its working
-- add undo so you can undo the last couple blocks you drew
+- add undo so you can undo the last couple blocks you drew?
 - we could make filters for different colored lights by having
   r,g, and b edges, run the detection thing three times
   , solid walls would just exist in all three color planes?
@@ -26,12 +42,9 @@ ONLY draw the walls that the light makes visible
     center the 
 - Maybe try removing the lightsources from the grid and see if it's fun like that?
   - the extra constraints might be necessary though?
-- difficulty balance in progression
+- difficulty balance in progression - timer game is too hard?
 - editor
 - tiles: glass unfillable, glass fillable
-- better way to show top score for timed game
-  - this will be a screen that will offer "try again" or
-  "main menu"?
 - make a button or ui class or something like that that will make creating
   buttons easier
 
@@ -42,10 +55,11 @@ ONLY draw the walls that the light makes visible
 - deactivate menu highlighting when menu is open
 - new game 
   = random
-  - load level (paste a string)
+  - load level (paste a string)?
   -
 
-- move levels to base64 so they don't look so obvious and long
+- move levels to base64 so they don't look so obvious and long?
+- move over additional points received during random game 
 - encapsulate state in a better way
   - right now it is kind of spread out and a bit icky how it is all implemented
   - collect and fix that stuff up
@@ -55,18 +69,21 @@ ONLY draw the walls that the light makes visible
 - Game Modes:
   - timer, countdown and every solution gets you some more time
     - speed mode
-  - more points for using less walls!
+  - more points for using less walls! maybe different scoring modes? don't always
+    emphasize austerity! 
     - "MINIMALIST" mode
-  - mode where you can only activate one light at a time?
+  - mode where you can only activate one light at a time??
     - press a button to check your solution, it is either wrong or right!
   -  
 - When we "shrink" lights onto the board, they may get placed on top of a
   detector, which makes them unmovable! make sure this doesn't happen!
 - Make sure all detectors aren't the same color!
-- make R, G, B keys toggle their lights in random mode
+- make R, G, B keys toggle their lights in random mode?
 - give editor "LOAD" and "PLAY" functions, so individual levels will be used in there?
 - don't allow holes to spawn on lights?
 - allow option to reset high score somewhere
+- ARE YOU SURE? box that returns TRUE or FALSE that we can use for various confirmation needed
+ actions, such as restarting a game.
 */
 
 // global variables
@@ -76,7 +93,7 @@ let edges = [];
 let lightsources = [];
 let detectors = [];
 
-let gridSize = 30;
+let gridSize = 40;
 
 let globalFade = 0;
 let saveFade = 0;
@@ -87,8 +104,8 @@ let highest_score_display_timer = 0;
 const GRID_HALF = gridSize / 2;
 const GRID_THIRD = gridSize / 3;
 
-const gameHeight = 600;
-const gameWidth = 900;
+const gameHeight = 720;
+const gameWidth = 960;
 const uiHeight = 200;
 
 let gridWidth = gameWidth / gridSize;
@@ -105,8 +122,11 @@ let new_total_fade;
 let new_scoring_system = 0;
 let points_for_current_grid = 0;
 
+// time attack stuff
 let time_remaining = 0;
+let time_gain_per_level = 10;
 let total_time_played = 0;
+let initial_time = 20;
 
 // this stuff should all be refactored into state machine stuff
 // TODO: Bunch of little bits of state to clean up
@@ -119,7 +139,7 @@ let top_menu_accept_input = false;
 let main_menu_accept_input = false;
 let show_mouse_illumination = false;
 let mouse_over_menu = false;
-let over_btn = false;
+let over_btn = false; // TODO: Roll into button class or something
 let next_level_available = false;
 let over_next_level = false;
 
@@ -147,6 +167,8 @@ const MOUSE_EVENT_EXIT_REGION = 5;
 
 let global_mouse_handler = undefined;
 
+const FLASH_SIZE = gridSize * 3;
+
 // Constants to help with edge detection
 const NORTH = 0;
 const SOUTH = 1;
@@ -154,9 +176,18 @@ const EAST = 2;
 const WEST = 3; 
 
 // menu options
-let top_menu_options = ["main menu", "save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"];
+let top_menu_choices = ["main menu", "save", "load", "reset grid", "reset game", "tutorial", "options", "about"];
+let top_menu_callbacks = [
+  () => top_menu_main_menu(), 
+  () => top_menu_save_level(), 
+  () => top_menu_load(), 
+  () => top_menu_reset_stuff(), 
+  () => top_menu_reset_game(), 
+  () => top_menu_tutorial(), 
+  () => top_menu_options(), 
+  () => top_menu_about()];
 let top_menu_selected = undefined;
-let top_menu_height = top_menu_options.length + 1;
+let top_menu_height = top_menu_choices.length + 1;
 
 
 let main_menu_options = ["random", "timed", "editor", "load", "options", "about"];
@@ -202,7 +233,7 @@ let detector_colors;
 
 // tiles
 const FLOOR_EMPTY = 0;      // darker, no tiles
-const FLOOR_BUILDABLE = 1;  // tiles
+const FLOOR_BUILDABLE = 1;  // tiles, need buildable 1 and 2 for different color floors?
 const FLOOR_BUILT = 6;      // buildable and built on
 
 const PERMENANT_WALL = 2;
@@ -233,6 +264,8 @@ const STATE_TEARDOWN_TUTORIAL = 13;
 
 const STATE_SETUP_SHOW_TIME_RESULTS = 17;
 const STATE_SHOW_TIME_RESULTS = 18;
+
+const STATE_SETUP_OPTIONS = 19;
 
 let game_state = STATE_SETUP;
 
@@ -461,7 +494,6 @@ class level
     }
   }
 
-
   set_level_data(level_data)
   {
     this.level_data = level_data;
@@ -508,7 +540,6 @@ class level
       new_score_string = String(new_score_string);
     
     level_string += new_score_string;
-
 
     let cur_char = "";
     for (var x = 0; x < this.xsize; ++x)
@@ -915,6 +946,7 @@ class gameplay_handler
 
   stop_dragging()
   {
+    this.dragging_mode = undefined;
     this.is_dragging = false;
   }
 
@@ -933,8 +965,6 @@ class gameplay_handler
     // only do something if we're dragging!
     if (!this.is_dragging)
       return;
-
-
 
     let tx = global_mouse_handler.get_targetx();
     let ty = global_mouse_handler.get_targety();
@@ -992,7 +1022,6 @@ class gameplay_handler
     points_for_current_grid = count_score();
   }
   
-
   can_drag(sx, sy, ex, ey)
   {
     // return true if you can drag a light from sx,sy to ex,ey
@@ -1080,24 +1109,31 @@ class detector
 {
   constructor(x, y, r, g, b)
   {
+    // position
     this.x = x;
     this.y = y;
+    // color stuff
     this.c = color(r,g,b);
     this.r = r;
     this.g = g;
     this.b = b;
+    // correct?
     this.correct = false;
+    this.old_correct = false;
+    // animation stuff
     this.anim_cycle = random(TWO_PI);
     this.anim_speed = ((random() + 1) / 55) + 0.0025;
-
+    // flash juice
+    this.flashing = false;
+    this.flash_radius = 0;
   }
 
   check_color()
   {
+    this.old_correct = this.correct;
     let xp = this.x * gridSize + GRID_HALF;
     let yp = this.y * gridSize + GRID_HALF;
     let HALF_HALF = GRID_HALF / 2;
-
 
     // Check Detectors
     // Uses Boyer-Moore vote algorithm to determine the majority
@@ -1180,7 +1216,6 @@ class detector
       {
         majority_count -= 1;
       }
-
     }
 
     // TODO: Write a color equality function!
@@ -1206,13 +1241,39 @@ class detector
     {
       this.correct = false;
     }
+
+    // if we used to be not active, and now we are, start a flash
+    if (this.correct && !this.old_correct)
+    {
+      this.flash_radius = 0;
+      this.flashing = true;
+    }
+
   }
 
   draw_this()
   {
+    let grid_center_x = this.x * gridSize + GRID_HALF;
+    let grid_center_y = this.y * gridSize + GRID_HALF;
+
     noStroke();
     fill(37);
     square(this.x * gridSize, this.y * gridSize, gridSize);
+
+    // draw flash juice
+    if (this.flashing)
+    {
+      strokeWeight(4);
+      noFill();
+      stroke(150, map(this.flash_radius, 0, FLASH_SIZE, 255, 0));
+      this.flash_radius += (deltaTime / 1.5);
+      if (this.flash_radius > FLASH_SIZE)
+      {
+        this.flashing = false;
+      }
+      ellipse(grid_center_x, grid_center_y, this.flash_radius, this.flash_radius);
+    }
+
 
     let default_size = 0.8;
     default_size *= (sin(this.anim_cycle) + 9) / 10;
@@ -1224,7 +1285,7 @@ class detector
       stroke(170);
     else
       stroke(4);
-    ellipse(this.x * gridSize + GRID_HALF, this.y * gridSize + GRID_HALF, gridSize * default_size, gridSize * default_size);
+    ellipse(grid_center_x, grid_center_y, gridSize * default_size, gridSize * default_size);
 
     strokeWeight(5);
     stroke(this.c);
@@ -1469,7 +1530,7 @@ class viz_poly_point
 function setup() {
   // setup is called once at the start of the game
   createCanvas(gameWidth, gameHeight);
-  initialize_colors();
+  initialize_colors();  // Can't happen until a canvas has been created!
 
   global_mouse_handler = new mouse_handler();
 
@@ -1627,60 +1688,115 @@ function handle_main_menu_selection(menu_index)
 }
 
 //////// TOP MENU
+function change_top_menu_entry(index, new_name, new_func)
+{
+  top_menu_choices[index] = new_name;
+  top_menu_callbacks[index] = () => new_func;
+}
+
+function top_menu_main_menu() 
+{
+  // Exit to main menu, check here if we need to load or save
+  // anything, etc.
+  game_state = STATE_MAIN_MENU_SETUP;
+} 
+
+function top_menu_save_level() 
+{
+  current_level.save_level(lightsources, detectors);
+}
+
+function top_menu_load() {}
+
+function top_menu_reset_stuff() 
+{
+  resetStuff();
+}
+
+function top_menu_reset_game() 
+{
+  // TODO: Yes/no confirm
+  storeItem("savedgame", null);
+  game_state = STATE_NEW_GAME;
+}
+
+function top_menu_load_editor() 
+{
+  if (editor_available)
+    game_state = STATE_SETUP_EDITOR;
+}
+
+function top_menu_tutorial() 
+{
+  game_state = STATE_PREPARE_TUTORIAL;
+}
+
+function top_menu_options() 
+{
+  game_state = STATE_SETUP_OPTIONS;
+}
+
+function top_menu_about() 
+{
+  game_state = STATE_ABOUT;
+}
+
+
 function handle_top_menu_selection(menu_index)
 {
   if (!top_menu_accept_input)
     return;
-  // "save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"
-  // Top menu selection will change depending on current state and 
-  // if the editor is active.
+  top_menu_callbacks[menu_index]();
+  // // "save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"
+  // // Top menu selection will change depending on current state and 
+  // // if the editor is active.
 
-  // if editor is active
-  // main menu
-  // save
-  // load
-  // reset grid
-  // ?? play ??
-  // tutorial
-  // ?? options ??
-  switch (menu_index)
-  {
-    case 0:
-      // exit to main menu
-      game_state = STATE_MAIN_MENU_SETUP; // or just main menu?
-      break;
-    case 1:
-      // save
-      current_level.save_level(lightsources, detectors);
-      break;
-    case 2:
-      break;
-    case 3:
-      // reset grid
-      resetStuff();
-      break;
-    case 4:
-      // reset game
-      // TODO: Are you sure box!
-      storeItem("savedgame", null);
-      game_state = STATE_NEW_GAME;
-      break;
-    case 5:
-      // editor
-      if (editor_available)
-        game_state = STATE_SETUP_EDITOR;
-      break;
-    case 6:
-      // tutorial
-      game_state = STATE_PREPARE_TUTORIAL;
-      break;
-    case 7:
-      // options
-      break;
-    case 8:
-      // about
-      break;
-  }
+  // // if editor is active
+  // // main menu
+  // // save
+  // // load
+  // // reset grid
+  // // ?? play ??
+  // // tutorial
+  // // ?? options ??
+  // switch (menu_index)
+  // {
+  //   case 0:
+  //     // exit to main menu
+  //     game_state = STATE_MAIN_MENU_SETUP; // or just main menu?
+  //     break;
+  //   case 1:
+  //     // save
+  //     current_level.save_level(lightsources, detectors);
+  //     break;
+  //   case 2:
+  //     break;
+  //   case 3:
+  //     // reset grid
+  //     resetStuff();
+  //     break;
+  //   case 4:
+  //     // reset game
+  //     // TODO: Are you sure box!
+  //     storeItem("savedgame", null);
+  //     game_state = STATE_NEW_GAME;
+  //     break;
+  //   case 5:
+  //     // editor
+  //     if (editor_available)
+  //       game_state = STATE_SETUP_EDITOR;
+  //     break;
+  //   case 6:
+  //     // tutorial
+  //     game_state = STATE_PREPARE_TUTORIAL;
+  //     break;
+  //   case 7:
+  //     // options
+  //     break;
+  //   case 8:
+  //     // about
+  //     break;
+  // }
 }
 
 function launch_menu()
@@ -1695,7 +1811,7 @@ function enable_menu()
 {
   global_mouse_handler.enable_region("opened_top_menu");
   show_menu = true;
-  for (let m of top_menu_options)
+  for (let m of top_menu_choices)
   {
     global_mouse_handler.enable_region(m);
   }
@@ -1706,7 +1822,7 @@ function disable_menu()
   top_menu_accept_input = false;
   global_mouse_handler.disable_region("opened_top_menu");
   show_menu = false;
-  for (let m of top_menu_options)
+  for (let m of top_menu_choices)
   {
     global_mouse_handler.disable_region(m);
   }
@@ -1737,7 +1853,7 @@ function make_menu()
   
   // it will be a region that will contain sub-regions for each menu option?
   let i = 0;
-  for (let m of top_menu_options)
+  for (let m of top_menu_choices)
   {
     let reg = new mouse_region((gridWidth - 8) * gridSize, i * gridSize, gridSize * gridWidth, (i + 1) * gridSize);
     reg.events[MOUSE_EVENT_CLICK] = () => handle_top_menu_selection(int(global_mouse_handler.my / gridSize));
@@ -1861,7 +1977,7 @@ function do_game()
 
   // draw detectors (for now, check active status as well)
 
-  // TODO: This should  happen somewhere else
+  // TODO: This should  happen somewhere else?
   // check if all detectors are active
   let all_active = true;
   for (let d of detectors)
@@ -2039,7 +2155,7 @@ function do_level_transition_out()
     if (current_gamemode === GAMEMODE_TIME)
     {
       time_remaining += 10;
-      total_time_played += 10;
+      total_time_played += time_gain_per_level; // TODO: Scale with difficulty!
       // TODO: Display this somewhere
       ghandler.stop_dragging(); // this is broken!
       ++difficulty_level;
@@ -2079,6 +2195,7 @@ function prepare_tutorial()
 
 function tear_down_tutorial()
 {
+  over_btn = false;
   show_tutorial = false;
   global_mouse_handler.remove_region("ok_btn");
   game_state = STATE_GAME;
@@ -2202,7 +2319,7 @@ function draw_menu()
   var i = 0;
   stroke(0);
   strokeWeight(2);
-  for (let m of top_menu_options)
+  for (let m of top_menu_choices)
   {
     if (top_menu_selected === i)
       fill(253);
@@ -2699,7 +2816,7 @@ function setup_time_game()
   global_mouse_handler.register_region("next_btn", next_region);
 
   difficulty_level = 1;   // todo: shouldn't be hard coded here
-  time_remaining = 20;    // todo: shouldn't be hard coded here
+  time_remaining = initial_time;    // todo: shouldn't be hard coded here
   total_time_played = time_remaining;
   init_light_sources();
   time_level();
@@ -2742,10 +2859,10 @@ function do_setup_show_time_results()
   if (need_setup_show_time_results)
   {
     // TODO: Tweak to find better placement
-    let x1 = gridWidth * 4;
-    let y1 = (gridHeight - 4) * gridSize;
-    let x2 = gridWidth * 7;
-    let y2 = (gridHeight - 3) * gridSize;
+    let x1 = gridWidth * 7;
+    let y1 = (gridHeight - 5) * gridSize;
+    let x2 = gridWidth * 10;
+    let y2 = (gridHeight - 4) * gridSize;
     // fill(255, 0, 0);
     // rect(x1, y1, x2 - x1, y2 - y1);
     let play_again_btn = new mouse_region(x1, y1, x2, y2);
@@ -2755,10 +2872,10 @@ function do_setup_show_time_results()
     global_mouse_handler.register_region("time_result_play_again_btn", play_again_btn);
 
     // TODO: Tweak to find better placement
-    x1 = gridWidth * 9;
-    y1 = (gridHeight - 4) * gridSize;
-    x2 = gridWidth * 12;
-    y2 = (gridHeight - 3) * gridSize;
+    x1 = gridWidth * 15;
+    y1 = (gridHeight - 5) * gridSize;
+    x2 = gridWidth * 18;
+    y2 = (gridHeight - 4) * gridSize;
     // fill(0, 255, 0);
     // rect(x1, y1, x2 - x1, y2 - y1);
     let back_main_menu_btn = new mouse_region(x1, y1, x2, y2);
@@ -2805,12 +2922,13 @@ function do_show_time_results()
   strokeWeight(1);
   stroke(255);
   textSize(gridSize);
+  fill (font_color);
   text("Total time played: " + total_time_played, gridSize * 5, gridSize * 5);
 
-  let x1 = gridWidth * 4;
+  let x1 = gridWidth * 7;
   let y1 = (gridHeight - 4) * gridSize;
-  let x2 = gridWidth * 7;
-  let y2 = (gridHeight - 3) * gridSize;
+  let x2 = gridWidth * 10;
+  let y2 = (gridHeight - 4) * gridSize;
   // fill(255, 0, 0);
   // rect(x1, y1, x2 - x1, y2 - y1);
   if (over_play_again_btn)
@@ -2820,10 +2938,10 @@ function do_show_time_results()
   // TOOD: Draw highlight if we're over play again button
   text("again", x1, y2);
 
-  x1 = gridWidth * 9;
+  x1 = gridWidth * 15;
   y1 = (gridHeight - 4) * gridSize;
-  x2 = gridWidth * 12;
-  y2 = (gridHeight - 3) * gridSize;
+  x2 = gridWidth * 18;
+  y2 = (gridHeight - 4) * gridSize;
   // fill(0, 255, 0);
   // rect(x1, y1, x2 - x1, y2 - y1);
   if (over_main_menu_btn)
@@ -3239,6 +3357,7 @@ function make_edges()
 //////// LIGHT / SHADOW ALGS
 function get_visible_polygon(xpos, ypos, radius)
 {
+  // xpos and ypos are PIXEL positions
   let viz_polygon = [];
   for (let e of edges)
   {
@@ -3253,9 +3372,9 @@ function get_visible_polygon(xpos, ypos, radius)
       let ang = 0;
       for (j = 0; j < 3; ++j)
       {
-        if (j === 0) ang = base_ang - 0.0001;
+        if (j === 0) ang = base_ang - 0.00001;
         if (j === 1) ang = base_ang;
-        if (j === 2) ang = base_ang + 0.0001;
+        if (j === 2) ang = base_ang + 0.00001;
 
         rdx = radius * cos(ang);
         rdy = radius * sin(ang);
@@ -3322,6 +3441,7 @@ function remove_duplicate_viz_points(viz_polygon)
 
 function is_target_a_light(xpos, ypos)
 {
+  // xpos and ypos are GRID positions
   for (let l of lightsources)
   {
     if (l.x === xpos && l.y === ypos)
@@ -3332,6 +3452,7 @@ function is_target_a_light(xpos, ypos)
 
 function get_selected_light(xpos, ypos)
 {
+  // in this case xpos, ypos are PIXELS
   // return index of the light that the cursor is over
   let i = 0;
   for (let l of lightsources)
