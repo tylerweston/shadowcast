@@ -20,8 +20,6 @@ documentation for now:
 
 ONLY draw the walls that the light makes visible?
 
-- do we need to be able to go straight from the game to the editor? NAH! Remove editor
-  from top menu and only leave it on the main menu
 - change flooring from automatically tiled to user adjustable?
   - keep SOME random floor options, but fluff them up!
 - something broken with just setting is_dragging false to eat mouse input
@@ -30,9 +28,11 @@ ONLY draw the walls that the light makes visible?
   - in a timed game, when we automatically transition to the next level
     we want to change the mouse state so that we aren't in drawing mode
     anymore!
+- better flash juice
+- problem: can drag lights onto empty floor! Only in editor?
 - timer game should be a bit easier to play
 - deleting detectors doesn't look like its working
-- add undo so you can undo the last couple blocks you drew
+- add undo so you can undo the last couple blocks you drew?
 - we could make filters for different colored lights by having
   r,g, and b edges, run the detection thing three times
   , solid walls would just exist in all three color planes?
@@ -58,7 +58,7 @@ ONLY draw the walls that the light makes visible?
   - load level (paste a string)?
   -
 
-- move levels to base64 so they don't look so obvious and long
+- move levels to base64 so they don't look so obvious and long?
 - move over additional points received during random game 
 - encapsulate state in a better way
   - right now it is kind of spread out and a bit icky how it is all implemented
@@ -166,6 +166,8 @@ const MOUSE_EVENT_ENTER_REGION = 4;
 const MOUSE_EVENT_EXIT_REGION = 5;
 
 let global_mouse_handler = undefined;
+
+const FLASH_SIZE = gridSize * 3;
 
 // Constants to help with edge detection
 const NORTH = 0;
@@ -1107,24 +1109,31 @@ class detector
 {
   constructor(x, y, r, g, b)
   {
+    // position
     this.x = x;
     this.y = y;
+    // color stuff
     this.c = color(r,g,b);
     this.r = r;
     this.g = g;
     this.b = b;
+    // correct?
     this.correct = false;
+    this.old_correct = false;
+    // animation stuff
     this.anim_cycle = random(TWO_PI);
     this.anim_speed = ((random() + 1) / 55) + 0.0025;
-
+    // flash juice
+    this.flashing = false;
+    this.flash_radius = 0;
   }
 
   check_color()
   {
+    this.old_correct = this.correct;
     let xp = this.x * gridSize + GRID_HALF;
     let yp = this.y * gridSize + GRID_HALF;
     let HALF_HALF = GRID_HALF / 2;
-
 
     // Check Detectors
     // Uses Boyer-Moore vote algorithm to determine the majority
@@ -1207,7 +1216,6 @@ class detector
       {
         majority_count -= 1;
       }
-
     }
 
     // TODO: Write a color equality function!
@@ -1233,13 +1241,39 @@ class detector
     {
       this.correct = false;
     }
+
+    // if we used to be not active, and now we are, start a flash
+    if (this.correct && !this.old_correct)
+    {
+      this.flash_radius = 0;
+      this.flashing = true;
+    }
+
   }
 
   draw_this()
   {
+    let grid_center_x = this.x * gridSize + GRID_HALF;
+    let grid_center_y = this.y * gridSize + GRID_HALF;
+
     noStroke();
     fill(37);
     square(this.x * gridSize, this.y * gridSize, gridSize);
+
+    // draw flash juice
+    if (this.flashing)
+    {
+      strokeWeight(4);
+      noFill();
+      stroke(150, map(this.flash_radius, 0, FLASH_SIZE, 255, 0));
+      this.flash_radius += (deltaTime / 1.5);
+      if (this.flash_radius > FLASH_SIZE)
+      {
+        this.flashing = false;
+      }
+      ellipse(grid_center_x, grid_center_y, this.flash_radius, this.flash_radius);
+    }
+
 
     let default_size = 0.8;
     default_size *= (sin(this.anim_cycle) + 9) / 10;
@@ -1251,7 +1285,7 @@ class detector
       stroke(170);
     else
       stroke(4);
-    ellipse(this.x * gridSize + GRID_HALF, this.y * gridSize + GRID_HALF, gridSize * default_size, gridSize * default_size);
+    ellipse(grid_center_x, grid_center_y, gridSize * default_size, gridSize * default_size);
 
     strokeWeight(5);
     stroke(this.c);
@@ -2161,6 +2195,7 @@ function prepare_tutorial()
 
 function tear_down_tutorial()
 {
+  over_btn = false;
   show_tutorial = false;
   global_mouse_handler.remove_region("ok_btn");
   game_state = STATE_GAME;
@@ -2825,9 +2860,9 @@ function do_setup_show_time_results()
   {
     // TODO: Tweak to find better placement
     let x1 = gridWidth * 7;
-    let y1 = (gridHeight - 4) * gridSize;
+    let y1 = (gridHeight - 5) * gridSize;
     let x2 = gridWidth * 10;
-    let y2 = (gridHeight - 3) * gridSize;
+    let y2 = (gridHeight - 4) * gridSize;
     // fill(255, 0, 0);
     // rect(x1, y1, x2 - x1, y2 - y1);
     let play_again_btn = new mouse_region(x1, y1, x2, y2);
@@ -2837,10 +2872,10 @@ function do_setup_show_time_results()
     global_mouse_handler.register_region("time_result_play_again_btn", play_again_btn);
 
     // TODO: Tweak to find better placement
-    x1 = gridWidth * 12;
-    y1 = (gridHeight - 4) * gridSize;
-    x2 = gridWidth * 15;
-    y2 = (gridHeight - 3) * gridSize;
+    x1 = gridWidth * 15;
+    y1 = (gridHeight - 5) * gridSize;
+    x2 = gridWidth * 18;
+    y2 = (gridHeight - 4) * gridSize;
     // fill(0, 255, 0);
     // rect(x1, y1, x2 - x1, y2 - y1);
     let back_main_menu_btn = new mouse_region(x1, y1, x2, y2);
@@ -2893,7 +2928,7 @@ function do_show_time_results()
   let x1 = gridWidth * 7;
   let y1 = (gridHeight - 4) * gridSize;
   let x2 = gridWidth * 10;
-  let y2 = (gridHeight - 3) * gridSize;
+  let y2 = (gridHeight - 4) * gridSize;
   // fill(255, 0, 0);
   // rect(x1, y1, x2 - x1, y2 - y1);
   if (over_play_again_btn)
@@ -2903,10 +2938,10 @@ function do_show_time_results()
   // TOOD: Draw highlight if we're over play again button
   text("again", x1, y2);
 
-  x1 = gridWidth * 12;
+  x1 = gridWidth * 15;
   y1 = (gridHeight - 4) * gridSize;
-  x2 = gridWidth * 15;
-  y2 = (gridHeight - 3) * gridSize;
+  x2 = gridWidth * 18;
+  y2 = (gridHeight - 4) * gridSize;
   // fill(0, 255, 0);
   // rect(x1, y1, x2 - x1, y2 - y1);
   if (over_main_menu_btn)
