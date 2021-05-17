@@ -1,88 +1,69 @@
 /*
 spectro
-
-First priority:
-Finish up game so it is in a playable state
-- Option and About menu
-- Remove editor stuff for now
-
-// top menu changes:
-// editor:
-// - "main menu", "save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"
-// reset game should become ... play? test? something like that?
-// load should be enabled
-
-// random game:
-// continue or new game option?
-// stays the same? no load? change load to undo or something? where would undo fit into all this?
-
-// timed game:
-// 
-
-take out editor stuff for now.
+tyler weston, 2021
 
 documentation for now:
   - press s get a copiable version of the current level and possibly copy
     it to the clipboard
   - press e to bring up a box where you can enter a saved level
 
-ONLY draw the walls that the light makes visible?
- - The "easy" way to do this DOESN'T look good, either figure
-  out a different way to do this or keep it the same for now
-- IMPORTANT! IF a loaded game is a different size than the current
-  size, we need to either ADJUST the size of the game board OR
-  just nuke the saved game and start from scratch!
-
+Important:
+- add undo so you can undo the last couple blocks you drew?
+- ARE YOU SURE? box that returns TRUE or FALSE for reset
+Bugs:
 - have to double click main menu for some reason to get it to
   open after having selected something from it?
-- change flooring from automatically tiled to user adjustable?
-  - keep SOME random floor options, but fluff them up!
 - something broken with just setting is_dragging false to eat mouse input
   between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
   - in a timed game, when we automatically transition to the next level
     we want to change the mouse state so that we aren't in drawing mode
     anymore!
-- better flash juice
-- timer game should be a bit easier to play
-- add undo so you can undo the last couple blocks you drew?
-- we could make filters for different colored lights by having
-  r,g, and b edges, run the detection thing three times
-  , solid walls would just exist in all three color planes?
-- why doesn't the game work with different dimensions?
-  - THIS has to do with the autoloading! We need a way to resize
-    the grid if a loaded game is of a different size, then we'll
-    center the 
-- Maybe try removing the lightsources from the grid and see if it's fun like that?
-  - the extra constraints might be necessary though?
-- difficulty balance in progression - timer game is too hard?
-- make a button or ui class or something like that that will make creating
-  buttons easier
-
-- move levels to base64 so they don't look so obvious and long?
-- move over additional points received during random game 
-- encapsulate state in a better way
-  - right now it is kind of spread out and a bit icky how it is all implemented
-  - collect and fix that stuff up
-- change game grid size - allow this to be customized - this might be implemented?
-  - just need some bits to resize themselves automatically
-- fix webpage
-
 - When we "shrink" lights onto the board, they may get placed on top of a
   detector, which makes them unmovable! make sure this doesn't happen!
-- Make sure all detectors aren't the same color!
-- make R, G, B keys toggle their lights in random mode?
-- give editor "LOAD" and "PLAY" functions, so individual levels will be used in there?
 - don't allow holes to spawn on lights?
-- allow option to reset high score somewhere
-- ARE YOU SURE? box that returns TRUE or FALSE that we can use for various confirmation needed
- actions, such as restarting a game.
+
+QOL improvements:
+- change flooring from automatically tiled to user adjustable?
+  - keep SOME random floor options, but fluff them up!
+- make R, G, B keys toggle their lights in random mode?
+- Make sure all detectors aren't the same color!
+- fix webpage
+- timer game should be a bit easier to play
+ONLY draw the walls that the light makes visible?
+ - The "easy" way to do this DOESN'T look good, either figure
+  out a different way to do this or keep it the same for now
+- better flash juice
+- difficulty balance in progression - timer game is too hard?
 
 Options:
  - Reset highscores
  - Delete autosave
 
+Editor stuff (Maybe eventually):
+- give editor "LOAD" and "PLAY" functions, so individual levels will be used in there?
 
+Refactoring:
+- encapsulate state in a better way
+  - right now it is kind of spread out and a bit icky how it is all implemented
+  - collect and fix that stuff up
+- make a button or ui class or something like that that will make creating
+  buttons easier
+
+Maybe eventually:
+- change game grid size - allow this to be customized - this might be implemented?
+  - just need some bits to resize themselves automatically
+- Encode levels a bit better than just text strings?
+
+- we could make filters for different colored lights by having
+  r,g, and b edges, run the detection thing three times
+  , solid walls would just exist in all three color planes?
+  
+- Handle loading gameboards of different size? or just keep everything 
+  one size?
+  
+- Maybe try removing the lightsources from the grid and see if it's fun like that?
+  - the extra constraints might be necessary though?
 */
 
 // global variables
