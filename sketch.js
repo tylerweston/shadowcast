@@ -1,6 +1,11 @@
 /*
 spectro
 
+First priority:
+Finish up game so it is in a playable state
+- Option and About menu
+- Remove editor stuff for now
+
 // top menu changes:
 // editor:
 // - "main menu", "save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"
@@ -8,10 +13,13 @@ spectro
 // load should be enabled
 
 // random game:
+// continue or new game option?
 // stays the same? no load? change load to undo or something? where would undo fit into all this?
 
 // timed game:
 // 
+
+take out editor stuff for now.
 
 documentation for now:
   - press s get a copiable version of the current level and possibly copy
@@ -19,7 +27,15 @@ documentation for now:
   - press e to bring up a box where you can enter a saved level
 
 ONLY draw the walls that the light makes visible?
+ - The "easy" way to do this DOESN'T look good, either figure
+  out a different way to do this or keep it the same for now
+- IMPORTANT! IF a loaded game is a different size than the current
+  size, we need to either ADJUST the size of the game board OR
+  just nuke the saved game and start from scratch!
 
+- clicking option = freeze! not good!
+- have to double click main menu for some reason to get it to
+  open after having selected something from it?
 - change flooring from automatically tiled to user adjustable?
   - keep SOME random floor options, but fluff them up!
 - something broken with just setting is_dragging false to eat mouse input
@@ -43,20 +59,8 @@ ONLY draw the walls that the light makes visible?
 - Maybe try removing the lightsources from the grid and see if it's fun like that?
   - the extra constraints might be necessary though?
 - difficulty balance in progression - timer game is too hard?
-- editor
-- tiles: glass unfillable, glass fillable
 - make a button or ui class or something like that that will make creating
   buttons easier
-
-- different tutorial for editor
-- better way to navigate around the game - more main menu kinda thing
-- then the menu at top right will include an "exit to main menu" option
-- MAIN MENU
-- deactivate menu highlighting when menu is open
-- new game 
-  = random
-  - load level (paste a string)?
-  -
 
 - move levels to base64 so they don't look so obvious and long?
 - move over additional points received during random game 
@@ -66,15 +70,7 @@ ONLY draw the walls that the light makes visible?
 - change game grid size - allow this to be customized - this might be implemented?
   - just need some bits to resize themselves automatically
 - fix webpage
-- Game Modes:
-  - timer, countdown and every solution gets you some more time
-    - speed mode
-  - more points for using less walls! maybe different scoring modes? don't always
-    emphasize austerity! 
-    - "MINIMALIST" mode
-  - mode where you can only activate one light at a time??
-    - press a button to check your solution, it is either wrong or right!
-  -  
+
 - When we "shrink" lights onto the board, they may get placed on top of a
   detector, which makes them unmovable! make sure this doesn't happen!
 - Make sure all detectors aren't the same color!
@@ -100,6 +96,8 @@ let saveFade = 0;
 
 let highest_score_changed = 0;
 let highest_score_display_timer = 0;
+
+
 
 const GRID_HALF = gridSize / 2;
 const GRID_THIRD = gridSize / 3;
@@ -127,11 +125,12 @@ let time_remaining = 0;
 let time_gain_per_level = 10;
 let total_time_played = 0;
 let initial_time = 20;
+let high_timer_score = 0;
 
 // this stuff should all be refactored into state machine stuff
 // TODO: Bunch of little bits of state to clean up
 let display_editor = false;
-let editor_available = true;
+let editor_available = false;
 let show_intro = true;         // <--------------- intro flag
 let show_tutorial = false;
 let show_menu = false;
@@ -176,7 +175,7 @@ const EAST = 2;
 const WEST = 3; 
 
 // menu options
-let top_menu_choices = ["main menu", "save", "load", "reset grid", "reset game", "tutorial", "options", "about"];
+let top_menu_choices = ["main menu", "save", "load", "reset grid", "reset game", "tutorial"];
 let top_menu_callbacks = [
   () => top_menu_main_menu(), 
   () => top_menu_save_level(), 
@@ -184,13 +183,12 @@ let top_menu_callbacks = [
   () => top_menu_reset_stuff(), 
   () => top_menu_reset_game(), 
   () => top_menu_tutorial(), 
-  () => top_menu_options(), 
-  () => top_menu_about()];
+];
 let top_menu_selected = undefined;
 let top_menu_height = top_menu_choices.length + 1;
 
 
-let main_menu_options = ["random", "timed", "editor", "load", "options", "about"];
+let main_menu_options = ["random", "timed", "options", "about"];
 let main_menu_selected = undefined;
 let main_menu_height = main_menu_options.length + 1;
 
@@ -467,6 +465,29 @@ class mouse_handler
     // delete returns true if the key existed, false if it doesn't
     delete(this.registered_regions[region_name]);
   }
+
+  // log_debug_info()
+  // {
+  //   // console.clear();
+  //   console.log("Mouse handler debug info");
+  //   // display debug info
+  //   console.log("All registered regions:");
+  //   for (const [key, _region] of Object.entries(this.registered_regions)) {
+  //     console.log(key);
+  //   }
+    
+  //   console.log("Active regions:");
+  //   for (const [key, _region] of Object.entries(this.registered_regions)) {
+  //     if (_region.active)
+  //       console.log(key);
+  //   }
+
+  //   console.log("Disabled regions:");
+  //   for (const [key, _region] of Object.entries(this.registered_regions)) {
+  //     if (!(_region.active))
+  //       console.log(key);
+  //   }
+  // }
 }
 
 class level
@@ -1263,15 +1284,21 @@ class detector
     // draw flash juice
     if (this.flashing)
     {
+      this.flash_radius += (deltaTime / 1.75);
       strokeWeight(4);
       noFill();
-      stroke(150, map(this.flash_radius, 0, FLASH_SIZE, 255, 0));
-      this.flash_radius += (deltaTime / 1.5);
+      let alph = map(this.flash_radius, 0, FLASH_SIZE, 255, 0);
+      stroke(150, alph);
+      ellipse(grid_center_x, grid_center_y, this.flash_radius, this.flash_radius);
+      stroke(150, alph * 0.8);
+      ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.8, this.flash_radius * 0.8);
+      stroke(150, alph * 0.6);
+      ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.6, this.flash_radius * 0.6);
+
       if (this.flash_radius > FLASH_SIZE)
       {
         this.flashing = false;
       }
-      ellipse(grid_center_x, grid_center_y, this.flash_radius, this.flash_radius);
     }
 
 
@@ -1592,6 +1619,7 @@ function do_setup_main_menu()
       let reg = new mouse_region(0, (i + 1) * gridSize * 2, gridSize * gridWidth, (i + 2) * gridSize * 2);
       reg.events[MOUSE_EVENT_CLICK] = () => handle_main_menu_selection(int(global_mouse_handler.my / (gridSize * 2)) - 1);
       reg.events[MOUSE_EVENT_ENTER_REGION] = () => {main_menu_selected = int(global_mouse_handler.my / (gridSize * 2)) - 1;};
+      // reg.events[MOUSE_EVENT_EXIT_REGION] = () => {main_menu_selected = undefined; };
       global_mouse_handler.register_region(m + "main_menu", reg);
       ++i;
     }
@@ -1614,8 +1642,17 @@ function do_main_menu()
   stroke(0);
   strokeWeight(2);
 
-  fill(255);
+  blendMode(ADD);
+  fill(255, 0, 0);
+  text("spectro", (gridWidth - 17) * gridSize, gridSize * 2 - 5);
+  fill(0, 255, 0);
   text("spectro", (gridWidth - 17) * gridSize, gridSize * 2);
+  fill(0, 0, 255);
+  text("spectro", (gridWidth - 17) * gridSize, gridSize * 2 + 5);
+  blendMode(BLEND);
+
+  if (mouseY >= gridSize * 2 * (main_menu_options.length + 1))
+    main_menu_selected = undefined;
 
   for (let m of main_menu_options)
   {
@@ -1624,8 +1661,9 @@ function do_main_menu()
     else
       fill(157);
 
-    if ((i == 2 && !editor_available) || i == 3 || i == 4)
-      fill(12);
+    // if ((i == 2 && !editor_available) || i == 3 || i == 4)
+    //   fill(12);
+
     text(m, (gridWidth - 17) * gridSize, (i + 2) * gridSize * 2);
     ++i;
   }
@@ -1672,16 +1710,11 @@ function handle_main_menu_selection(menu_index)
       game_state = STATE_NEW_GAME;
       break;
     case 2:
-      if (editor_available)
-      {
-        game_state = STATE_SETUP_EDITOR;
-        teardown_main_menu();
-      }
-      break;
-    case 3:
+      // TODO: Display option menu
       teardown_main_menu();
       break;
-    case 4:
+    case 3:
+      // TODO: Display about menu
       teardown_main_menu();
       break;
   }
@@ -1706,7 +1739,11 @@ function top_menu_save_level()
   current_level.save_level(lightsources, detectors);
 }
 
-function top_menu_load() {}
+function top_menu_load() {
+  let lp = get_level_and_load();
+  if (lp)
+    try_load_level(lp);
+}
 
 function top_menu_reset_stuff() 
 {
@@ -1733,14 +1770,14 @@ function top_menu_tutorial()
 
 function top_menu_options() 
 {
-  game_state = STATE_SETUP_OPTIONS;
+  // TODO: No options available for now, so just ignore
+  // game_state = STATE_SETUP_OPTIONS;
 }
 
 function top_menu_about() 
 {
   game_state = STATE_ABOUT;
 }
-
 
 function handle_top_menu_selection(menu_index)
 {
@@ -1963,7 +2000,6 @@ function clear_grid_spot(which_grid, x, y)
 }
 
 //////// STATES
-
 function do_game()
 {
   let grid = current_level.grid;
@@ -2093,30 +2129,19 @@ function do_intro()
     // line (xrand, yrand, xrand + random(10) - 5, yrand + random(200) + 80);
     noStroke();
     fill(random(random_cols), random(50));
-
-    // if (intro_timer < 1500)
     text("a tw game", 0, 0, width, height + (intro_timer * random(1, 13) % 900) - 450);
-    // text("a tw game", 0, 0, width, height + offs);
-    // if (random(100) < 10)
-    // {
-    //   offs = (intro_timer * random(1, 13) % 900) - 450;
-    // }
-    // else
-    // {
-    //   offs += 10;
-    // }
-    // else
-    // text("addico", 0, 0, width, height + (intro_timer * random(3, 7) % 800) - 400);
     strokeWeight(2);
     blendMode(MULTIPLY);
     stroke(0);
     fill(240);
-    // if (intro_timer < 1500)
-    text("a tw game", 0, 0, width, height);
-    // else
-    // {
-    //   text("addjko", 0, 0, width, height);
-    // }
+    if (intro_timer < 1500)
+    {
+      text("a tw game", 0, 0, width, height);
+    }
+    else
+    {
+      text("spectro", 0, 0, width, height);
+    }
   }
   else
   {
@@ -2254,16 +2279,28 @@ function setup_game()
     setup_time_game();
 }
 
+function setup_about()
+{
+
+}
+
+function do_about()
+{
+
+}
+
 //////// DRAWING 
 // DRAW gets called EVERY frame, this is the MAIN GAME LOOP
 function draw() {
+  // global_mouse_handler.log_debug_info();
   global_mouse_handler.handle();  // do mouse stuff
+
   switch (game_state)
   {
   case STATE_NEW_GAME:
     setup_game();
     break;
-  case STATE_INTRO:
+  case STATE_INTRO:  
     do_intro();
     break;
   case STATE_GAME:
@@ -2321,12 +2358,12 @@ function draw_menu()
   strokeWeight(2);
   for (let m of top_menu_choices)
   {
-    if (top_menu_selected === i)
+    if (top_menu_selected === i || i == 0)
       fill(253);
     else
       fill(157);
 
-    if (i === 2 || (i === 5 && !editor_available) || i == 7 || i == 8)
+    if ((i === 5 && !editor_available) || i == 7 || i == 8)
       fill(28);
     text(m, (gridWidth - 7) * gridSize, (i + 1) * gridSize );
     ++i;
@@ -2336,7 +2373,7 @@ function draw_menu()
 function draw_glass()
 {
   let lvl = current_level;
-  noFill();
+  fill(255, 150);
   strokeWeight(4);
   stroke(90, 50);
   for (x = 0 ; x < lvl.xsize; ++x)
@@ -2511,9 +2548,15 @@ function load_level(level_string)
   var level_string_index = 4;
   let new_lvl = new level();
 
-  // read xsize
+  // read xsize and ysize
   let xsize = level_string.substring(0, 2);
   let ysize = level_string.substring(2, 4);
+
+  if (xsize != gridWidth || ysize != gridHeight)
+  {
+    throw 'Loaded game size mismatch';
+  }
+
   new_lvl.xsize = xsize;
   new_lvl.ysize = ysize;
   new_lvl.initialize_grid();
@@ -2603,7 +2646,6 @@ function load_level(level_string)
 }
 
 //////// LEVEL EDIT
-
 function do_setup_editor()
 {
   // setup editor handler
@@ -2673,10 +2715,11 @@ function do_editor()
 
   strokeWeight(4);
   stroke(90, 50);
-  // Render any text that we have to
-  textSize(gridSize - 2);
-  fill(font_color);
-  text("level: " + editor_level_name, 0 + GRID_HALF, gridSize - 4);
+  // TODO: Should editor levels be able to have names?
+  // // Render any text that we have to
+  // textSize(gridSize - 2);
+  // fill(font_color);
+  // text("level: " + editor_level_name, 0 + GRID_HALF, gridSize - 4);
 
   fill(font_color);
   if (mouse_over_menu)
@@ -2814,6 +2857,10 @@ function setup_time_game()
   next_region.events[MOUSE_EVENT_EXIT_REGION] = () => { over_next_level = false; };
   next_region.enabled = false;
   global_mouse_handler.register_region("next_btn", next_region);
+  high_timer_score = getItem("high_timer_score")
+  if (high_timer_score == null)
+    high_timer_score = 0;
+
 
   difficulty_level = 1;   // todo: shouldn't be hard coded here
   time_remaining = initial_time;    // todo: shouldn't be hard coded here
@@ -2859,10 +2906,10 @@ function do_setup_show_time_results()
   if (need_setup_show_time_results)
   {
     // TODO: Tweak to find better placement
-    let x1 = gridWidth * 7;
+    let x1 = gridWidth * 10;
     let y1 = (gridHeight - 5) * gridSize;
-    let x2 = gridWidth * 10;
-    let y2 = (gridHeight - 4) * gridSize;
+    let x2 = gridWidth * 13;
+    let y2 = (gridHeight - 5) * gridSize;
     // fill(255, 0, 0);
     // rect(x1, y1, x2 - x1, y2 - y1);
     let play_again_btn = new mouse_region(x1, y1, x2, y2);
@@ -2872,10 +2919,10 @@ function do_setup_show_time_results()
     global_mouse_handler.register_region("time_result_play_again_btn", play_again_btn);
 
     // TODO: Tweak to find better placement
-    x1 = gridWidth * 15;
+    x1 = width - (gridWidth * 13);
     y1 = (gridHeight - 5) * gridSize;
-    x2 = gridWidth * 18;
-    y2 = (gridHeight - 4) * gridSize;
+    x2 = width - (gridWidth * 10);
+    y2 = (gridHeight - 5) * gridSize;
     // fill(0, 255, 0);
     // rect(x1, y1, x2 - x1, y2 - y1);
     let back_main_menu_btn = new mouse_region(x1, y1, x2, y2);
@@ -2888,7 +2935,9 @@ function do_setup_show_time_results()
     need_setup_show_time_results = false;
   }
   // enable our button regions
+  // TODO: Why is there only one mouse button being enabled/disabled here?
   global_mouse_handler.enable_region("time_result_back_main_menu_btn");
+  global_mouse_handler.enable_region("time_result_play_again_btn");
   game_state = STATE_SHOW_TIME_RESULTS;
 }
 
@@ -2923,42 +2972,47 @@ function do_show_time_results()
   stroke(255);
   textSize(gridSize);
   fill (font_color);
-  text("Total time played: " + total_time_played, gridSize * 5, gridSize * 5);
+  textAlign(CENTER);
+  text("Total time played: " + total_time_played, width / 2, gridSize * 7);
 
-  let x1 = gridWidth * 7;
-  let y1 = (gridHeight - 4) * gridSize;
-  let x2 = gridWidth * 10;
-  let y2 = (gridHeight - 4) * gridSize;
+
+  if (total_time_played > high_timer_score)
+  {
+    // TODO: MORE JUICE!
+    text("NEW HIGH SCORE!", width / 2, gridSize * 5);
+    storeItem("high_timer_score", total_time_played);
+  }
+  textAlign(LEFT);
+
+  let x1 = gridWidth * 10;
+  let y1 = (gridHeight - 5) * gridSize;
+  let x2 = gridWidth * 13;
+  let y2 = (gridHeight - 5) * gridSize;
   // fill(255, 0, 0);
   // rect(x1, y1, x2 - x1, y2 - y1);
   if (over_play_again_btn)
     fill(255);
   else
     fill(font_color);
-  // TOOD: Draw highlight if we're over play again button
   text("again", x1, y2);
 
-  x1 = gridWidth * 15;
-  y1 = (gridHeight - 4) * gridSize;
-  x2 = gridWidth * 18;
-  y2 = (gridHeight - 4) * gridSize;
+  x1 = width - (gridWidth * 13);
+  y1 = (gridHeight - 5) * gridSize;
+  x2 = width - (gridWidth * 10);
+  y2 = (gridHeight - 5) * gridSize;
   // fill(0, 255, 0);
   // rect(x1, y1, x2 - x1, y2 - y1);
   if (over_main_menu_btn)
     fill(255);
   else
     fill(font_color);
-  // TODO: Draw highlight if we're over main menu button
   text("menu", x1, y2);
-
-// todo: play again or main menu buttons
-
-  // game_state = STATE_NEW_GAME;
 }
 
 function teardown_show_time_results()
 {
   global_mouse_handler.disable_region("time_result_play_again_btn");
+  global_mouse_handler.disable_region("time_result_back_main_menu_btn");
   // disable our mouse events for our buttons
 }
 //////// RANDOM GAME MODE
@@ -3232,6 +3286,15 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
     {
       // TODO: Make sure this doesn't happen on one of the lights?
       // or say it's a feature, not a bug
+      while(true)
+      {
+        let xpos = int(random(1, gridWidth - 2));
+        let ypos = int(random(1, gridHeight - 2));
+        //if xpos, ypos is not just a regular ol' floor
+        if(which_grid[xpos][ypos].grid_type != FLOOR_BUILDABLE) 
+          continue;
+        break;
+      }
       set_grid(which_grid, int(random(1, gridWidth - 2)), int(random(1, gridHeight - 2)), FLOOR_EMPTY);
     }
   }
@@ -3482,6 +3545,30 @@ function update_all_light_viz_polys()
 }
 
 //////// OTHER
+function two_option_dialog(dialog_text, option1_text, option2_text)
+{
+  // display an option in the middle of the screen and give
+  // two options, return either a 0 for option 1 if clicked
+  // or a 1 for option 2 if clicked
+  noStroke();
+  fill (0, 70);
+  rect(gridSize * 2 + GRID_HALF, gridSize * 2 + GRID_HALF, width - gridSize * 4, height - gridSize * 4);
+
+  stroke(190, 190, 190);
+  fill (35);
+  strokeWeight(4);
+  rect(gridSize * 2, gridSize * 2, width - gridSize * 4, height - gridSize * 4);
+  fill(72);
+  rect(gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
+
+  strokeWeight(1);
+  fill(180);
+  stroke(130);
+  textSize(28);
+  textAlign(CENTER, CENTER);
+  text(dialog_text, gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
+}
+
 function get_selected_detector(xpos, ypos)
 {
   // return index of the light that the cursor is over
@@ -3522,7 +3609,6 @@ function count_walls_used(lvl)
   {
     for (let y = 1; y < lvl.ysize - 1; ++y)
     {
-      // if (lvl.grid[x][y].exist)
       if (lvl.grid[x][y].grid_type === FLOOR_BUILT)
         ++total_seen;
     }
@@ -3601,3 +3687,5 @@ function get_level_and_load()
     return;
   return prompt;
 }
+
+
