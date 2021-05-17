@@ -33,7 +33,6 @@ ONLY draw the walls that the light makes visible?
   size, we need to either ADJUST the size of the game board OR
   just nuke the saved game and start from scratch!
 
-- clicking option = freeze! not good!
 - have to double click main menu for some reason to get it to
   open after having selected something from it?
 - change flooring from automatically tiled to user adjustable?
@@ -45,9 +44,7 @@ ONLY draw the walls that the light makes visible?
     we want to change the mouse state so that we aren't in drawing mode
     anymore!
 - better flash juice
-- problem: can drag lights onto empty floor! Only in editor?
 - timer game should be a bit easier to play
-- deleting detectors doesn't look like its working
 - add undo so you can undo the last couple blocks you drew?
 - we could make filters for different colored lights by having
   r,g, and b edges, run the detection thing three times
@@ -80,6 +77,12 @@ ONLY draw the walls that the light makes visible?
 - allow option to reset high score somewhere
 - ARE YOU SURE? box that returns TRUE or FALSE that we can use for various confirmation needed
  actions, such as restarting a game.
+
+Options:
+ - Reset highscores
+ - Delete autosave
+
+
 */
 
 // global variables
@@ -97,8 +100,6 @@ let saveFade = 0;
 let highest_score_changed = 0;
 let highest_score_display_timer = 0;
 
-
-
 const GRID_HALF = gridSize / 2;
 const GRID_THIRD = gridSize / 3;
 
@@ -108,7 +109,6 @@ const uiHeight = 200;
 
 let gridWidth = gameWidth / gridSize;
 let gridHeight = gameHeight / gridSize;
-
 
 let current_level = undefined;  // The currently loaded level, there can be only one!
 let difficulty_level = 1;
@@ -241,29 +241,35 @@ const GLASS_WALL_TOGGLABLE = 4;
 const DETECTOR_TILE = 5;
 
 // main game states
-const STATE_SETUP = -1;
-const STATE_INTRO = 0;
-const STATE_MAIN_MENU_SETUP = 15;
-const STATE_MAIN_MENU = 1;
-const STATE_MAIN_MENU_TEARDOWN = 16;
-const STATE_GAME = 2;
-const STATE_SETUP_EDITOR = 10;
-const STATE_EDITOR = 3;
-const STATE_OPTIONS = 4;
-const STATE_ABOUT = 5;
-const STATE_LOADLEVEL = 6;
-const STATE_NEW_GAME = 7;
-const STATE_RANDOM_LEVEL_TRANSITION_OUT = 8;
-const STATE_RANDOM_LEVEL_TRANSITION_IN = 9;
+const STATE_SETUP = 0;
+const STATE_INTRO = 1;
+const STATE_MAIN_MENU_SETUP = 2;
+const STATE_MAIN_MENU = 3;
+const STATE_MAIN_MENU_TEARDOWN = 4;
+const STATE_GAME = 5;
+const STATE_SETUP_EDITOR = 6;
+const STATE_EDITOR = 7;
 
-const STATE_PREPARE_TUTORIAL = 11;
-const STATE_TUTORIAL = 12;
-const STATE_TEARDOWN_TUTORIAL = 13;
+
+const STATE_LOADLEVEL = 10;
+const STATE_NEW_GAME = 11;
+const STATE_RANDOM_LEVEL_TRANSITION_OUT = 12;
+const STATE_RANDOM_LEVEL_TRANSITION_IN = 13;
+
+const STATE_PREPARE_TUTORIAL = 14;
+const STATE_TUTORIAL = 15;
+const STATE_TEARDOWN_TUTORIAL = 16;
 
 const STATE_SETUP_SHOW_TIME_RESULTS = 17;
 const STATE_SHOW_TIME_RESULTS = 18;
 
 const STATE_SETUP_OPTIONS = 19;
+const STATE_OPTIONS = 8;
+const STATE_TEARDOWN_OPTIONS = 20;
+
+const STATE_SETUP_ABOUT = 21;
+const STATE_ABOUT = 9;
+const STATE_TEARDOWN_ABOUT = 22;
 
 let game_state = STATE_SETUP;
 
@@ -281,6 +287,17 @@ let global_light_id = 0;
 let grid_obj_id = 0;
 
 const TOTAL_EDITOR_ITEMS = 14;
+
+// about screen things
+let need_setup_about = true;
+let over_about_ok_btn = false;
+
+// option screen things
+let need_setup_options = true;
+
+// game version things
+const MAJOR_VERSION = 0;
+const MINOR_VERSION = 9;
 
 //////// CLASSES
 class gamemode
@@ -1710,14 +1727,116 @@ function handle_main_menu_selection(menu_index)
       game_state = STATE_NEW_GAME;
       break;
     case 2:
-      // TODO: Display option menu
+      game_state = STATE_SETUP_OPTIONS;
       teardown_main_menu();
       break;
     case 3:
-      // TODO: Display about menu
+      game_state = STATE_SETUP_ABOUT;
       teardown_main_menu();
       break;
   }
+}
+
+//////// ABOUT SCREEN
+function do_setup_about()
+{
+  if (need_setup_about)
+  {
+    // eventually tutorial will be something that happens in game
+    let about_ok_button = new mouse_region((width / 2) - 30, 460, (width / 2) + 10, 500);
+    about_ok_button.events[MOUSE_EVENT_CLICK] = ()=>{ game_state = STATE_TEARDOWN_ABOUT; };
+    about_ok_button.events[MOUSE_EVENT_ENTER_REGION] = ()=>{ over_about_ok_btn = true; };
+    about_ok_button.events[MOUSE_EVENT_EXIT_REGION] = ()=>{ over_about_ok_btn = false; };
+    global_mouse_handler.register_region("about_ok_btn", about_ok_button);
+
+    need_setup_about = false;
+  }
+  global_mouse_handler.enable_region("about_ok_btn");
+  game_state = STATE_ABOUT;
+}
+
+function do_about_menu()
+{
+
+  noStroke();
+  fill (0, 70);
+  rect(gridSize * 2 + GRID_HALF, gridSize * 2 + GRID_HALF, width - gridSize * 4, height - gridSize * 4);
+
+  stroke(190, 190, 190);
+  fill (35);
+  strokeWeight(4);
+  rect(gridSize * 2, gridSize * 2, width - gridSize * 4, height - gridSize * 4);
+  fill(72);
+  rect(gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
+
+  let s = "About\n" +
+   "Programming & Design: Tyler Weston\n" +
+   "Based on Javidx9's line of sight algorithm\n" +
+   "Thanks to Warren Sloper for testing\n" +
+   "and Jane Haselgrove for all the pizza.\n";
+
+  //stroke(130);
+  textSize(28);
+  textAlign(CENTER, CENTER);
+  noStroke();
+  blendMode(ADD);
+  fill(255, 0, 0);
+  text(s, gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6 - 5);
+  fill(0, 255, 0);
+  text(s, gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
+  fill(0, 0, 255);
+  text(s, gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6 + 5);
+
+
+  blendMode(BLEND);
+
+  if (over_about_ok_btn)
+  {
+    noStroke();
+    fill(255, 20);
+    ellipse((width / 2) - 10, 480, 60, 60);
+
+    fill(255, 255, 255);
+  }
+  else 
+  {
+    fill(0, 0, 0);
+  }
+  stroke(130);
+  strokeWeight(2);
+  text("OK", (width / 2) - 10, 480);
+
+  textAlign(LEFT, BASELINE);
+
+}
+
+function do_teardown_about_menu()
+{
+  global_mouse_handler.disable_region("about_ok_btn");
+  game_state = STATE_MAIN_MENU_SETUP;
+}
+
+//////// OPTION SCREEN
+function do_setup_options()
+{
+  console.log("Setting up options");
+  if (need_setup_options)
+  {
+    need_setup_options = false;
+  }
+  game_state = STATE_OPTIONS;
+}
+
+function do_options_menu()
+{
+  console.log("Options menu");
+  game_state = STATE_TEARDOWN_OPTIONS;
+}
+
+function do_teardown_options()
+{
+  console.log("Tearing down options");
+  game_state = STATE_MAIN_MENU_SETUP;
 }
 
 //////// TOP MENU
@@ -1784,56 +1903,6 @@ function handle_top_menu_selection(menu_index)
   if (!top_menu_accept_input)
     return;
   top_menu_callbacks[menu_index]();
-  // // "save", "load", "reset grid", "reset game", "editor", "tutorial", "options", "about"
-  // // Top menu selection will change depending on current state and 
-  // // if the editor is active.
-
-  // // if editor is active
-  // // main menu
-  // // save
-  // // load
-  // // reset grid
-  // // ?? play ??
-  // // tutorial
-  // // ?? options ??
-  // switch (menu_index)
-  // {
-  //   case 0:
-  //     // exit to main menu
-  //     game_state = STATE_MAIN_MENU_SETUP; // or just main menu?
-  //     break;
-  //   case 1:
-  //     // save
-  //     current_level.save_level(lightsources, detectors);
-  //     break;
-  //   case 2:
-  //     break;
-  //   case 3:
-  //     // reset grid
-  //     resetStuff();
-  //     break;
-  //   case 4:
-  //     // reset game
-  //     // TODO: Are you sure box!
-  //     storeItem("savedgame", null);
-  //     game_state = STATE_NEW_GAME;
-  //     break;
-  //   case 5:
-  //     // editor
-  //     if (editor_available)
-  //       game_state = STATE_SETUP_EDITOR;
-  //     break;
-  //   case 6:
-  //     // tutorial
-  //     game_state = STATE_PREPARE_TUTORIAL;
-  //     break;
-  //   case 7:
-  //     // options
-  //     break;
-  //   case 8:
-  //     // about
-  //     break;
-  // }
 }
 
 function launch_menu()
@@ -2279,16 +2348,6 @@ function setup_game()
     setup_time_game();
 }
 
-function setup_about()
-{
-
-}
-
-function do_about()
-{
-
-}
-
 //////// DRAWING 
 // DRAW gets called EVERY frame, this is the MAIN GAME LOOP
 function draw() {
@@ -2342,6 +2401,24 @@ function draw() {
   case STATE_SHOW_TIME_RESULTS:
     do_show_time_results();
     break;
+  case STATE_SETUP_OPTIONS:
+    do_setup_options();
+    break;
+  case STATE_OPTIONS:
+    do_options_menu();
+    break;
+  case STATE_TEARDOWN_OPTIONS:
+    do_teardown_options();
+    break;
+  case STATE_SETUP_ABOUT:
+    do_setup_about();
+    break;
+  case STATE_ABOUT:
+    do_about_menu();
+    break;
+  case STATE_TEARDOWN_ABOUT:
+    do_teardown_about_menu()
+    break;
   }
 }
 
@@ -2358,7 +2435,7 @@ function draw_menu()
   strokeWeight(2);
   for (let m of top_menu_choices)
   {
-    if (top_menu_selected === i || i == 0)
+    if (top_menu_selected === i)
       fill(253);
     else
       fill(157);
