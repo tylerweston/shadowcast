@@ -2,17 +2,14 @@
 spectro
 tyler weston, 2021
 
-documentation for now:
-  - press s get a copiable version of the current level and possibly copy
-    it to the clipboard
-  - press e to bring up a box where you can enter a saved level
-
 Important:
-- add undo so you can undo the last couple blocks you drew?
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
+
 Bugs:
 - have to double click main menu for some reason to get it to
   open after having selected something from it?
+    - No! The FIRST time you use the main menu, one click works,
+    but after that, it takes two clicks?! What's up with that?
 - something broken with just setting is_dragging false to eat mouse input
   between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
@@ -30,8 +27,8 @@ QOL improvements:
 - Make sure all detectors aren't the same color!
 - fix webpage
 - timer game should be a bit easier to play
-ONLY draw the walls that the light makes visible?
- - The "easy" way to do this DOESN'T look good, either figure
+  ONLY draw the walls that the light makes visible?
+- The "easy" way to do this DOESN'T look good, either figure
   out a different way to do this or keep it the same for now
 - better flash juice
 - difficulty balance in progression - timer game is too hard?
@@ -44,6 +41,8 @@ Editor stuff (Maybe eventually):
 - give editor "LOAD" and "PLAY" functions, so individual levels will be used in there?
 
 Refactoring:
+- move global variables to a game class(ie game.edges)
+  - then we just gave game as a single global
 - encapsulate state in a better way
   - right now it is kind of spread out and a bit icky how it is all implemented
   - collect and fix that stuff up
@@ -73,6 +72,22 @@ let edges = [];
 let lightsources = [];
 let detectors = [];
 
+// maintain an undo stack
+let undo_stack = [];  // undo stack will be a list of list
+let redo_stack = [];
+let current_undo_frame = [];
+
+const ACTION_BUILD_WALL = 0;
+const ACTION_ERASE_WALL = 1;
+const ACTION_ACTIVATE_LIGHT = 2;
+const ACTION_DEACTIVATE_LIGHT = 3;
+const ACTION_MOVE_LIGHT = 4;
+  // build wall
+  // erase wall
+  // activate light
+  // deactivate light
+  // move light
+
 let gridSize = 40;
 
 let globalFade = 0;
@@ -86,7 +101,6 @@ const GRID_THIRD = gridSize / 3;
 
 const gameHeight = 720;
 const gameWidth = 960;
-const uiHeight = 200;
 
 let gridWidth = gameWidth / gridSize;
 let gridHeight = gameHeight / gridSize;
@@ -141,9 +155,11 @@ let ehandler = null;
 // mouse events
 const MOUSE_EVENT_MOVE = 0;
 const MOUSE_EVENT_CLICK = 1;
-const MOUSE_EVENT_UNCLICK = 3;
-const MOUSE_EVENT_ENTER_REGION = 4;
-const MOUSE_EVENT_EXIT_REGION = 5;
+const MOUSE_EVENT_UNCLICK = 2;
+const MOUSE_EVENT_ENTER_REGION = 3;
+const MOUSE_EVENT_EXIT_REGION = 4;
+
+const EVENT_NAMES = ["Move", "Click", "Unclick", "Enter", "Exit"];
 
 let global_mouse_handler = undefined;
 
@@ -156,20 +172,21 @@ const EAST = 2;
 const WEST = 3; 
 
 // menu options
-let top_menu_choices = ["main menu", "save", "load", "reset grid", "reset game", "tutorial"];
+let top_menu_choices = ["undo", "redo", "reset grid", "save", "load", "main menu", "reset game", "tutorial"];
 let top_menu_callbacks = [
-  () => top_menu_main_menu(), 
+  () => undo_last_move(),
+  () => redo_last_move(),
+  () => top_menu_reset_stuff(), 
   () => top_menu_save_level(), 
   () => top_menu_load(), 
-  () => top_menu_reset_stuff(), 
+  () => top_menu_main_menu(), 
   () => top_menu_reset_game(), 
   () => top_menu_tutorial(), 
 ];
 let top_menu_selected = undefined;
 let top_menu_height = top_menu_choices.length + 1;
 
-
-let main_menu_options = ["random", "timed", "options", "about"];
+let main_menu_options = ["new game", "timed game", "options", "about"];
 let main_menu_selected = undefined;
 let main_menu_height = main_menu_options.length + 1;
 
@@ -230,36 +247,30 @@ const STATE_MAIN_MENU_TEARDOWN = 4;
 const STATE_GAME = 5;
 const STATE_SETUP_EDITOR = 6;
 const STATE_EDITOR = 7;
-
-
 const STATE_LOADLEVEL = 10;
 const STATE_NEW_GAME = 11;
 const STATE_RANDOM_LEVEL_TRANSITION_OUT = 12;
 const STATE_RANDOM_LEVEL_TRANSITION_IN = 13;
-
 const STATE_PREPARE_TUTORIAL = 14;
 const STATE_TUTORIAL = 15;
 const STATE_TEARDOWN_TUTORIAL = 16;
-
 const STATE_SETUP_SHOW_TIME_RESULTS = 17;
 const STATE_SHOW_TIME_RESULTS = 18;
-
 const STATE_SETUP_OPTIONS = 19;
 const STATE_OPTIONS = 8;
 const STATE_TEARDOWN_OPTIONS = 20;
-
 const STATE_SETUP_ABOUT = 21;
 const STATE_ABOUT = 9;
 const STATE_TEARDOWN_ABOUT = 22;
 
 let game_state = STATE_SETUP;
 
-// play mode  // will this be rolled into state machine stuff??
+// play mode
 const GAMEMODE_RANDOM = 0;
-const GAMEMODE_LEVELS = 1;
+const GAMEMODE_LEVELS = 1;  // Not implemented yet
 const GAMEMODE_TIME = 2;
 
-let current_gamemode = GAMEMODE_RANDOM;
+let current_gamemode = undefined;
 
 let intro_timer = 0;
 let next_button_bob_timer = 0;
@@ -281,24 +292,6 @@ const MAJOR_VERSION = 0;
 const MINOR_VERSION = 9;
 
 //////// CLASSES
-class gamemode
-{
-  constructor()
-  {
-    // this will run at the start of the game to setup ny
-    // game mode specific stuff needed
-    this.initialization_function = undefined;
-    // between each level, this function is executed
-    // here is where things like keeping track of scoring, etc.
-    // would happen
-    this.level_transition_function = undefined;
-    // any game mode specific UI stuff happens here
-    this.ui_drawing_function = undefined;
-    // what happens when the grid is reset
-    this.reset_grid_function = undefined;
-  }
-}
-
 class mouse_region
 {
   constructor(x1, y1, x2, y2)
@@ -389,6 +382,14 @@ class mouse_handler
 
   disable_region(region_name)
   {
+    // IF we're in this region when we're disabled, send a mouseoff event
+    // this is useful to clean up buttons, etc. that the mouse is over 
+    if (this.registered_regions[region_name].mouse_in(mouseX, mouseY))
+    {
+      let mouse_exit_event = this.registered_regions[region_name].events[MOUSE_EVENT_EXIT_REGION]
+      if (mouse_exit_event)
+        mouse_exit_event();
+    }
     this.registered_regions[region_name].enabled = false;
   }
 
@@ -439,6 +440,8 @@ class mouse_handler
     // check all registered regions and figure out which the mouse
     // is over
     for (const [key, _region] of Object.entries(this.registered_regions)) {
+      if (!_region.enabled)
+        continue;
       if (_region.update_mouse_over(_mx, _my))  // returns TRUE if it's updated mouse over
       {
         if (_region.mouse_over)
@@ -557,7 +560,9 @@ class level
       new_score_string = " " + String(new_scoring_system);
     else if (new_scoring_system < 10000)
       new_score_string = String(new_score_string);
-    
+    else if (new_scoring_system >= 99999)
+      new_score_string = "99999";
+
     level_string += new_score_string;
 
     let cur_char = "";
@@ -707,11 +712,6 @@ class editor_handler
       let ty = global_mouse_handler.get_targety();
       if (tx != this.start_drag_x || ty != this.start_drag_y)
       {
-        // Here, we have a starting drag position and an ending drag
-        // position. Eventually we will check a straight line here to
-        // make sure they are all unblocked to make this not cheesable
-        // for now, just make sure ending position is good
-        // console.log("Dragging light " + this.selected_light);
         this.end_drag_x = tx;
         this.end_drag_y = ty;
         if (this.can_drag(this.start_drag_x, this.start_drag_y, this.end_drag_x, this.end_drag_y))
@@ -729,8 +729,6 @@ class editor_handler
           this.selected_light = undefined;
           this.selected_detector = undefined;
         }
-          // console.log("Dragged from " + this.start_drag_x + "," +
-        // this.start_drag_y + " to " + this.end_drag_x + "," + this.end_drag_y);
         this.start_drag_x = tx;
         this.start_drag_y = ty;
       }
@@ -994,7 +992,6 @@ class gameplay_handler
     if (this.dragging_mode === this.DRAWING_MODE)
     {
       this.try_build_wall(tx, ty);
-
     }
     else if (this.dragging_mode === this.ERASING_MODE)
     {
@@ -1006,15 +1003,13 @@ class gameplay_handler
       let ty = global_mouse_handler.get_targety();
       if (tx != this.start_drag_x || ty != this.start_drag_y)
       {
-        // Here, we have a starting drag position and an ending drag
-        // position. Eventually we will check a straight line here to
-        // make sure they are all unblocked to make this not cheesable
-        // for now, just make sure ending position is good
-        // console.log("Dragging light " + this.selected_light);
         this.end_drag_x = tx;
         this.end_drag_y = ty;
         if (this.can_drag(this.start_drag_x, this.start_drag_y, this.end_drag_x, this.end_drag_y))
         {
+          let new_undo_action = new undo_move(this.start_drag_x, this.start_drag_y, ACTION_MOVE_LIGHT,
+            this.end_drag_x, this.end_drag_y);
+          add_move_to_undo(new_undo_action);
           lightsources[this.selected_light].move(this.end_drag_x, this.end_drag_y);
         }
         else
@@ -1023,9 +1018,8 @@ class gameplay_handler
           this.dragging_mode = undefined;
           this.is_dragging = false;
           this.selected_light = undefined;
+          end_undo_frame();
         }
-          // console.log("Dragged from " + this.start_drag_x + "," +
-        // this.start_drag_y + " to " + this.end_drag_x + "," + this.end_drag_y);
         this.start_drag_x = tx;
         this.start_drag_y = ty;
       }
@@ -1061,9 +1055,9 @@ class gameplay_handler
       return;
     if (current_level.grid[_x][_y].grid_type === FLOOR_BUILDABLE)
     {
+      let new_undo_action = new undo_move(_x, _y, ACTION_BUILD_WALL);
+      add_move_to_undo(new_undo_action);
       set_grid(current_level.grid, _x, _y, FLOOR_BUILT);
-      // make_edges();
-      // points_for_current_grid = count_score();
       this.refresh_grid();
     }
   }
@@ -1074,9 +1068,9 @@ class gameplay_handler
       return;
     if (current_level.grid[_x][_y].grid_type === FLOOR_BUILT)
     {
+      let new_undo_action = new undo_move(_x, _y, ACTION_ERASE_WALL);
+      add_move_to_undo(new_undo_action);
       set_grid(current_level.grid, _x, _y, FLOOR_BUILDABLE);
-      // make_edges();
-      // points_for_current_grid = count_score();
       this.refresh_grid();
     }
   }
@@ -1092,6 +1086,7 @@ class gameplay_handler
     let gl = get_selected_light(px, py);
     if (gl !== undefined)
     {
+      start_new_undo_frame();
       this.is_dragging = true;
       this.selected_light = gl;
       this.dragging_mode = this.DRAGGING_LIGHT_MODE;
@@ -1104,6 +1099,7 @@ class gameplay_handler
     let ty = global_mouse_handler.get_targety();
     if (current_level.grid[tx][ty].grid_type === FLOOR_BUILDABLE)
     {
+      start_new_undo_frame();
       // building mode
       this.dragging_mode = this.DRAWING_MODE;
       this.is_dragging = true;
@@ -1111,6 +1107,7 @@ class gameplay_handler
     }
     else if (current_level.grid[tx][ty].grid_type === FLOOR_BUILT)
     {
+      start_new_undo_frame();
       // erasing mode
       this.dragging_mode = this.ERASING_MODE;
       this.is_dragging = true;
@@ -1120,6 +1117,9 @@ class gameplay_handler
 
   unclicked()
   {
+    if (this.dragging_mode === this.DRAWING_MODE || this.dragging_mode === this.ERASING_MODE
+      || this.dragging_mode === this.DRAGGING_LIGHT_MODE)
+      end_undo_frame();
     this.is_dragging = false;
   }
 }
@@ -1436,7 +1436,26 @@ class light_source
 
   switch_active()
   {
+    this.add_switch_to_undo_stack();
     this.active = !this.active;
+  }
+
+  add_switch_to_undo_stack()
+  {
+    let which_action = undefined;
+    if (this.active)
+    {
+      // we are being deactivated
+      which_action = ACTION_DEACTIVATE_LIGHT;
+    }
+    else
+    {
+      // we are being activated
+      which_action = ACTION_ACTIVATE_LIGHT;
+    }
+    let new_undo_action = new undo_move(this.x, this.y, which_action);
+    add_move_to_undo(new_undo_action);
+    end_undo_frame();
   }
 
   draw_light()
@@ -1551,6 +1570,199 @@ class viz_poly_point
   }
 }
 
+class undo_move
+{
+  // an undo move tracks an individual move during a game
+  // each move has an x and y, plus an action type
+  // moving lights also has an ending x that is not set in the
+  // constructor, but set manually
+  constructor(x, y, move_type, ex = 0, ey = 0)
+  {
+    this.x = x;
+    this.y = y;
+    this.move_type = move_type;
+    this.ex = ex;
+    this.ey = ey;
+  }
+
+  undo_move()
+  {
+    switch(this.move_type)
+    {
+    case ACTION_BUILD_WALL:
+      this.undo_build_wall();
+      break;
+    case ACTION_ERASE_WALL:
+      this.undo_erase_wall();
+      break;
+    case ACTION_ACTIVATE_LIGHT:
+      this.undo_activate_light();
+      break;
+    case ACTION_DEACTIVATE_LIGHT:
+      this.undo_deactivate_light();
+      break;
+    case ACTION_MOVE_LIGHT:
+      this.undo_move_light();
+      break;
+    }
+  }
+
+  redo_move()
+  {
+    switch(this.move_type)
+    {
+    case ACTION_BUILD_WALL:
+      this.redo_build_wall();
+      break;
+    case ACTION_ERASE_WALL:
+      this.redo_erase_wall();
+      break;
+    case ACTION_ACTIVATE_LIGHT:
+      this.redo_activate_light();
+      break;
+    case ACTION_DEACTIVATE_LIGHT:
+      this.redo_deactivate_light();
+      break;
+    case ACTION_MOVE_LIGHT:
+      this.redo_move_light();
+      break;
+    }
+  }
+
+  // Undo actions
+  undo_activate_light()
+  {
+    // find the light at position x, y and deactivate it
+    let gl = get_selected_light_on_grid(this.x, this.y);
+    lightsources[gl].active = false;
+  }
+
+  undo_deactivate_light()
+  {
+    // find the light at position x, y and activate 
+    let gl = get_selected_light_on_grid(this.x, this.y);
+    lightsources[gl].active = true;
+  }
+
+  undo_move_light()
+  {
+    // find the light at position end x, end y and move it
+    // to position start x, start y
+    let gl = get_selected_light_on_grid(this.ex, this.ey);
+    lightsources[gl].move(this.x, this.y);
+  }
+
+  undo_build_wall()
+  {
+    set_grid(current_level.grid, this.x, this.y, FLOOR_BUILDABLE);
+  }
+
+  undo_erase_wall()
+  {
+    set_grid(current_level.grid, this.x, this.y, FLOOR_BUILT);
+  }
+
+
+  // Redo actions
+  redo_activate_light()
+  {
+    // find the light at position x, y and deactivate it
+    let gl = get_selected_light_on_grid(this.x, this.y);
+    lightsources[gl].active = true;
+  }
+
+  redo_deactivate_light()
+  {
+    // find the light at position x, y and activate 
+    let gl = get_selected_light_on_grid(this.x, this.y);
+    lightsources[gl].active = false;
+  }
+
+  redo_move_light()
+  {
+    // find the light at position end x, end y and move it
+    // to position start x, start y
+    let gl = get_selected_light_on_grid(this.x, this.y);
+    lightsources[gl].move(this.ex, this.ey);
+  }
+
+  redo_build_wall()
+  {
+    set_grid(current_level.grid, this.x, this.y, FLOOR_BUILT);
+  }
+
+  redo_erase_wall()
+  {
+    set_grid(current_level.grid, this.x, this.y, FLOOR_BUILDABLE);
+  }
+}
+
+//////// UNDO STUFF
+function undo_last_move()
+{
+  // TO UNDO A MOVE:
+  // there is an undo stack
+  // an undo stack will be a bunch of undo frames
+  // we pop the last undo frame, which will be a list of moves to undo
+  // iterate through each undo move in the undo frame and run it's undo
+  // option
+  // Then, we add the undo frame to the redo stack in case we want to redo 
+  // it
+  let undo_frame = undo_stack.pop();
+  if (!undo_frame)
+    return;
+  for (var i = undo_frame.length - 1; i >= 0; i--) {
+    undo_frame[i].undo_move();
+  }
+  redo_stack.push(undo_frame);
+  make_edges();
+  update_all_light_viz_polys();
+}
+
+function redo_last_move()
+{
+  // To REDO A MOVE
+  // Pop the top frame from the redo stack, iterate thorugh each undo
+  // move, run the redo action, and then add the frame to the undo stack
+  let redo_frame = redo_stack.pop();
+  if (!redo_frame)
+    return;
+  for (let redo_action of redo_frame)
+  {
+    redo_action.redo_move();
+  }
+  undo_stack.push(redo_frame);
+  make_edges();
+  update_all_light_viz_polys();
+}
+
+function reset_undo_stacks()
+{
+  // clear out undo stacks
+  undo_stack.splice(0, undo_stack.length);
+  redo_stack.splice(0, redo_stack.length);
+  current_undo_frame.splice(0, current_undo_frame.length);
+}
+
+function start_new_undo_frame()
+{
+  current_undo_frame = [];
+}
+
+function end_undo_frame()
+{
+  // this is a hack potentially?
+  if (!current_undo_frame || current_undo_frame.length === 0)
+    return;
+  undo_stack.push(current_undo_frame);
+}
+
+function add_move_to_undo(move)
+{
+  // add a single move object to the current move frame
+  current_undo_frame.push(move);
+}
+
 //////// MAIN GAME
 function setup() {
   // setup is called once at the start of the game
@@ -1601,8 +1813,16 @@ function initialize_colors() {
   // 1 1 1 | white  | 7
   //-------+--------+----
 
-  detector_colors = [color(0, 0, 0), color(0, 0, 255), color(0, 255, 0), color(0, 255, 255), 
-    color(255, 0, 0), color(255, 0, 255), color(255, 255, 0), color(255, 255, 255)];
+  detector_colors = [
+    color(0, 0, 0), 
+    color(0, 0, 255), 
+    color(0, 255, 0), 
+    color(0, 255, 255), 
+    color(255, 0, 0), 
+    color(255, 0, 255), 
+    color(255, 255, 0), 
+    color(255, 255, 255)
+  ];
 }
 
 //////// MAIN MENU
@@ -1800,7 +2020,6 @@ function do_teardown_about_menu()
 //////// OPTION SCREEN
 function do_setup_options()
 {
-  console.log("Setting up options");
   if (need_setup_options)
   {
     need_setup_options = false;
@@ -1810,13 +2029,11 @@ function do_setup_options()
 
 function do_options_menu()
 {
-  console.log("Options menu");
   game_state = STATE_TEARDOWN_OPTIONS;
 }
 
 function do_teardown_options()
 {
-  console.log("Tearing down options");
   game_state = STATE_MAIN_MENU_SETUP;
 }
 
@@ -1898,6 +2115,7 @@ function enable_menu()
 {
   global_mouse_handler.enable_region("opened_top_menu");
   show_menu = true;
+  //top_menu_accept_input = true;
   for (let m of top_menu_choices)
   {
     global_mouse_handler.enable_region(m);
@@ -1928,11 +2146,12 @@ function make_menu()
   menu_region = new mouse_region((gridWidth - 3) * gridSize, 0,
                                   gridWidth * gridSize, gridSize);
   menu_region.events[MOUSE_EVENT_CLICK] = () => { launch_menu(); };
+  menu_region.events[MOUSE_EVENT_UNCLICK] = () => {top_menu_accept_input = true;};
   menu_region.events[MOUSE_EVENT_ENTER_REGION] = () => {mouse_over_menu = true;};
   menu_region.events[MOUSE_EVENT_EXIT_REGION] = () => {mouse_over_menu = false;};
   global_mouse_handler.register_region("top_menu", menu_region);
-  // initialize the menu handler and region stuff
   
+  // initialize the menu handler and region stuff
   open_menu_region = new mouse_region((gridWidth - 8) * gridSize, 0, gridWidth * gridSize, top_menu_height * gridSize);
   open_menu_region.events[MOUSE_EVENT_EXIT_REGION] = () => {close_menu();};
   open_menu_region.events[MOUSE_EVENT_UNCLICK] = () => {top_menu_accept_input = true;}
@@ -1942,13 +2161,12 @@ function make_menu()
   let i = 0;
   for (let m of top_menu_choices)
   {
-    let reg = new mouse_region((gridWidth - 8) * gridSize, i * gridSize, gridSize * gridWidth, (i + 1) * gridSize);
+    let reg = new mouse_region((gridWidth - 7) * gridSize, i * gridSize, gridSize * gridWidth, (i + 1) * gridSize);
     reg.events[MOUSE_EVENT_CLICK] = () => handle_top_menu_selection(int(global_mouse_handler.my / gridSize));
     reg.events[MOUSE_EVENT_ENTER_REGION] = () => {top_menu_selected = int(global_mouse_handler.my / gridSize);};
     global_mouse_handler.register_region(m, reg);
     ++i;
   }
-
 }
 
 // keyboard input
@@ -2087,7 +2305,6 @@ function do_game()
     if (next_level_available)
     {
       global_mouse_handler.enable_region("next_btn");
-
     }
     else
     {
@@ -2112,15 +2329,11 @@ function do_game()
   fill(font_color);
   text("level: " + difficulty_level, 0 + GRID_HALF, gridSize - 4);
 
-
-
   fill(font_color);
   if (mouse_over_menu)
     fill(255);
   
   text("menu", (gridWidth - 3) * gridSize, gridSize - 4);
-
-
 
   if (current_gamemode === GAMEMODE_RANDOM)
   {
@@ -2237,9 +2450,9 @@ function do_level_transition_out()
       time_level();
       make_edges();
     }
-
     game_state = STATE_RANDOM_LEVEL_TRANSITION_IN;
   }
+  reset_undo_stacks();
 }
 
 function do_level_transition_in()
@@ -2323,6 +2536,7 @@ function tutorial()
 
 function setup_game()
 {
+  reset_undo_stacks();  // ensure we have a fresh redo stack to start
   if (current_gamemode === GAMEMODE_RANDOM)
     setup_random_game();
   if (current_gamemode === GAMEMODE_TIME)
@@ -2334,7 +2548,6 @@ function setup_game()
 function draw() {
   // global_mouse_handler.log_debug_info();
   global_mouse_handler.handle();  // do mouse stuff
-
   switch (game_state)
   {
   case STATE_NEW_GAME:
@@ -2408,12 +2621,13 @@ function draw_menu()
   fill(37, 210);
   stroke(12);
   strokeWeight(2);
-  rect((gridWidth - 8) * gridSize, 0, gridWidth * gridSize, gridSize * top_menu_height);
+  rect((gridWidth - 7) * gridSize, 0, gridWidth * gridSize, gridSize * (top_menu_height - 1));
 
   // display menu options
   var i = 0;
   stroke(0);
   strokeWeight(2);
+  textAlign(LEFT, TOP);
   for (let m of top_menu_choices)
   {
     if (top_menu_selected === i)
@@ -2421,11 +2635,15 @@ function draw_menu()
     else
       fill(157);
 
-    if ((i === 5 && !editor_available) || i == 7 || i == 8)
-      fill(28);
-    text(m, (gridWidth - 7) * gridSize, (i + 1) * gridSize );
+    if (i === 0 && undo_stack.length === 0)
+      fill(57);
+    if (i === 1 && redo_stack.length === 0)
+      fill(57);
+      
+    text(m, (gridWidth - 6) * gridSize, (i) * gridSize );
     ++i;
   }
+  textAlign(LEFT, BASELINE);
 }
 
 function draw_glass()
@@ -3586,6 +3804,19 @@ function get_selected_light(xpos, ypos)
   return undefined;
 }
 
+function get_selected_light_on_grid(xgrid, ygrid)
+{
+  // in this case we are using grid coordinates
+  let i = 0;
+  for (let l of lightsources)
+  {
+    if (l.x === xgrid && l.y === ygrid)
+      return i;
+    ++i;
+  }
+  return undefined;
+}
+
 function turn_lights_off()
 {
   for (let l of lightsources)
@@ -3746,4 +3977,16 @@ function get_level_and_load()
   return prompt;
 }
 
+// Keyboard handlers for undo and redo
+// from https://stackoverflow.com/questions/16006583/capturing-ctrlz-key-combination-in-javascript
+document.addEventListener('keydown', function(event) {
+  if (event.ctrlKey && event.key === 'z') {
+    undo_last_move();
+  }
+});
 
+document.addEventListener('keydown', function(event) {
+  if (event.ctrlKey && event.key === 'y') {
+    redo_last_move();
+  }
+});
