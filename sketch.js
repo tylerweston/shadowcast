@@ -1711,6 +1711,8 @@ function undo_last_move()
   let undo_frame = undo_stack.pop();
   if (!undo_frame)
     return;
+  // Iterate over the undo frame in reverse since it is a stack we push
+  // moves to, so we want to undo the last added moves first
   for (var i = undo_frame.length - 1; i >= 0; i--) {
     undo_frame[i].undo_move();
   }
@@ -1850,6 +1852,7 @@ function do_setup_main_menu()
 
 function do_main_menu()
 {
+  current_gamemode = undefined;
   main_menu_accept_input = true;
   fill(37);
   rect(0, 0, width, height);
@@ -1869,7 +1872,7 @@ function do_main_menu()
   text("spectro", (gridWidth - 17) * gridSize, gridSize * 2 + 5);
   blendMode(BLEND);
 
-  if (mouseY >= gridSize * 2 * (main_menu_options.length + 1))
+  if ((mouseY <= gridSize * 2) || (mouseY >= gridSize * 2 * (main_menu_options.length + 1)))
     main_menu_selected = undefined;
 
   for (let m of main_menu_options)
@@ -1879,8 +1882,9 @@ function do_main_menu()
     else
       fill(157);
 
-    // if ((i == 2 && !editor_available) || i == 3 || i == 4)
-    //   fill(12);
+    // disable option hack
+    if (i === 2)
+      fill(57);
 
     text(m, (gridWidth - 17) * gridSize, (i + 2) * gridSize * 2);
     ++i;
@@ -2171,8 +2175,24 @@ function make_menu()
 
 // keyboard input
 function keyPressed() {
+  if (!current_gamemode)
+    return;
+  // only handle keypresses if we have an active game
   // JUST DEBUG STUFF?
   // editor keys and stuff will be handled here as well??
+  if (key === 'r')
+  {
+    lightsources[0].active = !lightsources[0].active;
+  }
+  else if (key === 'g')
+  {
+    lightsources[1].active = !lightsources[1].active;
+  }
+  else if (key === 'b')
+  {
+    lightsources[2].active = !lightsources[2].active;
+  }
+
   if (keyCode === LEFT_ARROW) {
     difficulty_level--;
     random_level();
@@ -2183,11 +2203,9 @@ function keyPressed() {
     current_level.copy_save_string_to_clipboard(lightsources, detectors);
   } else if (key === 'l') {
     try_load_level(getItem("savedgame"));
-  } 
-  else if (key === 'q') {
+  } else if (key === 'q') {
     storeItem("high_random_score", null);
-  }
-  else if (key === 'e') {
+  } else if (key === 'e') {
     let lvl_txt = get_level_and_load();
     try_load_level(lvl_txt);
   }
@@ -2416,12 +2434,16 @@ function do_intro()
 
 function do_level_transition_out()
 {
+  reset_undo_stacks();
   // FADING IN/OUT STATE STUFF
   // global fade should start at 0
   if (globalFade < 1)
   {
-    globalFade += deltaTime / 50;
+    globalFade += deltaTime / 100;
   }
+  do_game();
+  fill(17, 255);
+  rect(0 , 0, gameWidth, gameHeight * globalFade);
   fill(48, 48, 48, globalFade * 255);
   rect(0, 0, gameWidth, gameHeight);
   if (globalFade >= 1)
@@ -2452,12 +2474,14 @@ function do_level_transition_out()
     }
     game_state = STATE_RANDOM_LEVEL_TRANSITION_IN;
   }
-  reset_undo_stacks();
 }
 
 function do_level_transition_in()
 {
-  globalFade -= deltaTime / 10;
+  globalFade -= deltaTime / 100;
+  do_game();
+  fill(17, 255);
+  rect(0, gameHeight - (gameHeight * globalFade), gameWidth, gameHeight);
   fill(48, 48, 48, globalFade * 255);
   rect(0, 0, gameWidth, gameHeight);
   if (globalFade < 0)
@@ -3184,8 +3208,8 @@ function do_setup_show_time_results()
     // TODO: Tweak to find better placement
     let x1 = gridWidth * 10;
     let y1 = (gridHeight - 5) * gridSize;
-    let x2 = gridWidth * 13;
-    let y2 = (gridHeight - 5) * gridSize;
+    let x2 = gridWidth * 14;
+    let y2 = (gridHeight - 4) * gridSize + GRID_HALF;
     // fill(255, 0, 0);
     // rect(x1, y1, x2 - x1, y2 - y1);
     let play_again_btn = new mouse_region(x1, y1, x2, y2);
@@ -3197,8 +3221,8 @@ function do_setup_show_time_results()
     // TODO: Tweak to find better placement
     x1 = width - (gridWidth * 13);
     y1 = (gridHeight - 5) * gridSize;
-    x2 = width - (gridWidth * 10);
-    y2 = (gridHeight - 5) * gridSize;
+    x2 = width - (gridWidth * 9);
+    y2 = (gridHeight - 4) * gridSize + GRID_HALF;
     // fill(0, 255, 0);
     // rect(x1, y1, x2 - x1, y2 - y1);
     let back_main_menu_btn = new mouse_region(x1, y1, x2, y2);
@@ -3231,8 +3255,6 @@ function go_back_to_main_menu_from_time_results()
 
 function do_show_time_results()
 {
-  // TODO: Fancy show this!
-
   // shadow
   noStroke();
   fill (0, 70);
@@ -3244,8 +3266,8 @@ function do_show_time_results()
   rect(gridSize * 2, gridSize * 2, width - gridSize * 4, height - gridSize * 4);
   fill(72);
   rect(gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
-  strokeWeight(1);
-  stroke(255);
+  strokeWeight(2);
+  stroke(0);
   textSize(gridSize);
   fill (font_color);
   textAlign(CENTER);
@@ -3254,16 +3276,19 @@ function do_show_time_results()
 
   if (total_time_played > high_timer_score)
   {
+    high_timer_score = total_time_played;
     // TODO: MORE JUICE!
     text("NEW HIGH SCORE!", width / 2, gridSize * 5);
     storeItem("high_timer_score", total_time_played);
   }
+
+  text("High score: " + high_timer_score, width / 2, gridSize * 9);
   textAlign(LEFT);
 
   let x1 = gridWidth * 10;
   let y1 = (gridHeight - 5) * gridSize;
-  let x2 = gridWidth * 13;
-  let y2 = (gridHeight - 5) * gridSize;
+  let x2 = gridWidth * 14;
+  let y2 = (gridHeight - 4) * gridSize;
   // fill(255, 0, 0);
   // rect(x1, y1, x2 - x1, y2 - y1);
   if (over_play_again_btn)
@@ -3274,8 +3299,8 @@ function do_show_time_results()
 
   x1 = width - (gridWidth * 13);
   y1 = (gridHeight - 5) * gridSize;
-  x2 = width - (gridWidth * 10);
-  y2 = (gridHeight - 5) * gridSize;
+  x2 = width - (gridWidth * 9);
+  y2 = (gridHeight - 4) * gridSize;
   // fill(0, 255, 0);
   // rect(x1, y1, x2 - x1, y2 - y1);
   if (over_main_menu_btn)
