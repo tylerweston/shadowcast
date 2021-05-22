@@ -4,12 +4,23 @@ tyler weston, 2021
 
 Important:
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
+- rename shadowcast -> spectro
 
-Bugs:
 - have to double click main menu for some reason to get it to
   open after having selected something from it?
     - No! The FIRST time you use the main menu, one click works,
     but after that, it takes two clicks?! What's up with that?
+    - Also, something is being added to the undo frame when the top
+    menu is opened?
+
+Visual fixes:
+- Main menu should be better lined up
+- better flash juice
+- change flooring from automatically tiled to user adjustable?
+  - keep SOME random floor options, but fluff them up! 
+
+Bugs:
+- score needs to update with undo/redo
 - something broken with just setting is_dragging false to eat mouse input
   between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
@@ -21,16 +32,12 @@ Bugs:
 - don't allow holes to spawn on lights?
 
 QOL improvements:
-- change flooring from automatically tiled to user adjustable?
-  - keep SOME random floor options, but fluff them up!
-- make R, G, B keys toggle their lights in random mode?
 - Make sure all detectors aren't the same color!
 - fix webpage
 - timer game should be a bit easier to play
   ONLY draw the walls that the light makes visible?
 - The "easy" way to do this DOESN'T look good, either figure
   out a different way to do this or keep it the same for now
-- better flash juice
 - difficulty balance in progression - timer game is too hard?
 
 Options:
@@ -53,14 +60,11 @@ Maybe eventually:
 - change game grid size - allow this to be customized - this might be implemented?
   - just need some bits to resize themselves automatically
 - Encode levels a bit better than just text strings?
-
 - we could make filters for different colored lights by having
-  r,g, and b edges, run the detection thing three times
-  , solid walls would just exist in all three color planes?
-  
+  r,g, and b edges, run the detection thing three times, 
+  solid walls would just exist in all three color planes?
 - Handle loading gameboards of different size? or just keep everything 
   one size?
-  
 - Maybe try removing the lightsources from the grid and see if it's fun like that?
   - the extra constraints might be necessary though?
 */
@@ -109,6 +113,7 @@ let current_level = undefined;  // The currently loaded level, there can be only
 let difficulty_level = 1;
 let all_detectors_active = false; // this is for random games (?) this should go into state stuff?
 let highest_score;
+let new_high_score_juice = 0;
 
 let new_total;
 let new_total_fade;
@@ -121,6 +126,7 @@ let time_gain_per_level = 10;
 let total_time_played = 0;
 let initial_time = 20;
 let high_timer_score = 0;
+let has_new_timer_high_score = false;
 
 // this stuff should all be refactored into state machine stuff
 // TODO: Bunch of little bits of state to clean up
@@ -1719,6 +1725,8 @@ function undo_last_move()
   redo_stack.push(undo_frame);
   make_edges();
   update_all_light_viz_polys();
+  if (current_gamemode === GAMEMODE_RANDOM)
+    points_for_current_grid = count_score();
 }
 
 function redo_last_move()
@@ -1736,6 +1744,8 @@ function redo_last_move()
   undo_stack.push(redo_frame);
   make_edges();
   update_all_light_viz_polys();
+  if (current_gamemode === GAMEMODE_RANDOM)
+    points_for_current_grid = count_score();
 }
 
 function reset_undo_stacks()
@@ -2175,22 +2185,28 @@ function make_menu()
 
 // keyboard input
 function keyPressed() {
-  if (!current_gamemode)
-    return;
+  // if (!current_gamemode)
+  //   return;
   // only handle keypresses if we have an active game
   // JUST DEBUG STUFF?
   // editor keys and stuff will be handled here as well??
+  if (mouseIsPressed)
+    return; // for now this should be an easy fix around this!
   if (key === 'r')
   {
-    lightsources[0].active = !lightsources[0].active;
+    // need to check if we already have an active undo frame?!
+    start_new_undo_frame();
+    lightsources[0].switch_active();
   }
   else if (key === 'g')
   {
-    lightsources[1].active = !lightsources[1].active;
+    start_new_undo_frame();
+    lightsources[1].switch_active();
   }
   else if (key === 'b')
   {
-    lightsources[2].active = !lightsources[2].active;
+    start_new_undo_frame();
+    lightsources[2].switch_active();
   }
 
   if (keyCode === LEFT_ARROW) {
@@ -2204,7 +2220,9 @@ function keyPressed() {
   } else if (key === 'l') {
     try_load_level(getItem("savedgame"));
   } else if (key === 'q') {
+    console.log("Nuking old high scores");
     storeItem("high_random_score", null);
+    storeItem("high_timer_score", null);
   } else if (key === 'e') {
     let lvl_txt = get_level_and_load();
     try_load_level(lvl_txt);
@@ -2439,7 +2457,7 @@ function do_level_transition_out()
   // global fade should start at 0
   if (globalFade < 1)
   {
-    globalFade += deltaTime / 100;
+    globalFade += deltaTime / 250;
   }
   do_game();
   fill(17, 255);
@@ -2478,7 +2496,7 @@ function do_level_transition_out()
 
 function do_level_transition_in()
 {
-  globalFade -= deltaTime / 100;
+  globalFade -= deltaTime / 250;
   do_game();
   fill(17, 255);
   rect(0, gameHeight - (gameHeight * globalFade), gameWidth, gameHeight);
@@ -3165,6 +3183,7 @@ function setup_time_game()
   difficulty_level = 1;   // todo: shouldn't be hard coded here
   time_remaining = initial_time;    // todo: shouldn't be hard coded here
   total_time_played = time_remaining;
+  has_new_timer_high_score = false;
   init_light_sources();
   time_level();
   game_state = STATE_GAME;
@@ -3198,7 +3217,8 @@ function tear_down_time_game()
 function time_game_ui()
 {
   fill(font_color);
-  text("time left: " + int(time_remaining), 0 + GRID_HALF, gridHeight * gridSize - 4);
+  let display_time = min(int(time_remaining), 0);
+  text("time left: " + display_time, 0 + GRID_HALF, gridHeight * gridSize - 4);
 }
 
 function do_setup_show_time_results()
@@ -3235,10 +3255,22 @@ function do_setup_show_time_results()
     need_setup_show_time_results = false;
   }
   // enable our button regions
-  // TODO: Why is there only one mouse button being enabled/disabled here?
   global_mouse_handler.enable_region("time_result_back_main_menu_btn");
   global_mouse_handler.enable_region("time_result_play_again_btn");
   game_state = STATE_SHOW_TIME_RESULTS;
+
+  if (total_time_played > high_timer_score)
+  {
+    has_new_timer_high_score = true;
+    high_timer_score = total_time_played;
+    // // TODO: MORE JUICE!
+    // new_high_score_juice += deltaTime / 150;
+    // fill(255 * sin(new_high_score_juice));
+    // if (new_high_score_juice >= TWO_PI)
+    //   new_high_score_juice = 0;
+    // text("NEW HIGH SCORE!", width / 2, gridSize * 5);
+    storeItem("high_timer_score", total_time_played);
+  }
 }
 
 function play_again_from_time_results()
@@ -3272,19 +3304,19 @@ function do_show_time_results()
   fill (font_color);
   textAlign(CENTER);
   text("Total time played: " + total_time_played, width / 2, gridSize * 7);
+  text("High score: " + high_timer_score, width / 2, gridSize * 9);
 
-
-  if (total_time_played > high_timer_score)
+  if (has_new_timer_high_score)
   {
-    high_timer_score = total_time_played;
     // TODO: MORE JUICE!
+    new_high_score_juice += deltaTime / 150;
+    fill(255 * ((sin(new_high_score_juice) + 1) / 2));
+    if (new_high_score_juice >= TWO_PI)
+      new_high_score_juice = 0;
     text("NEW HIGH SCORE!", width / 2, gridSize * 5);
-    storeItem("high_timer_score", total_time_played);
   }
 
-  text("High score: " + high_timer_score, width / 2, gridSize * 9);
   textAlign(LEFT);
-
   let x1 = gridWidth * 10;
   let y1 = (gridHeight - 5) * gridSize;
   let x2 = gridWidth * 14;
