@@ -16,8 +16,6 @@ Visual fixes:
 - better flash juice  
 - change flooring from automatically tiled to user adjustable?
   - keep SOME random floor options, but fluff them up! 
-- make save juice look more like a shutter snapping? This should only
-  happen when a save happens manually, not automatically?
 - animated lines in background?
 
 Bugs:
@@ -519,10 +517,11 @@ class level
     this.level_data = level_data;
   }
 
-  save_level(lights, detectors)
+  save_level(lights, detectors, use_juice=false)
   {
     let level_string = this.generate_save_string(lights, detectors);
-    saveFade = 1;
+    if (use_juice)
+      saveFade = 1;
     storeItem("savedgame", level_string);
   }
 
@@ -2065,7 +2064,7 @@ function top_menu_main_menu()
 
 function top_menu_save_level() 
 {
-  current_level.save_level(lightsources, detectors);
+  current_level.save_level(lightsources, detectors, true);
 }
 
 function top_menu_load() {
