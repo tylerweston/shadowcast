@@ -5,19 +5,20 @@ tyler weston, 2021
 Important:
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
 - rename shadowcast -> spectro
+- make main menu - NEW GAME or CONTINUE
+  - then remove restart game from menu?
 
-- have to double click main menu for some reason to get it to
-  open after having selected something from it?
-    - No! The FIRST time you use the main menu, one click works,
-    but after that, it takes two clicks?! What's up with that?
-    - Also, something is being added to the undo frame when the top
-    menu is opened?
+- Something is being added to the undo frame when the top
+menu is opened?
 
 Visual fixes:
-- Main menu should be better lined up
-- better flash juice
+- Main menu should be better lined up... looks OK with new font
+- better flash juice  
 - change flooring from automatically tiled to user adjustable?
   - keep SOME random floor options, but fluff them up! 
+- make save juice look more like a shutter snapping? This should only
+  happen when a save happens manually, not automatically?
+- animated lines in background?
 
 Bugs:
 - score needs to update with undo/redo
@@ -32,6 +33,9 @@ Bugs:
 - don't allow holes to spawn on lights?
 
 QOL improvements:
+- detect size of parent div and base the game on that so on different
+  screens, devices, etc, it will work the same way?!
+  - we'd base grid size 
 - Make sure all detectors aren't the same color!
 - fix webpage
 - timer game should be a bit easier to play
@@ -92,7 +96,7 @@ const ACTION_MOVE_LIGHT = 4;
   // deactivate light
   // move light
 
-let gridSize = 40;
+let gridSize = 35;
 
 let globalFade = 0;
 let saveFade = 0;
@@ -103,9 +107,10 @@ let highest_score_display_timer = 0;
 const GRID_HALF = gridSize / 2;
 const GRID_THIRD = gridSize / 3;
 
-const gameHeight = 720;
-const gameWidth = 960;
+const gameHeight = 700;
+const gameWidth = 700;
 
+// these can be consts
 let gridWidth = gameWidth / gridSize;
 let gridHeight = gameHeight / gridSize;
 
@@ -297,6 +302,15 @@ let need_setup_options = true;
 const MAJOR_VERSION = 0;
 const MINOR_VERSION = 9;
 
+// font
+let spectro_font;
+
+function preload() {
+  // any things to load before our game starts, fonts, music, etc.
+  // This font is nice for gameplay stuff
+  spectro_font = loadFont('assets/LemonMilk.otf');
+}
+
 //////// CLASSES
 class mouse_region
 {
@@ -402,6 +416,7 @@ class mouse_handler
   enable_region(region_name)
   {
     this.registered_regions[region_name].enabled = true;
+    this.registered_regions[region_name].update_mouse_over(this.mx, this.my);
   }
 
   handle()
@@ -472,29 +487,6 @@ class mouse_handler
     // delete returns true if the key existed, false if it doesn't
     delete(this.registered_regions[region_name]);
   }
-
-  // log_debug_info()
-  // {
-  //   // console.clear();
-  //   console.log("Mouse handler debug info");
-  //   // display debug info
-  //   console.log("All registered regions:");
-  //   for (const [key, _region] of Object.entries(this.registered_regions)) {
-  //     console.log(key);
-  //   }
-    
-  //   console.log("Active regions:");
-  //   for (const [key, _region] of Object.entries(this.registered_regions)) {
-  //     if (_region.active)
-  //       console.log(key);
-  //   }
-
-  //   console.log("Disabled regions:");
-  //   for (const [key, _region] of Object.entries(this.registered_regions)) {
-  //     if (!(_region.active))
-  //       console.log(key);
-  //   }
-  // }
 }
 
 class level
@@ -1151,6 +1143,8 @@ class detector
     // flash juice
     this.flashing = false;
     this.flash_radius = 0;
+    this.flash_inc = random() + 1.5;
+    this.flash_radius_max = FLASH_SIZE + random();
   }
 
   check_color()
@@ -1288,18 +1282,21 @@ class detector
     // draw flash juice
     if (this.flashing)
     {
-      this.flash_radius += (deltaTime / 1.75);
+      this.flash_radius += (deltaTime / this.flash_inc);
       strokeWeight(4);
       noFill();
-      let alph = map(this.flash_radius, 0, FLASH_SIZE, 255, 0);
-      stroke(150, alph);
-      ellipse(grid_center_x, grid_center_y, this.flash_radius, this.flash_radius);
-      stroke(150, alph * 0.8);
-      ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.8, this.flash_radius * 0.8);
+      let alph = map(this.flash_radius, 0, this.flash_radius_max, 255, 0);
+      
       stroke(150, alph * 0.6);
       ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.6, this.flash_radius * 0.6);
+      
+      stroke(150, alph * 0.8);
+      ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.8, this.flash_radius * 0.8);
+      
+      stroke(150, alph);
+      ellipse(grid_center_x, grid_center_y, this.flash_radius, this.flash_radius);
 
-      if (this.flash_radius > FLASH_SIZE)
+      if (this.flash_radius > this.flash_radius_max)
       {
         this.flashing = false;
       }
@@ -1781,6 +1778,8 @@ function setup() {
   createCanvas(gameWidth, gameHeight);
   initialize_colors();  // Can't happen until a canvas has been created!
 
+  textFont(spectro_font);
+
   global_mouse_handler = new mouse_handler();
 
   make_menu();
@@ -1792,7 +1791,6 @@ function setup() {
     game_state = STATE_INTRO;
   else
     game_state = STATE_MAIN_MENU_SETUP;
-
 }
 
 function initialize_colors() {
@@ -1807,7 +1805,7 @@ function initialize_colors() {
   empty_outline = color(25, 25, 25);
   empty_fill = color(13, 13, 13);
 
-  edge_color = color(90, 90, 90);
+  edge_color = color(80, 80, 80);
   edge_circle_color = color(80, 80, 80);
 
   font_color = color(35, 35, 35);
@@ -2128,7 +2126,7 @@ function launch_menu()
 function enable_menu()
 {
   global_mouse_handler.enable_region("opened_top_menu");
-  show_menu = true;
+  // show_menu = true;
   //top_menu_accept_input = true;
   for (let m of top_menu_choices)
   {
@@ -2168,7 +2166,7 @@ function make_menu()
   // initialize the menu handler and region stuff
   open_menu_region = new mouse_region((gridWidth - 8) * gridSize, 0, gridWidth * gridSize, top_menu_height * gridSize);
   open_menu_region.events[MOUSE_EVENT_EXIT_REGION] = () => {close_menu();};
-  open_menu_region.events[MOUSE_EVENT_UNCLICK] = () => {top_menu_accept_input = true;}
+  open_menu_region.events[MOUSE_EVENT_UNCLICK] = () => {top_menu_accept_input = true;};
   global_mouse_handler.register_region("opened_top_menu", open_menu_region);
   
   // it will be a region that will contain sub-regions for each menu option?
@@ -2220,7 +2218,6 @@ function keyPressed() {
   } else if (key === 'l') {
     try_load_level(getItem("savedgame"));
   } else if (key === 'q') {
-    console.log("Nuking old high scores");
     storeItem("high_random_score", null);
     storeItem("high_timer_score", null);
   } else if (key === 'e') {
@@ -2388,8 +2385,20 @@ function do_game()
 
   if (saveFade > 0)
   {
-    saveFade -= 0.1;
-    fill(255, saveFade * 255);
+    saveFade -= deltaTime / 400;
+    fill(0);
+    let inv_save_fade = 1.0 - saveFade;
+    noStroke();
+
+    let shutter_close = (cos(saveFade * TWO_PI) + 1) / 2;
+    let inv_shutter_close = 1.0 - shutter_close;
+
+    triangle(0, 0, 0, gameHeight, gameWidth * inv_shutter_close, gameHeight);
+    triangle(0, gameHeight, gameWidth, gameHeight, gameWidth, gameHeight * shutter_close);
+    triangle(gameWidth, gameHeight, gameWidth, 0, gameWidth * shutter_close, 0);
+    triangle(gameWidth, 0, 0, 0, 0, gameHeight * inv_shutter_close);
+
+    fill(150, saveFade * 255);
     rect(0, 0, gameWidth, gameHeight);
   }
 
@@ -2588,7 +2597,6 @@ function setup_game()
 //////// DRAWING 
 // DRAW gets called EVERY frame, this is the MAIN GAME LOOP
 function draw() {
-  // global_mouse_handler.log_debug_info();
   global_mouse_handler.handle();  // do mouse stuff
   switch (game_state)
   {
@@ -2663,7 +2671,7 @@ function draw_menu()
   fill(37, 210);
   stroke(12);
   strokeWeight(2);
-  rect((gridWidth - 7) * gridSize, 0, gridWidth * gridSize, gridSize * (top_menu_height - 1));
+  rect((gridWidth - 8) * gridSize, 0, gridWidth * gridSize, gridSize * (top_menu_height));
 
   // display menu options
   var i = 0;
@@ -2682,7 +2690,7 @@ function draw_menu()
     if (i === 1 && redo_stack.length === 0)
       fill(57);
       
-    text(m, (gridWidth - 6) * gridSize, (i) * gridSize );
+    text(m, (gridWidth - 7) * gridSize, (i) * gridSize );
     ++i;
   }
   textAlign(LEFT, BASELINE);
@@ -2722,7 +2730,8 @@ function draw_walls_and_floors()
         {
           // stroke(25, 25, 25);
           // fill(13, 13, 13);
-          stroke(empty_outline);
+          noStroke();
+          //stroke(empty_outline);
           fill(empty_fill);
           square(x * gridSize, y * gridSize, gridSize);
         }
@@ -2778,13 +2787,19 @@ function draw_walls_and_floors()
 
 function draw_edges()
 {
+  // strokeWeight(2);
+  // stroke(edge_circle_color);
+  // fill(edge_circle_color);
+  // // stroke(edge_circle_color);
+  // for (let e of edges)
+  // {
+  //   ellipse(e.sx, e.sy, 2, 2);
+  //   ellipse(e.ex, e.ey, 2, 2);
+  // }
+
   strokeWeight(3);
   for (let e of edges)
   {
-    stroke(edge_circle_color);
-    ellipse(e.sx, e.sy, 3, 3);
-    ellipse(e.ex, e.ey, 3, 3);
-
     stroke(edge_color);
     line(e.sx, e.sy, e.ex, e.ey);
   }
@@ -3399,6 +3414,7 @@ function random_game_ui()
       fill(255)
     else
       fill(font_color);
+    // -4? Magic number!
     text("next", (gridWidth - 3) * gridSize, gridHeight * gridSize - 4 - sin(next_button_bob_timer));
   }
 
@@ -3412,11 +3428,9 @@ function random_game_ui()
   // bottom left will either say your CURRENT SCORE
   // the HIGH SCORE
   // or display the points you JUST GOT
-
-
   if (highest_score_display_timer > 0)
   {
-    highest_score_display_timer -= deltaTime / 1000;
+    highest_score_display_timer -= deltaTime / 1500;
     text("high score: " + highest_score, 0 + GRID_HALF, gridHeight * gridSize - 4);
   }
   else
@@ -3426,7 +3440,7 @@ function random_game_ui()
 
   if (new_total_fade > 0)
   {
-    new_total_fade -= deltaTime / 1500;
+    new_total_fade -= deltaTime / 2500;
     strokeWeight(2);
     stroke(37);
     fill(255);
@@ -3434,7 +3448,6 @@ function random_game_ui()
     xfadepos *= gridSize;
     text("+" + new_total, xfadepos, gridHeight * gridSize - 4 + (new_total_fade * 10));
   }
-
 }
 
 function random_level()
@@ -4047,3 +4060,9 @@ document.addEventListener('keydown', function(event) {
     redo_last_move();
   }
 });
+
+// document.addEventListener('keydown', function(event) {
+//   if (event.ctrlKey && event.key === 's') {
+//     current_level.save_level(lightsources, detectors);
+//   }
+// });
