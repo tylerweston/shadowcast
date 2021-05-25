@@ -2,24 +2,31 @@
 spectro
 tyler weston, 2021
 
+Controls:
+r, g, b: switch corresponding light
+space: go to next level (if available)
+
 Important:
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
 - rename shadowcast -> spectro
 - make main menu - NEW GAME or CONTINUE
   - then remove restart game from menu?
-
 - Something is being added to the undo frame when the top
-menu is opened?
+menu is opened? Something with unclick happening!
+- option screen
+  - make button class? or checkbox class?
 
 Visual fixes:
+- with new auto-sizing, the game doesn't end up lined up in the middle,
+  EITHER use an offset OR just round to neareast multiple of 20?
 - Main menu should be better lined up... looks OK with new font
 - better flash juice  
 - change flooring from automatically tiled to user adjustable?
   - keep SOME random floor options, but fluff them up! 
 - animated lines in background?
+- Font size may be strange on different size devices?
 
 Bugs:
-- score needs to update with undo/redo
 - something broken with just setting is_dragging false to eat mouse input
   between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
@@ -29,6 +36,8 @@ Bugs:
 - When we "shrink" lights onto the board, they may get placed on top of a
   detector, which makes them unmovable! make sure this doesn't happen!
 - don't allow holes to spawn on lights?
+  - Does this still happen?
+- Reposition OK button in About menu
 
 QOL improvements:
 - detect size of parent div and base the game on that so on different
@@ -41,6 +50,7 @@ QOL improvements:
 - The "easy" way to do this DOESN'T look good, either figure
   out a different way to do this or keep it the same for now
 - difficulty balance in progression - timer game is too hard?
+- screenshots of game
 
 Options:
  - Reset highscores
@@ -71,10 +81,18 @@ Maybe eventually:
   - the extra constraints might be necessary though?
 */
 
+// make the playing field 20x20
+const PLAYFIELD_DIM = 20;
+
 // global variables
 
-let edges = [];
+// move these out of globals
+let gameHeight;
+let gameWidth;
+let gridSize;
+let GRID_HALF;
 
+let edges = [];
 let lightsources = [];
 let detectors = [];
 
@@ -83,18 +101,12 @@ let undo_stack = [];  // undo stack will be a list of list
 let redo_stack = [];
 let current_undo_frame = [];
 
+// undo actions
 const ACTION_BUILD_WALL = 0;
 const ACTION_ERASE_WALL = 1;
 const ACTION_ACTIVATE_LIGHT = 2;
 const ACTION_DEACTIVATE_LIGHT = 3;
 const ACTION_MOVE_LIGHT = 4;
-  // build wall
-  // erase wall
-  // activate light
-  // deactivate light
-  // move light
-
-let gridSize = 35;
 
 let globalFade = 0;
 let saveFade = 0;
@@ -102,15 +114,9 @@ let saveFade = 0;
 let highest_score_changed = 0;
 let highest_score_display_timer = 0;
 
-const GRID_HALF = gridSize / 2;
-const GRID_THIRD = gridSize / 3;
-
-const gameHeight = 700;
-const gameWidth = 700;
-
 // these can be consts
-let gridWidth = gameWidth / gridSize;
-let gridHeight = gameHeight / gridSize;
+let gridWidth;
+let gridHeight;
 
 let current_level = undefined;  // The currently loaded level, there can be only one!
 let difficulty_level = 1;
@@ -172,7 +178,7 @@ const EVENT_NAMES = ["Move", "Click", "Unclick", "Enter", "Exit"];
 
 let global_mouse_handler = undefined;
 
-const FLASH_SIZE = gridSize * 3;
+let FLASH_SIZE;
 
 // Constants to help with edge detection
 const NORTH = 0;
@@ -648,8 +654,6 @@ class editor_handler
     this.start_drag_y = undefined;
     this.end_drag_x = undefined;
     this.end_drag_y = undefined;
-
-
     this.num_red_detectors = 0;
     this.num_blue_detectors = 0;
     this.num_green_detectors = 0;
@@ -738,8 +742,7 @@ class editor_handler
     make_edges();
     update_all_light_viz_polys();
     points_for_current_grid = count_score();
-  }
-  
+  }  
 
   can_drag(sx, sy, ex, ey)
   {
@@ -1773,6 +1776,23 @@ function add_move_to_undo(move)
 
 //////// MAIN GAME
 function setup() {
+  // Base size of gameboard on size of parent window, so this should
+  // look ok on different screen sizes.
+
+  // -10 to avoid having bars?
+  let largest_dim = min(windowWidth, windowHeight) - 10;
+  // round down to nearest interval of 20 (PLAYFIELD_DIM)
+  largest_dim -= largest_dim % PLAYFIELD_DIM;
+  let target_gridsize = int(largest_dim / PLAYFIELD_DIM);
+  gameHeight = largest_dim;
+  gameWidth = largest_dim;
+  gridSize = target_gridsize;
+  gridWidth = int(gameWidth / gridSize);
+  gridHeight = int(gameHeight / gridSize);
+
+  GRID_HALF = int(gridSize / 2);
+  FLASH_SIZE = gridSize * 3;
+
   // setup is called once at the start of the game
   createCanvas(gameWidth, gameHeight);
   initialize_colors();  // Can't happen until a canvas has been created!
@@ -1791,6 +1811,27 @@ function setup() {
   else
     game_state = STATE_MAIN_MENU_SETUP;
 }
+
+/*
+function windowResized() {
+  // THIS is going to involve repositioning ALL the active buttons!
+  let largest_dim = min(windowWidth, windowHeight) - 10;
+  let target_gridsize = int(largest_dim / 20);
+  gameHeight = largest_dim;
+  gameWidth = largest_dim;
+  gridSize = target_gridsize;
+  gridWidth = int(gameWidth / gridSize);
+  gridHeight = int(gameHeight / gridSize);
+
+  GRID_HALF = int(gridSize / 2);
+  FLASH_SIZE = gridSize * 3;
+
+  // reposition_all_buttons();  // THIS is going to require some rewrites
+  // update_all_light_viz_polys();
+
+  resizeCanvas(windowWidth, windowHeight);
+}
+*/
 
 function initialize_colors() {
   solid_wall_fill = color(160, 160, 170);
@@ -1982,13 +2023,14 @@ function do_about_menu()
   rect(gridSize * 3, gridSize * 3, width - gridSize * 6, height - gridSize * 6);
 
   let s = "About\n" +
+  "spectro v" + MAJOR_VERSION + "." + MINOR_VERSION + "\n" +
    "Programming & Design: Tyler Weston\n" +
    "Based on Javidx9's line of sight algorithm\n" +
    "Thanks to Warren Sloper for testing\n" +
    "and Jane Haselgrove for all the pizza.\n";
 
   //stroke(130);
-  textSize(28);
+  textSize(gridSize / 2);
   textAlign(CENTER, CENTER);
   noStroke();
   blendMode(ADD);
@@ -2205,13 +2247,23 @@ function keyPressed() {
     start_new_undo_frame();
     lightsources[2].switch_active();
   }
+  else if (key === ' ')
+  {
+    if (current_gamemode === GAMEMODE_RANDOM && next_level_available)
+    {
+      game_state = game_state = STATE_RANDOM_LEVEL_TRANSITION_OUT;
+    }
+  }
 
+  // TODO: Remove these key codes 
   if (keyCode === LEFT_ARROW) {
     difficulty_level--;
     random_level();
   } else if (keyCode === RIGHT_ARROW) {
     difficulty_level++;
     random_level();
+  } else if (key === 'p') {
+    save_screenshot();
   } else if (key === 's') {
     current_level.copy_save_string_to_clipboard(lightsources, detectors);
   } else if (key === 'l') {
@@ -2223,8 +2275,6 @@ function keyPressed() {
     let lvl_txt = get_level_and_load();
     try_load_level(lvl_txt);
   }
-  
-
 }
 
 //////// MOUSE HANDLING
@@ -2677,6 +2727,10 @@ function draw_menu()
   stroke(0);
   strokeWeight(2);
   textAlign(LEFT, TOP);
+  
+  // console.log("Undo stack size: " + undo_stack.length);
+  // console.log("Redo stack length: " + redo_stack.length);
+
   for (let m of top_menu_choices)
   {
     if (top_menu_selected === i)
@@ -3457,7 +3511,7 @@ function random_level()
   new_random_level.initialize_grid();
 
   initializeGrid(new_random_level.grid);
-  turn_lights_off();
+  // turn_lights_off();
   init_random_detectors(new_random_level, difficulty_to_detector_amount());
   make_some_floor_unbuildable(new_random_level.grid, difficulty_to_shrink_amount());
   shrink_lights();
@@ -4044,6 +4098,11 @@ function get_level_and_load()
   if (!prompt)
     return;
   return prompt;
+}
+
+function save_screenshot()
+{
+  saveCanvas('spectro_screenshot', 'jpg');
 }
 
 // Keyboard handlers for undo and redo
