@@ -24,9 +24,12 @@ Visual fixes:
 - change flooring from automatically tiled to user adjustable?
   - keep SOME random floor options, but fluff them up! 
 - animated lines in background?
-- Font size may be strange on different size devices?
+- Font size may be strange on different size devices? Yes, this needs
+  to scale based on the size of the device. ALSO, we may want to make
+  the squares a bit larger since playing on a cellphone is awkward!
 
 Bugs:
+- 
 - something broken with just setting is_dragging false to eat mouse input
   between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
@@ -82,7 +85,7 @@ Maybe eventually:
 */
 
 // make the playing field 20x20
-const PLAYFIELD_DIM = 20;
+const PLAYFIELD_DIM = 18;
 
 // global variables
 
@@ -91,6 +94,7 @@ let gameHeight;
 let gameWidth;
 let gridSize;
 let GRID_HALF;
+let current_dim;
 
 let edges = [];
 let lightsources = [];
@@ -340,6 +344,14 @@ class mouse_region
   {
     return (this.x1 <= _mx && _mx <= this.x2 && this.y1 <= _my && _my <= this.y2);
   }
+
+  rescale(scale)
+  {
+    this.x1 *= scale;
+    this.y1 *= scale;
+    this.x2 *= scale;
+    this.y2 *= scale;
+  }
 }
 
 class mouse_handler
@@ -384,6 +396,16 @@ class mouse_handler
       {
         _region.events[event_key]();
       }
+    }
+  }
+
+  scale_regions(scale)
+  {
+    // since our window will always be a square with origin at
+    // top left at 0, 0, to rescale, we can just multiply each X and Y
+    // coordinate by our new scale amount! ez-pz.
+    for (const [key, _region] of Object.entries(this.registered_regions)) {
+      _region.rescale(scale);
     }
   }
 
@@ -1402,8 +1424,8 @@ class light_source
 
   get_new_viz_poly()
   {
-    let cx = this.x * gridSize + gridSize / 2;
-    let cy = this.y * gridSize + gridSize / 2;
+    let cx = this.x * gridSize + GRID_HALF;
+    let cy = this.y * gridSize + GRID_HALF;
     this.viz_polygon = get_visible_polygon(cx, cy, 10);
     remove_duplicate_viz_points(this.viz_polygon);
   }
@@ -1422,6 +1444,8 @@ class light_source
     this.ls_region.y1 = y * gridSize;
     this.ls_region.x2 = (x + 1) * gridSize;
     this.ls_region.y2 = (y + 1) * gridSize;
+    // if we register a region with a name we already have registered, it
+    // will replace the already existing region.
     global_mouse_handler.register_region(this.name, this.ls_region);
     this.get_new_viz_poly();
   }
@@ -1546,6 +1570,14 @@ class edge
     this.sy = sy;
     this.ex = ex;
     this.ey = ey;
+  }
+
+  scale_edge(new_scale)
+  {
+    this.sx *= new_scale;
+    this.sy *= new_scale;
+    this.ex *= new_scale;
+    this.ey *= new_scale;
   }
 }
 
@@ -1702,6 +1734,15 @@ class undo_move
   }
 }
 
+let cnv;
+
+//////// DOM ADJUSTMENT
+function centerCanvas() {
+  let x = (windowWidth - width) / 2;
+  let y = (windowHeight - height) / 2;
+  cnv.position(x, y);
+}
+
 //////// UNDO STUFF
 function undo_last_move()
 {
@@ -1780,22 +1821,24 @@ function setup() {
   // look ok on different screen sizes.
 
   // -10 to avoid having bars?
-  let largest_dim = min(windowWidth, windowHeight) - 10;
+  let largest_dim = min(windowWidth, windowHeight) * 0.9;
   // round down to nearest interval of 20 (PLAYFIELD_DIM)
   largest_dim -= largest_dim % PLAYFIELD_DIM;
   let target_gridsize = int(largest_dim / PLAYFIELD_DIM);
   gameHeight = largest_dim;
   gameWidth = largest_dim;
   gridSize = target_gridsize;
-  gridWidth = int(gameWidth / gridSize);
-  gridHeight = int(gameHeight / gridSize);
+  gridWidth = PLAYFIELD_DIM;
+  gridHeight = PLAYFIELD_DIM;
 
   GRID_HALF = int(gridSize / 2);
   FLASH_SIZE = gridSize * 3;
 
   // setup is called once at the start of the game
-  createCanvas(gameWidth, gameHeight);
+  cnv = createCanvas(gameWidth, gameHeight);
+  centerCanvas();
   initialize_colors();  // Can't happen until a canvas has been created!
+  current_dim = largest_dim;
 
   textFont(spectro_font);
 
@@ -1812,26 +1855,40 @@ function setup() {
     game_state = STATE_MAIN_MENU_SETUP;
 }
 
-/*
-function windowResized() {
-  // THIS is going to involve repositioning ALL the active buttons!
-  let largest_dim = min(windowWidth, windowHeight) - 10;
-  let target_gridsize = int(largest_dim / 20);
+
+function windowResized() 
+{
+  // TODO: Resizing window is still problematic!
+  // The canvas doesn't appear to get recentered when the window is resized?
+  // is this a CSS issue?
+
+  let largest_dim = min(windowWidth, windowHeight) * 0.9;
+  largest_dim -= largest_dim % PLAYFIELD_DIM;
+  let target_gridsize = int(largest_dim / PLAYFIELD_DIM);
   gameHeight = largest_dim;
   gameWidth = largest_dim;
   gridSize = target_gridsize;
-  gridWidth = int(gameWidth / gridSize);
-  gridHeight = int(gameHeight / gridSize);
+  // gridWidth = int(gameWidth / gridSize);
+  // gridHeight = int(gameHeight / gridSize);
 
   GRID_HALF = int(gridSize / 2);
   FLASH_SIZE = gridSize * 3;
 
-  // reposition_all_buttons();  // THIS is going to require some rewrites
-  // update_all_light_viz_polys();
+  resizeCanvas(gameWidth, gameHeight);
+  centerCanvas();
 
-  resizeCanvas(windowWidth, windowHeight);
+  // reposition_all_buttons();  // THIS is going to require some rewrites
+  let new_scale = largest_dim / current_dim;
+  global_mouse_handler.scale_regions(new_scale);
+  scale_all_edges(new_scale);
+
+  // TODO: Check if we actually have viz polys? ie, we are in game?
+  // TODO: Only update screen if we are in game
+  update_all_light_viz_polys();
+  current_dim = largest_dim;
+  do_game();
 }
-*/
+
 
 function initialize_colors() {
   solid_wall_fill = color(160, 160, 170);
@@ -3715,10 +3772,19 @@ function reset_grid(lvl)
 }
 
 //////// EDGE ALG
+function scale_all_edges(new_scale)
+{
+  // not working??
+  for (let e of edges)
+  {
+    e.scale_edge(new_scale);
+  }
+}
+
 function make_edges()
 {
   let grid = current_level.grid;
-  edges = [];
+  edges = []; // should we do the splice thing here?
   // clear edges
   for (x = 0; x < gridWidth; ++x)
   {
