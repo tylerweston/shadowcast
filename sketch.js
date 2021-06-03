@@ -8,7 +8,6 @@ space: go to next level (if available)
 
 Important:
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
-- rename shadowcast -> spectro
 - make main menu - NEW GAME or CONTINUE
   - then remove restart game from menu?
 - Something is being added to the undo frame when the top
@@ -62,8 +61,6 @@ Editor stuff (Maybe eventually):
 - give editor "LOAD" and "PLAY" functions, so individual levels will be used in there?
 
 Refactoring:
-- move global variables to a game class(ie game.edges)
-  - then we just gave game as a single global
 - encapsulate state in a better way
   - right now it is kind of spread out and a bit icky how it is all implemented
   - collect and fix that stuff up
@@ -164,7 +161,7 @@ class menus
   ];
   static top_menu_selected = undefined;
   static top_menu_height = menus.top_menu_choices.length + 1;
-  static main_menu_options = ["new game", "timed game", "options", "about"];
+  static main_menu_options = ["new game", "continue", "timed game", "options", "about"];
   static main_menu_selected = undefined;
   static main_menu_height = menus.main_menu_options.length + 1;
 }
@@ -300,6 +297,7 @@ class game
   static global_light_id = 0;
 
   // random game / score
+  static have_saved_game;
   static highest_score; // done
   static new_high_score_juice = 0;  // done
   static highest_score_changed = 0; // done
@@ -1958,6 +1956,7 @@ function do_setup_main_menu()
     states.need_setup_main_menu = false;
   }
   enable_main_menu();
+  game.have_saved_game = (getItem("savedgame") !== null);
   game.game_state = states.MAIN_MENU;
 }
 
@@ -1993,7 +1992,10 @@ function do_main_menu()
       fill(157);
 
     // disable option hack
-    if (i === 2)
+    if (i === 3)
+      fill(57);
+
+    if (i === 2 && !game.have_saved_game)
       fill(57);
 
     text(m, (game.gridWidth - 17) * game.gridSize, (i + 2) * game.gridSize * 2);
@@ -2025,19 +2027,28 @@ function handle_main_menu_selection(menu_index)
   {
     case 0:
       teardown_main_menu();
+      // confirm we want a new game
+      storeItem("savedgame", null);
       game.current_gamemode = game.GAMEMODE_RANDOM;
       game.game_state = states.NEW_GAME;
       break;
     case 1:
+      if (!game.have_saved_game)
+        return;
+      teardown_main_menu();
+      game.current_gamemode = game.GAMEMODE_RANDOM;
+      game.game_state = states.NEW_GAME;
+      break; 
+    case 2:
       teardown_main_menu();
       game.current_gamemode = game.GAMEMODE_TIME;
       game.game_state = states.NEW_GAME;
       break;
-    case 2:
+    case 3:
       game.game_state = states.SETUP_OPTIONS;
       teardown_main_menu();
       break;
-    case 3:
+    case 4:
       game.game_state = states.SETUP_ABOUT;
       teardown_main_menu();
       break;
