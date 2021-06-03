@@ -95,34 +95,13 @@ let spectro_font;
 // canvas
 let cnv;
 
-let highest_score;
-let new_high_score_juice = 0;
-let highest_score_changed = 0;
-let highest_score_display_timer = 0;
-
-let new_total;
-let new_total_fade;
-let new_scoring_system = 0;
-let points_for_current_grid = 0;
-
-// time attack stuff
-let time_remaining = 0;
-let time_gain_per_level = 10;
-let total_time_played = 0;
-let initial_time = 20;
-let high_timer_score = 0;
-let has_new_timer_high_score = false;
-
-// this stuff should all be refactored into state machine stuff
 // TODO: Bunch of little bits of state to clean up
-let display_editor = false;
-let editor_available = false;
-let show_intro = true;         // <--------------- intro flag
-let show_tutorial = false;
+// TODO: The rest of this stuff will be taken care of via some sort of
+// button class that needs to be implemented still, so bits of state like
+// over_btn will be handled by the button class itself
+
 let show_menu = false;
 let top_menu_accept_input = false;
-let main_menu_accept_input = false;
-let show_mouse_illumination = false;
 let mouse_over_menu = false;
 let over_btn = false; // TODO: Roll into button class or something
 let next_level_available = false;
@@ -130,29 +109,7 @@ let over_next_level = false;
 
 let over_play_again_btn = false;
 let over_main_menu_btn = false;
-let need_setup_show_time_results = true;;
-
-let need_setup_main_menu = true;
-
-let hovered_item = undefined;
-let selected_item = undefined;
-let in_erase_mode = false;
-
-let editor_level_name = "";
-
-let intro_timer = 0;
-let next_button_bob_timer = 0;
-let global_light_id = 0;
-
-// let grid_obj_id = 0; // unused?
-const TOTAL_EDITOR_ITEMS = 14;
-
-// about screen things
-let need_setup_about = true;
 let over_about_ok_btn = false;
-
-// option screen things
-let need_setup_options = true;
 
 //////// CLASSES
 // main game states
@@ -181,6 +138,14 @@ class states
   static SETUP_ABOUT = 21;  // done
   static ABOUT = 9; // done
   static TEARDOWN_ABOUT = 22; // done
+
+  // to do: maybe setup all gui elements in one function
+  // at start so we don't need to store if they have been
+  // setup or not yet?
+  static need_setup_main_menu = true;
+  static need_setup_about = true;
+  static need_setup_options = true;
+  static need_setup_show_time_results = true;
 }
 
 class menus
@@ -238,7 +203,7 @@ class undo
     make_edges();
     update_all_light_viz_polys();
     if (game.current_gamemode === game.GAMEMODE_RANDOM)
-      points_for_current_grid = count_score();
+      game.points_for_current_grid = count_score();
   }
   
   static redo_last_move()
@@ -257,7 +222,7 @@ class undo
     make_edges();
     update_all_light_viz_polys();
     if (game.current_gamemode === game.GAMEMODE_RANDOM)
-      points_for_current_grid = count_score();
+      game.points_for_current_grid = count_score();
   }
   
   static reset_undo_stacks()
@@ -331,6 +296,33 @@ class game
 
   static current_level = undefined;  // The currently loaded level, there can be only one!
   static difficulty_level = 1;
+
+  static global_light_id = 0;
+
+  // random game / score
+  static highest_score; // done
+  static new_high_score_juice = 0;  // done
+  static highest_score_changed = 0; // done
+  static highest_score_display_timer = 0; // done
+  static new_total; // done
+  static new_total_fade;  // done
+  static new_scoring_system = 0;
+  static points_for_current_grid = 0;
+
+  // time attack stuff
+  static time_remaining = 0;
+  static time_gain_per_level = 10;
+  static total_time_played = 0;
+  static initial_time = 20;
+  static high_timer_score = 0;
+  static has_new_timer_high_score = false;
+
+  static editor_available = false;
+  static show_intro = true;         // <--------------- intro flag
+  static show_tutorial = false;
+
+  static intro_timer = 0;
+  static next_button_bob_timer = 0;
 }
 
 // List of tile types
@@ -654,15 +646,15 @@ class level
     level_string += (game.difficulty_level < 10 ? "0": "") + String(game.difficulty_level);
 
     let new_score_string = "";
-    if (new_scoring_system < 10)
-      new_score_string = "   " + String(new_scoring_system);
-    else if (new_scoring_system < 100)
-      new_score_string = "  " + String(new_scoring_system);
-    else if (new_scoring_system < 1000)
-      new_score_string = " " + String(new_scoring_system);
-    else if (new_scoring_system < 10000)
+    if (game.new_scoring_system < 10)
+      new_score_string = "   " + String(game.new_scoring_system);
+    else if (game.new_scoring_system < 100)
+      new_score_string = "  " + String(game.new_scoring_system);
+    else if (game.new_scoring_system < 1000)
+      new_score_string = " " + String(game.new_scoring_system);
+    else if (game.new_scoring_system < 10000)
       new_score_string = String(new_score_string);
-    else if (new_scoring_system >= 99999)
+    else if (game.new_scoring_system >= 99999)
       new_score_string = "99999";
 
     level_string += new_score_string;
@@ -731,6 +723,11 @@ class level
 
 class editor_handler
 {
+  static TOTAL_EDITOR_ITEMS = 14;
+  static hovered_item = undefined;
+  static selected_item = undefined;
+  static in_erase_mode = false;
+
   // this class handles all of the gameplay for the core game
   // include dragging lights, activating/deactivating lights, building walls
   // and removing walls
@@ -779,9 +776,9 @@ class editor_handler
 
     if (ty === game.gridHeight - 1)
     {
-      if (tx <= TOTAL_EDITOR_ITEMS)
+      if (tx <= editor_handler.TOTAL_EDITOR_ITEMS)
       {
-        hovered_item = tx;
+        editor_handler.hovered_item = tx;
       }
     }
 
@@ -840,7 +837,7 @@ class editor_handler
   {
     make_edges();
     update_all_light_viz_polys();
-    points_for_current_grid = count_score();
+    game.points_for_current_grid = count_score();
   }  
 
   can_drag(sx, sy, ex, ey)
@@ -864,7 +861,7 @@ class editor_handler
     if (_x <= 0 || game.gridWidth - 1 <= _x || _y <= 0 || game.gridHeight - 1 <= _y)
       return;
 
-    switch(selected_item)
+    switch(editor_handler.selected_item)
     {
       case 11:
       // tiles.PERMENANT_WALL
@@ -904,7 +901,7 @@ class editor_handler
   {
     // this is the same thing as assuming something created later will deal with
     // this mouse input instead of us
-    if (show_menu || show_tutorial)  // hack for now to not draw stuff on grid while menu is open
+    if (show_menu || game.show_tutorial)  // hack for now to not draw stuff on grid while menu is open
       return;
     let px = game.global_mouse_handler.mx;
     let py = game.global_mouse_handler.my;
@@ -912,14 +909,14 @@ class editor_handler
     let tx = game.global_mouse_handler.get_targetx();
     let ty = game.global_mouse_handler.get_targety();
 
-    if (ty === game.gridHeight - 1 && tx <= TOTAL_EDITOR_ITEMS)
+    if (ty === game.gridHeight - 1 && tx <= editor_handler.TOTAL_EDITOR_ITEMS)
     {
-      selected_item = tx;
+      editor_handler.selected_item = tx;
     }
     if (ty === game.gridHeight - 1 && tx === 15)
     {
-      in_erase_mode = !in_erase_mode;
-      if (in_erase_mode)
+      editor_handler.in_erase_mode = !editor_handler.in_erase_mode;
+      if (editor_handler.in_erase_mode)
         this.editor_mode = this.ERASING_MODE;
       else
         this.editor_mode = this.DRAWING_MODE;
@@ -963,14 +960,14 @@ class editor_handler
       // if we have selected a light or detector right now,
       // we just put a single item on the map AND DON'T
       // enter drag mode
-      if (selected_item <= 10)
+      if (editor_handler.selected_item <= 10)
       {
 
-        if (selected_item <= 7)
+        if (editor_handler.selected_item <= 7)
         {
           // we're a detector with color equivalent to
-          // palette.detector_colors[selected_item]
-          let _dc = palette.detector_colors[selected_item];
+          // palette.detector_colors[editor_handler.selected_item]
+          let _dc = palette.detector_colors[editor_handler.selected_item];
           let d = new detector(tx, ty, red(_dc), green(_dc), blue(_dc));
           game.detectors.push(d);
           set_grid(game.current_level.grid, tx, ty, tiles.DETECTOR_TILE);
@@ -981,9 +978,9 @@ class editor_handler
           //  8 = r
           //  9 = g
           // 10 = b
-          let _r = (selected_item == 8) ? 255 : 0;
-          let _g = (selected_item == 9) ? 255 : 0;
-          let _b = (selected_item == 10) ? 255 : 0;
+          let _r = (editor_handler.selected_item == 8) ? 255 : 0;
+          let _g = (editor_handler.selected_item == 9) ? 255 : 0;
+          let _b = (editor_handler.selected_item == 10) ? 255 : 0;
           let _lc = new light_source(tx, ty, false, _r, _g, _b);
           game.lightsources.push(_lc);
           update_all_light_viz_polys();
@@ -1131,7 +1128,7 @@ class gameplay_handler
 
     make_edges();
     update_all_light_viz_polys();
-    points_for_current_grid = count_score();
+    game.points_for_current_grid = count_score();
   }
   
   can_drag(sx, sy, ex, ey)
@@ -1178,7 +1175,7 @@ class gameplay_handler
   {
     // this is the same thing as assuming something created later will deal with
     // this mouse input instead of us
-    if (show_menu || show_tutorial)  // hack for now to not draw stuff on grid while menu is open
+    if (show_menu || game.show_tutorial)  // hack for now to not draw stuff on grid while menu is open
       return;
     let px = game.global_mouse_handler.mx;
     let py = game.global_mouse_handler.my;
@@ -1493,8 +1490,8 @@ class light_source
 
     this.ls_region.events[mouse_events.ENTER_REGION] = () => { this.selected = true; };
     this.ls_region.events[mouse_events.EXIT_REGION] = () => this.check_leave_grid();
-    this.name = color_to_string(this.c) + global_light_id;
-    ++global_light_id;
+    this.name = color_to_string(this.c) + game.global_light_id;
+    ++game.global_light_id;
     game.global_mouse_handler.register_region(this.name, this.ls_region);
 
   }
@@ -1861,7 +1858,7 @@ function setup() {
   // uncomment this to nuke bad saved game
   // storeItem("savedgame", null);
 
-  if (show_intro)
+  if (game.show_intro)
     game.game_state = states.INTRO;
   else
     game.game_state = states.MAIN_MENU_SETUP;
@@ -1878,7 +1875,7 @@ function windowResized()
   let target_gridSize = int(largest_dim / game.PLAYFIELD_DIM);
   game.gameHeight = largest_dim;
   game.gameWidth = largest_dim;
-  game.gridSize = target_game.gridSize;
+  game.gridSize = target_gridSize;
   // gridWidth = int(gameWidth / game.gridSize);
   // game.gridHeight = int(gameHeight / game.gridSize);
 
@@ -1899,7 +1896,6 @@ function windowResized()
   game.current_dim = largest_dim;
   do_game();
 }
-
 
 function initialize_colors() {
   palette.solid_wall_fill = color(160, 160, 170);
@@ -1946,7 +1942,7 @@ function initialize_colors() {
 //////// MAIN MENU
 function do_setup_main_menu()
 {
-  if (need_setup_main_menu)
+  if (states.need_setup_main_menu)
   {
     // it will be a region that will contain sub-regions for each menu option?
     let i = 0;
@@ -1959,9 +1955,8 @@ function do_setup_main_menu()
       game.global_mouse_handler.register_region(m + "main_menu", reg);
       ++i;
     }
-    need_setup_main_menu = false;
+    states.need_setup_main_menu = false;
   }
-  main_menu_accept_input = true;
   enable_main_menu();
   game.game_state = states.MAIN_MENU;
 }
@@ -1969,7 +1964,6 @@ function do_setup_main_menu()
 function do_main_menu()
 {
   game.current_gamemode = undefined;
-  main_menu_accept_input = true;
   fill(37);
   rect(0, 0, width, height);
 
@@ -2018,11 +2012,6 @@ function enable_main_menu()
 
 function teardown_main_menu()
 {
-  // TODO: Instead of carrying this bit of state, we should
-  // just be using the mouses event system to enable/disable
-  // the menu buttons when we need them or not
-  main_menu_accept_input = false;
-
   // disable main menu options
   for (let m of menus.main_menu_options)
   {
@@ -2032,10 +2021,7 @@ function teardown_main_menu()
 
 function handle_main_menu_selection(menu_index)
 {
-  if (!main_menu_accept_input)
-    return;
-
-    switch (menu_index)
+  switch (menu_index)
   {
     case 0:
       teardown_main_menu();
@@ -2061,7 +2047,7 @@ function handle_main_menu_selection(menu_index)
 //////// ABOUT SCREEN
 function do_setup_about()
 {
-  if (need_setup_about)
+  if (states.need_setup_about)
   {
     // eventually tutorial will be something that happens in game
     let about_ok_button = new mouse_region((width / 2) - 30, 460, (width / 2) + 10, 500);
@@ -2070,7 +2056,7 @@ function do_setup_about()
     about_ok_button.events[mouse_events.EXIT_REGION] = ()=>{ over_about_ok_btn = false; };
     game.global_mouse_handler.register_region("about_ok_btn", about_ok_button);
 
-    need_setup_about = false;
+    states.need_setup_about = false;
   }
   game.global_mouse_handler.enable_region("about_ok_btn");
   game.game_state = states.ABOUT;
@@ -2141,9 +2127,9 @@ function do_teardown_about_menu()
 //////// OPTION SCREEN
 function do_setup_options()
 {
-  if (need_setup_options)
+  if (states.need_setup_options)
   {
-    need_setup_options = false;
+    states.need_setup_options = false;
   }
   game.game_state = states.OPTIONS;
 }
@@ -2197,7 +2183,7 @@ function top_menu_reset_game()
 
 function top_menu_load_editor() 
 {
-  if (editor_available)
+  if (game.editor_available)
     game.game_state = states.SETUP_EDITOR;
 }
 
@@ -2338,7 +2324,7 @@ function keyPressed() {
     try_load_level(getItem("savedgame"));
   } else if (key === 'q') {
     storeItem("high_random_score", null);
-    storeItem("high_timer_score", null);
+    storeItem("game.high_timer_score", null);
   } else if (key === 'e') {
     let lvl_txt = get_level_and_load();
     try_load_level(lvl_txt);
@@ -2468,9 +2454,6 @@ function do_game()
   // these eventually will take current_level as well?
   draw_light_sources(); 
 
-  // // draw cursor viz if mouse cursor isn't in a wall
-  // draw_mouse_illumination(mx, my);
-
   // Draw glass (Extra tiles to draw would happen here?)
   draw_glass();
 
@@ -2491,9 +2474,9 @@ function do_game()
   }
   if (game.current_gamemode === game.GAMEMODE_TIME)
   {
-    if (time_remaining > 0)
-      time_remaining -= deltaTime / 1000;
-    if (time_remaining <= 0)
+    if (game.time_remaining > 0)
+      game.time_remaining -= deltaTime / 1000;
+    if (game.time_remaining <= 0)
     {
       game.game_state = states.SETUP_SHOW_TIME_RESULTS;
     }
@@ -2519,7 +2502,7 @@ function do_game()
     rect(0, 0, game.gameWidth, game.gameHeight);
   }
 
-  if (show_tutorial)
+  if (game.show_tutorial)
     tutorial();
 
   if (show_menu)      // disable game? Layer mouse listeners
@@ -2531,17 +2514,17 @@ function do_intro()
 {
   blendMode(ADD);
   let random_cols = [color(255, 0, 0), color(0, 255, 0), color(0, 0, 255)];
-  if (intro_timer === 0)
+  if (game.intro_timer === 0)
   {
-    intro_timer += deltaTime;
+    game.intro_timer += deltaTime;
     textSize(72);
     textAlign(CENTER, CENTER);
     offs = 0;
   }
-  else if (intro_timer < 3000)
+  else if (game.intro_timer < 3000)
   {
-    intro_timer += deltaTime;
-    if (intro_timer < 2000)
+    game.intro_timer += deltaTime;
+    if (game.intro_timer < 2000)
       fill(0);
     else
     {
@@ -2554,12 +2537,12 @@ function do_intro()
     // line (xrand, yrand, xrand + random(10) - 5, yrand + random(200) + 80);
     noStroke();
     fill(random(random_cols), random(50));
-    text("a tw game", 0, 0, width, height + (intro_timer * random(1, 13) % 900) - 450);
+    text("a tw game", 0, 0, width, height + (game.intro_timer * random(1, 13) % 900) - 450);
     strokeWeight(2);
     blendMode(MULTIPLY);
     stroke(0);
     fill(240);
-    if (intro_timer < 1500)
+    if (game.intro_timer < 1500)
     {
       text("a tw game", 0, 0, width, height);
     }
@@ -2597,19 +2580,19 @@ function do_level_transition_out()
     if (game.current_gamemode === game.GAMEMODE_RANDOM)
     {
       // count our score here
-      new_total = count_score();
-      new_total_fade = 1;
-      new_scoring_system += new_total > 0 ? new_total : 0;
+      game.new_total = count_score();
+      game.new_total_fade = 1;
+      game.new_scoring_system += game.new_total > 0 ? game.new_total : 0;
       ++game.difficulty_level;
       random_level();
       make_edges();
-      points_for_current_grid = count_score();
+      game.points_for_current_grid = count_score();
     }
 
     if (game.current_gamemode === game.GAMEMODE_TIME)
     {
-      time_remaining += 10;
-      total_time_played += time_gain_per_level; // TODO: Scale with difficulty!
+      game.time_remaining += 10;
+      game.total_time_played += game.time_gain_per_level; // TODO: Scale with difficulty!
       // TODO: Display this somewhere
       game.ghandler.stop_dragging(); // this is broken!
       ++game.difficulty_level;
@@ -2644,7 +2627,7 @@ function prepare_tutorial()
   ok_button.events[mouse_events.EXIT_REGION] = ()=>{ over_btn = false; };
   game.global_mouse_handler.register_region("ok_btn", ok_button);
   show_menu = false;
-  show_tutorial = true;
+  game.show_tutorial = true;
   game.game_state = states.TUTORIAL;
   do_game();  // do one iteration to erase menu image
 }
@@ -2652,7 +2635,7 @@ function prepare_tutorial()
 function tear_down_tutorial()
 {
   over_btn = false;
-  show_tutorial = false;
+  game.show_tutorial = false;
   game.global_mouse_handler.remove_region("ok_btn");
   game.game_state = states.GAME;
 }
@@ -2949,38 +2932,6 @@ function draw_light_sources()
   }
 }
 
-function draw_mouse_illumination(mx, my)
-{
-  if (show_menu)
-    return; // not if menu is active
-  let grid = game.current_level.grid;
-  if (show_mouse_illumination)
-  {
-    let cursor_viz = get_visible_polygon(mx, my, 1);
-    remove_duplicate_viz_points(cursor_viz);
-    noStroke();
-    fill(130, 130, 130, 30);
-
-    if (mx >= 0 && mx <= width && my >= 0 && my <= height)
-    {
-      let targetX = int(mx / game.gridSize);
-      let targetY = int(my / game.gridSize);
-      targetX = constrain(targetX, 0, game.gridWidth - 1);
-      targetY = constrain(targetY, 0, game.gridHeight - 1);
-
-      if (!grid[targetX][targetY].exist && cursor_viz.length > 1 )
-      {
-        beginShape();
-        vertex(mx, my);
-        for (i = 0; i < cursor_viz.length; ++i)
-          vertex(cursor_viz[i].x, cursor_viz[i].y);
-        vertex(cursor_viz[0].x, cursor_viz[0].y);
-        endShape();
-      }
-    }
-  }
-}
-
 //////// LEVEL SAVE / LOAD
 function try_load_level(level_string)
 {
@@ -3029,7 +2980,7 @@ function load_level(level_string)
     game.difficulty_level = cl;
     let current_new_score = parseInt(level_string.substring(level_string_index, level_string_index + 4));
     level_string_index += 4;
-    new_scoring_system = current_new_score;
+    game.new_scoring_system = current_new_score;
   }
   else if (read_mode === "e")
   {
@@ -3094,7 +3045,7 @@ function load_level(level_string)
   game.current_level = new_lvl;
 
   // if this is a random game, calculate the new board score
-  points_for_current_grid = count_score();
+  game.points_for_current_grid = count_score();
   make_edges();
   update_all_light_viz_polys();
 }
@@ -3159,7 +3110,7 @@ function do_editor()
   // draw editor UI components
   draw_editor_ui();
 
-  if (in_erase_mode)
+  if (editor_handler.in_erase_mode)
   {
     noStroke();
     fill(255, 0, 0, 50);
@@ -3181,7 +3132,7 @@ function do_editor()
   
   text("menu", (game.gridWidth - 3) * game.gridSize, game.gridSize - 4);
 
-  if (show_tutorial)
+  if (game.show_tutorial)
     tutorial(); // this can be the editor tutorial
 
   if (show_menu)
@@ -3205,23 +3156,23 @@ function draw_editor_ui()
   draw_garbage_can(15, game.gridHeight - 1);
 
   // highlight selected item
-  if (hovered_item !== undefined)
+  if (editor_handler.hovered_item !== undefined)
   {
     strokeWeight(3);
     noFill();
     stroke(255, 255, 0, 125);
-    square(game.gridSize * hovered_item, (game.gridHeight - 1) * game.gridSize, game.gridSize);
+    square(game.gridSize * editor_handler.hovered_item, (game.gridHeight - 1) * game.gridSize, game.gridSize);
   }
 
-  if (selected_item !== undefined)
+  if (editor_handler.selected_item !== undefined)
   {
     strokeWeight(3);
     noFill();
     stroke(255, 0, 0, 125);
-    square(game.gridSize * selected_item, (game.gridHeight - 1) * game.gridSize, game.gridSize);
+    square(game.gridSize * editor_handler.selected_item, (game.gridHeight - 1) * game.gridSize, game.gridSize);
   }
 
-  if (in_erase_mode)
+  if (editor_handler.in_erase_mode)
   {
     strokeWeight(2);
     fill(127, 0, 0, 50);
@@ -3311,15 +3262,15 @@ function setup_time_game()
   next_region.events[mouse_events.EXIT_REGION] = () => { over_next_level = false; };
   next_region.enabled = false;
   game.global_mouse_handler.register_region("next_btn", next_region);
-  high_timer_score = getItem("high_timer_score")
-  if (high_timer_score == null)
-    high_timer_score = 0;
+  game.high_timer_score = getItem("game.high_timer_score")
+  if (game.high_timer_score == null)
+    game.high_timer_score = 0;
 
 
   game.difficulty_level = 1;   // todo: shouldn't be hard coded here
-  time_remaining = initial_time;    // todo: shouldn't be hard coded here
-  total_time_played = time_remaining;
-  has_new_timer_high_score = false;
+  game.time_remaining = game.initial_time;    // todo: shouldn't be hard coded here
+  game.total_time_played = game.time_remaining;
+  game.has_new_timer_high_score = false;
   init_light_sources();
   time_level();
   game.game_state = states.GAME;
@@ -3353,13 +3304,15 @@ function tear_down_time_game()
 function time_game_ui()
 {
   fill(palette.font_color);
-  let display_time = min(int(time_remaining), 0);
+  let display_time = int(game.time_remaining);
+  if (display_time < 0)
+    display_time = 0;
   text("time left: " + display_time, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - 4);
 }
 
 function do_setup_show_time_results()
 {
-  if (need_setup_show_time_results)
+  if (states.need_setup_show_time_results)
   {
     // TODO: Tweak to find better placement
     let x1 = game.gridWidth * 10;
@@ -3388,24 +3341,24 @@ function do_setup_show_time_results()
     game.global_mouse_handler.register_region("time_result_back_main_menu_btn", back_main_menu_btn);
 
     // setup show time results
-    need_setup_show_time_results = false;
+    states.need_setup_show_time_results = false;
   }
   // enable our button regions
   game.global_mouse_handler.enable_region("time_result_back_main_menu_btn");
   game.global_mouse_handler.enable_region("time_result_play_again_btn");
   game.game_state = states.SHOW_TIME_RESULTS;
 
-  if (total_time_played > high_timer_score)
+  if (game.total_time_played > game.high_timer_score)
   {
-    has_new_timer_high_score = true;
-    high_timer_score = total_time_played;
+    game.has_new_timer_high_score = true;
+    game.high_timer_score = game.total_time_played;
     // // TODO: MORE JUICE!
-    // new_high_score_juice += deltaTime / 150;
-    // fill(255 * sin(new_high_score_juice));
-    // if (new_high_score_juice >= TWO_PI)
-    //   new_high_score_juice = 0;
+    // game.new_high_score_juice += deltaTime / 150;
+    // fill(255 * sin(game.new_high_score_juice));
+    // if (game.new_high_score_juice >= TWO_PI)
+    //   game.new_high_score_juice = 0;
     // text("NEW HIGH SCORE!", width / 2, game.gridSize * 5);
-    storeItem("high_timer_score", total_time_played);
+    storeItem("game.high_timer_score", game.total_time_played);
   }
 }
 
@@ -3439,16 +3392,16 @@ function do_show_time_results()
   textSize(game.gridSize);
   fill (palette.font_color);
   textAlign(CENTER);
-  text("Total time played: " + total_time_played, width / 2, game.gridSize * 7);
-  text("High score: " + high_timer_score, width / 2, game.gridSize * 9);
+  text("Total time played: " + game.total_time_played, width / 2, game.gridSize * 7);
+  text("High score: " + game.high_timer_score, width / 2, game.gridSize * 9);
 
-  if (has_new_timer_high_score)
+  if (game.has_new_timer_high_score)
   {
     // TODO: MORE JUICE!
-    new_high_score_juice += deltaTime / 150;
-    fill(255 * ((sin(new_high_score_juice) + 1) / 2));
-    if (new_high_score_juice >= TWO_PI)
-      new_high_score_juice = 0;
+    game.new_high_score_juice += deltaTime / 150;
+    fill(255 * ((sin(game.new_high_score_juice) + 1) / 2));
+    if (game.new_high_score_juice >= TWO_PI)
+      game.new_high_score_juice = 0;
     text("NEW HIGH SCORE!", width / 2, game.gridSize * 5);
   }
 
@@ -3497,7 +3450,7 @@ function setup_random_game()
   game.global_mouse_handler.register_region("next_btn", next_region);
 
   game.difficulty_level = 1;
-  new_scoring_system = 0;
+  game.new_scoring_system = 0;
   init_light_sources();
   // check if we have a saved game
   let saved_g = getItem("savedgame");
@@ -3511,10 +3464,10 @@ function setup_random_game()
     if (!loaded_success)
       random_level();
   }
-  highest_score = getItem("high_random_score")
-  if (highest_score == null)
-    highest_score = 0;
-  highest_score_display_timer = 5;
+  game.highest_score = getItem("high_random_score")
+  if (game.highest_score == null)
+    game.highest_score = 0;
+  game.highest_score_display_timer = 5;
   game.game_state = states.GAME;
 }
 
@@ -3527,47 +3480,47 @@ function random_game_ui()
 {
   if (next_level_available)
   {
-    next_button_bob_timer += (deltaTime / 100);
-    if (next_button_bob_timer > TWO_PI)
-      next_button_bob_timer = 0;
+    game.next_button_bob_timer += (deltaTime / 100);
+    if (game.next_button_bob_timer > TWO_PI)
+      game.next_button_bob_timer = 0;
 
     if (over_next_level)
       fill(255)
     else
       fill(palette.font_color);
     // -4? Magic number!
-    text("next", (game.gridWidth - 3) * game.gridSize, game.gridHeight * game.gridSize - 4 - sin(next_button_bob_timer));
+    text("next", (game.gridWidth - 3) * game.gridSize, game.gridHeight * game.gridSize - 4 - sin(game.next_button_bob_timer));
   }
 
   fill(palette.font_color);
-  if (highest_score_changed > 0)
+  if (game.highest_score_changed > 0)
   {
-    fill(lerpColor(palette.font_color, color(255, 255, 255), highest_score_changed));
-    highest_score_changed -= deltaTime / 5000;
+    fill(lerpColor(palette.font_color, color(255, 255, 255), game.highest_score_changed));
+    game.highest_score_changed -= deltaTime / 5000;
   }
 
   // bottom left will either say your CURRENT SCORE
   // the HIGH SCORE
   // or display the points you JUST GOT
-  if (highest_score_display_timer > 0)
+  if (game.highest_score_display_timer > 0)
   {
-    highest_score_display_timer -= deltaTime / 1500;
-    text("high score: " + highest_score, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - 4);
+    game.highest_score_display_timer -= deltaTime / 1500;
+    text("high score: " + game.highest_score, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - 4);
   }
   else
   {
-    text("score: " + new_scoring_system + " points: " + points_for_current_grid, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - 4);
+    text("score: " + game.new_scoring_system + " points: " + game.points_for_current_grid, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - 4);
   }
 
-  if (new_total_fade > 0)
+  if (game.new_total_fade > 0)
   {
-    new_total_fade -= deltaTime / 2500;
+    game.new_total_fade -= deltaTime / 2500;
     strokeWeight(2);
     stroke(37);
     fill(255);
-    let xfadepos = ((highest_score_display_timer > 0) ? 5 : 4);
+    let xfadepos = ((game.highest_score_display_timer > 0) ? 5 : 4);
     xfadepos *= game.gridSize;
-    text("+" + new_total, xfadepos, game.gridHeight * game.gridSize - 4 + (new_total_fade * 10));
+    text("+" + game.new_total, xfadepos, game.gridHeight * game.gridSize - 4 + (game.new_total_fade * 10));
   }
 }
 
@@ -3590,14 +3543,14 @@ function random_level()
   update_all_light_viz_polys();
   // check if we're a high score, if we are, store us
   let high_score = getItem("high_random_score");
-  if (high_score == null || high_score < new_scoring_system)
+  if (high_score == null || high_score < game.new_scoring_system)
   {
-    storeItem("high_random_score", new_scoring_system);
-    highest_score = new_scoring_system;
-    highest_score_changed = 1;
-    highest_score_display_timer = 10;
+    storeItem("high_random_score", game.new_scoring_system);
+    game.highest_score = game.new_scoring_system;
+    game.highest_score_changed = 1;
+    game.highest_score_display_timer = 10;
   }
-  points_for_current_grid = count_score();
+  game.points_for_current_grid = count_score();
 }
 
 function init_light_sources()
@@ -4098,7 +4051,7 @@ function resetStuff()
   // reset_grid_function
   // reset the grid (ie, all walls marked built (buildable + exist), will be changed to just buildable)
   reset_grid(game.current_level);
-  points_for_current_grid = count_score();
+  game.points_for_current_grid = count_score();
   turn_lights_off();
   make_edges();
 }
