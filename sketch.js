@@ -8,8 +8,6 @@ space: go to next level (if available)
 
 Important:
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
-- make main menu - NEW GAME or CONTINUE
-  - then remove restart game from menu?
 - Something is being added to the undo frame when the top
 menu is opened? Something with unclick happening!
 - option screen
@@ -28,6 +26,7 @@ Visual fixes:
   the squares a bit larger since playing on a cellphone is awkward!
 
 Bugs:
+- undo is a bit broken still
 - something broken with just setting is_dragging false to eat mouse input
   between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
@@ -169,11 +168,11 @@ class menus
 class undo_actions
 {
   // undo actions
-  static ACTION_BUILD_WALL = 0;
-  static ACTION_ERASE_WALL = 1;
-  static ACTION_ACTIVATE_LIGHT = 2;
-  static ACTION_DEACTIVATE_LIGHT = 3;
-  static ACTION_MOVE_LIGHT = 4;
+  static BUILD_WALL = 0;
+  static ERASE_WALL = 1;
+  static ACTIVATE_LIGHT = 2;
+  static DEACTIVATE_LIGHT = 3;
+  static MOVE_LIGHT = 4;
 }
 
 class undo
@@ -232,15 +231,16 @@ class undo
   
   static start_new_undo_frame()
   {
-    undo.current_undo_frame = [];
+    // console.log("Starting new undo frame");
+    // undo.current_undo_frame.splice(0, undo.current_undo_frame.length);
   }
   
   static end_undo_frame()
   {
-    // this is a hack potentially?
     if (!undo.current_undo_frame || undo.current_undo_frame.length === 0)
       return;
-    undo.undo_stack.push(undo.current_undo_frame);
+    undo.undo_stack.push(Array.from(undo.current_undo_frame));
+    undo.current_undo_frame.splice(0, undo.current_undo_frame.length);
   }
   
   static add_move_to_undo(move)
@@ -726,7 +726,7 @@ class editor_handler
   static selected_item = undefined;
   static in_erase_mode = false;
 
-  // this class handles all of the gameplay for the core game
+  // this class handles all of the editor functionality
   // include dragging lights, activating/deactivating lights, building walls
   // and removing walls
   constructor()
@@ -1180,7 +1180,7 @@ class gameplay_handler
     let gl = get_selected_light(px, py);
     if (gl !== undefined)
     {
-      undo.start_new_undo_frame();
+      // undo.start_new_undo_frame();
       this.is_dragging = true;
       this.selected_light = gl;
       this.dragging_mode = this.DRAGGING_LIGHT_MODE;
@@ -1193,7 +1193,7 @@ class gameplay_handler
     let ty = game.global_mouse_handler.get_targety();
     if (game.current_level.grid[tx][ty].grid_type === tiles.FLOOR_BUILDABLE)
     {
-      undo.start_new_undo_frame();
+      //undo.start_new_undo_frame();
       // building mode
       this.dragging_mode = this.DRAWING_MODE;
       this.is_dragging = true;
@@ -1201,7 +1201,7 @@ class gameplay_handler
     }
     else if (game.current_level.grid[tx][ty].grid_type === tiles.FLOOR_BUILT)
     {
-      undo.start_new_undo_frame();
+      // undo.start_new_undo_frame();
       // erasing mode
       this.dragging_mode = this.ERASING_MODE;
       this.is_dragging = true;
@@ -1555,6 +1555,7 @@ class light_source
       which_action = undo_actions.ACTIVATE_LIGHT;
     }
     let new_undo_action = new undo_move(this.x, this.y, which_action);
+    undo.start_new_undo_frame();
     undo.add_move_to_undo(new_undo_action);
     undo.end_undo_frame();
   }
@@ -2234,6 +2235,7 @@ function enable_menu()
   game.global_mouse_handler.enable_region("opened_top_menu");
   // show_menu = true;
   //top_menu_accept_input = true;
+  menus.top_menu_selected = 0;
   for (let m of menus.top_menu_choices)
   {
     game.global_mouse_handler.enable_region(m);
