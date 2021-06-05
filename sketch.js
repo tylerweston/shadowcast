@@ -280,6 +280,7 @@ class game
   static gameWidth;   //done
   static gridSize;    // done
   static GRID_HALF;   // done
+  static GRID_QUARTER;
   static current_dim; // done
   static gridWidth; // done
   static gridHeight;  // done
@@ -1245,8 +1246,8 @@ class detector
     // flash juice
     this.flashing = false;
     this.flash_radius = 0;
-    this.flash_inc = random() + 1.5;
-    this.flash_radius_max = game.FLASH_SIZE + random();
+    this.flash_inc = random() + 2.5;
+    this.flash_radius_max = game.FLASH_SIZE + random(game.gridSize);
   }
 
   check_color()
@@ -1368,6 +1369,16 @@ class detector
     {
       this.flash_radius = 0;
       this.flashing = true;
+      particle_system.particle_explosion
+      (
+        this.x * game.gridSize + game.GRID_HALF,
+        this.y * game.gridSize + game.GRID_HALF,
+        50,
+        this.c,
+        300,
+        150,
+        3
+      );
     }
 
   }
@@ -1410,7 +1421,7 @@ class detector
     this.anim_cycle += this.anim_speed;
     if (this.anim_cycle > TWO_PI)
       this.anim_cycle = 0;
-    strokeWeight(7);
+    strokeWeight(game.GRID_QUARTER);
     if (this.r == 0 & this.g == 0 & this.b == 0)
       stroke(170);
     else
@@ -1545,6 +1556,16 @@ class light_source
   {
     this.add_switch_to_undo_stack();
     this.active = !this.active;
+    if (this.active)
+      particle_system.particle_explosion(
+        this.x * game.gridSize + game.GRID_HALF, 
+        this.y * game.gridSize + game.GRID_HALF, 
+        50, 
+        color(this.r, this.g, this.b), 
+        200, 
+        75,
+        3
+        );
   }
 
   add_switch_to_undo_stack()
@@ -1813,6 +1834,90 @@ class undo_move
   }
 }
 
+class particle
+{
+  constructor(x, y, c, x_vel, y_vel, lifetime)
+  {
+    this.x = x;
+    this.y = y;
+    this.color = color(red(c), green(c), blue(c));
+    this.x_vel = x_vel;
+    this.y_vel = y_vel;
+    this.lifetime = lifetime;
+    this.life = 0;
+    this.active = true;
+  }
+
+  update()
+  {
+    this.life += deltaTime;
+    if (this.life > this.lifetime)
+    {
+      // die
+      this.active = false;
+      return;
+    }
+    this.x += this.x_vel;
+    this.y += this.y_vel;
+  }
+
+  draw()
+  {
+    let alph_amount = map(this.life, 0, this.lifetime, 255, 0);
+    this.color.setAlpha(alph_amount);
+    fill(this.color);
+    noStroke();
+    ellipse(this.x, this.y, 4, 4);
+  }
+}
+
+class particle_system
+{
+  static particles = [];
+
+  static update_particles()
+  {
+    //for (let p of particle_system.particles)
+    for (let i = particle_system.particles.length - 1; i >= 0; i--)
+    {
+      particle_system.particles[i].update();
+      if (!particle_system.particles[i].active)
+      {
+        particle_system.particles.splice(i, 1);
+      }
+    }
+  }
+
+  static draw_particles()
+  {
+    for (let p of particle_system.particles)
+    {
+      p.draw();
+    }
+  }
+
+  static add_particle(p)
+  {
+    particle_system.particles.push(p);
+  }
+
+  static particle_explosion(x, y, amount, color, max_life, spread, max_speed)
+  {
+    for (i = 0; i < amount; ++i)
+    {
+      let p = new particle(
+        x, 
+        y, 
+        color, 
+        random() * (max_speed * 2) - max_speed, 
+        random() * (max_speed * 2) - max_speed, 
+        max_life + random(spread));
+      particle_system.add_particle(p);
+    }
+  }
+
+}
+
 //////// DOM ADJUSTMENT
 function centerCanvas() {
   let x = (windowWidth - width) / 2;
@@ -1851,7 +1956,8 @@ function setup() {
   game.gridHeight = game.PLAYFIELD_DIM;
 
   game.GRID_HALF = int(game.gridSize / 2);
-  game.FLASH_SIZE = game.gridSize * 3;
+  game.GRID_QUARTER = int(game.GRID_HALF / 2);
+  game.FLASH_SIZE = game.gridSize * 4;
 
   // setup is called once at the start of the game
   cnv = createCanvas(game.gameWidth, game.gameHeight);
@@ -1890,7 +1996,8 @@ function windowResized()
   // game.gridHeight = int(gameHeight / game.gridSize);
 
   game.GRID_HALF = int(game.gridSize / 2);
-  game.FLASH_SIZE = game.gridSize * 3;
+  game.GRID_QUARTER = int(game.GRID_HALF / 2);
+  game.FLASH_SIZE = game.gridSize * 4;
 
   resizeCanvas(game.gameWidth, game.gameHeight);
   centerCanvas();
@@ -1920,7 +2027,7 @@ function initialize_colors() {
   palette.empty_fill = color(13, 13, 13);
 
   palette.edge_color = color(80, 80, 80);
-  palette.edge_circle_color = color(80, 80, 80);
+  palette.edge_circle_color = color(70, 70, 70);
 
   palette.font_color = color(35, 35, 35);
 
@@ -2472,6 +2579,10 @@ function do_game()
     }
   }
 
+  // draw particles underneath detectors
+  particle_system.update_particles();
+  particle_system.draw_particles();
+
   // these eventually will take current_level as well?
   draw_detectors(); 
   
@@ -2867,8 +2978,8 @@ function draw_walls_and_floors()
         else if (lvl.grid[x][y].grid_type == tiles.FLOOR_BUILDABLE)
         {
           if (lvl.grid[x][y].fade > 0)
-            lvl.grid[x][y].fade -= 0.1;
-          stroke(palette.buildable_outline);
+            lvl.grid[x][y].fade -= deltaTime / 250;
+          stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
           // lerp between the empty fill color and the color of whatever
           // solid thing will be there
           fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
@@ -2882,11 +2993,11 @@ function draw_walls_and_floors()
       else if (lvl.grid[x][y].exist)  // SOLID WALLS
       {
         if (lvl.grid[x][y].fade < 1)
-          lvl.grid[x][y].fade += 0.1;
+          lvl.grid[x][y].fade += deltaTime / 250;
         if (p)
           noStroke();
         else
-          stroke(palette.solid_wall_outline);
+          stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
         // exact same thing as above!
         fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
                         p ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
