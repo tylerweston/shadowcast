@@ -8,8 +8,7 @@ space: go to next level (if available)
 
 Important:
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
-- Something is being added to the undo frame when the top
-menu is opened? Something with unclick happening!
+- Sound juice
 - option screen
   - make button class? or checkbox class?
 - Detect if the user is on mobile and make the grid smaller so it
@@ -19,18 +18,27 @@ menu is opened? Something with unclick happening!
 
 Visual fixes:
 - decrease the offset around checking for shadow edges?
-- with new auto-sizing, the game doesn't end up lined up in the middle,
-  EITHER use an offset OR just round to neareast multiple of 20?
 - Main menu should be better lined up... looks OK with new font
-- better flash juice  
+- Better light turning on/off juice (maybe a solid color screen flash
+  or something like that? Maybe with the sound it will be OK. The 
+  current particles don't look great, maybe they just need to be tweake
+  a bit?)  
 - change flooring from automatically tiled to user adjustable?
-  - keep SOME random floor options, but fluff them up! 
-- animated lines in background?
+  - keep SOME random floor options, but fluff them up! IE, sometime 
+  the floor can be a swirl or some lines or something like that? Write
+  some different tiling algorithms that we can use! Then, when drawing
+  the tiles instead of using ODD use a switch based on if they are floor 1
+  or floor 2 type tiles? 
+- some animation in the background or something like that?
 - Font size may be strange on different size devices? Yes, this needs
   to scale based on the size of the device. ALSO, we may want to make
   the squares a bit larger since playing on a cellphone is awkward!
 
 Bugs:
+- There is still something a bit funky with clicking near the top right?
+  maybe something to do with the menu buttons? Sometimes it seems like a
+  particle will spawn or a menu option will be selected even when the menu
+  screen isn't open
 - don't allow holes to spawn on lights?
 - undo is a bit broken still
 - something broken with just setting is_dragging false to eat mouse input
@@ -60,16 +68,14 @@ Options:
  - Reset highscores
  - Delete autosave
 
-Editor stuff (Maybe eventually):
-- give editor "LOAD" and "PLAY" functions, so individual levels will be used in there?
 
 Refactoring:
 - encapsulate state in a better way
   - right now it is kind of spread out and a bit icky how it is all implemented
   - collect and fix that stuff up
 - make a button or ui class or something like that that will make creating
-  buttons easier
-
+  buttons easier. This is the next big job probably!
+s
 Maybe eventually:
 - change game grid size - allow this to be customized - this might be implemented?
   - just need some bits to resize themselves automatically
@@ -81,6 +87,11 @@ Maybe eventually:
   one size?
 - Maybe try removing the lightsources from the grid and see if it's fun like that?
   - the extra constraints might be necessary though?
+
+Editor stuff (Maybe eventually):
+- give editor "LOAD" and "PLAY" functions, so individual levels will be used in there?
+- Just remove all the editor stuff entirely? or just switch it to another
+  unused branch and remove from main?
 */
 
 // global variables
@@ -91,6 +102,7 @@ const MINOR_VERSION = 9;
 
 // font
 let spectro_font;
+let font_size;
 
 // canvas
 let cnv;
@@ -106,7 +118,6 @@ let mouse_over_menu = false;
 let over_btn = false; // TODO: Roll into button class or something
 let next_level_available = false;
 let over_next_level = false;
-
 let over_play_again_btn = false;
 let over_main_menu_btn = false;
 let over_about_ok_btn = false;
@@ -1959,6 +1970,8 @@ function setup() {
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
   game.FLASH_SIZE = game.gridSize * 4;
 
+  font_size = game.gridSize;
+
   // setup is called once at the start of the game
   cnv = createCanvas(game.gameWidth, game.gameHeight);
   centerCanvas();
@@ -1998,6 +2011,7 @@ function windowResized()
   game.GRID_HALF = int(game.gridSize / 2);
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
   game.FLASH_SIZE = game.gridSize * 4;
+  font_size = game.gridSize;
 
   resizeCanvas(game.gameWidth, game.gameHeight);
   centerCanvas();
@@ -2086,7 +2100,7 @@ function do_main_menu()
   rect(0, 0, width, height);
 
   // display menu options
-  textSize(game.gridSize * 2);
+  textSize(font_size * 2);
   var i = 0;
   stroke(0);
   strokeWeight(2);
@@ -2180,7 +2194,7 @@ function do_setup_about()
   if (states.need_setup_about)
   {
     // eventually tutorial will be something that happens in game
-    let about_ok_button = new mouse_region((width / 2) - 30, 460, (width / 2) + 10, 500);
+    let about_ok_button = new mouse_region((width / 2) - game.gridSize, height - 5 * game.gridSize, (width / 2) + game.gridSize, height - 4 * game.gridSize);
     about_ok_button.events[mouse_events.CLICK] = ()=>{ game.game_state = states.TEARDOWN_ABOUT; };
     about_ok_button.events[mouse_events.ENTER_REGION] = ()=>{ over_about_ok_btn = true; };
     about_ok_button.events[mouse_events.EXIT_REGION] = ()=>{ over_about_ok_btn = false; };
@@ -2214,7 +2228,7 @@ function do_about_menu()
    "and Jane Haselgrove for all the pizza.\n";
 
   //stroke(130);
-  textSize(game.gridSize / 2);
+  textSize(font_size / 2);
   textAlign(CENTER, CENTER);
   noStroke();
   blendMode(ADD);
@@ -2232,7 +2246,7 @@ function do_about_menu()
   {
     noStroke();
     fill(255, 20);
-    ellipse((width / 2) - 10, 480, 60, 60);
+    ellipse((width / 2), height - 4.5 * game.gridSize, game.gridSize * 2, game.gridSize * 2);
 
     fill(255, 255, 255);
   }
@@ -2242,7 +2256,9 @@ function do_about_menu()
   }
   stroke(130);
   strokeWeight(2);
-  text("OK", (width / 2) - 10, 480);
+  textSize(font_size);
+  textAlign(CENTER, BASELINE);
+  text("OK", (width / 2), height - 4 * game.gridSize);
 
   textAlign(LEFT, BASELINE);
 
@@ -2652,14 +2668,14 @@ function do_intro()
   if (game.intro_timer === 0)
   {
     game.intro_timer += deltaTime;
-    textSize(72);
+    textSize(font_size * 3);
     textAlign(CENTER, CENTER);
     offs = 0;
   }
-  else if (game.intro_timer < 3000)
+  else if (game.intro_timer < 3500)
   {
     game.intro_timer += deltaTime;
-    if (game.intro_timer < 2000)
+    if (game.intro_timer < 2500)
       fill(0);
     else
     {
@@ -2672,24 +2688,29 @@ function do_intro()
     // line (xrand, yrand, xrand + random(10) - 5, yrand + random(200) + 80);
     noStroke();
     fill(random(random_cols), random(50));
+    textSize(font_size * 3);
     text("a tw game", 0, 0, width, height + (game.intro_timer * random(1, 13) % 900) - 450);
     strokeWeight(2);
     blendMode(MULTIPLY);
     stroke(0);
     fill(240);
-    if (game.intro_timer < 1500)
+    if (game.intro_timer < 1750)
     {
+      textSize(font_size * 3);
       text("a tw game", 0, 0, width, height);
     }
     else
     {
+      textSize(font_size * 4);
       text("spectro", 0, 0, width, height);
+
     }
   }
   else
   {
     blendMode(BLEND);
     textAlign(LEFT, BASELINE);
+    textSize(font_size);
     game.game_state = states.MAIN_MENU_SETUP;
   }
 }
@@ -2793,11 +2814,14 @@ function tutorial()
    "Use left click to draw or erase walls.\n" +
    "Click once on lights to activate / deactivate,\n" +
    "or drag them to move them.\n" +
-   "Fill in all the detectors to proceed.";
+   "Fill in all the detectors with the\n" + 
+   "correct color to proceed.\n" +
+   "Less walls = more points.\n" +
+   "Once all detectors are filled, click next.";
   strokeWeight(1);
   fill(180);
   stroke(130);
-  textSize(28);
+  textSize(font_size / 2);
   textAlign(CENTER, CENTER);
   text(s, game.gridSize * 3, game.gridSize * 3, width - game.gridSize * 6, height - game.gridSize * 6);
 
