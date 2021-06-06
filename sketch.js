@@ -17,6 +17,7 @@ Important:
       mobile mode vs PC mode
 
 Visual fixes:
+- line up font on the bottom better
 - decrease the offset around checking for shadow edges?
 - Main menu should be better lined up... looks OK with new font
 - Better light turning on/off juice (maybe a solid color screen flash
@@ -52,6 +53,10 @@ Bugs:
 - Reposition OK button in About menu
 
 QOL improvements:
+- is there a problem with framerate now? Game seems to be a bit slower than
+  before?
+- make it so all text is aligned the same way (ie, all using baseline or
+  something so there isn't switching back and forth)
 - detect size of parent div and base the game on that so on different
   screens, devices, etc, it will work the same way?!
   - we'd base grid size 
@@ -67,6 +72,19 @@ QOL improvements:
 Options:
  - Reset highscores
  - Delete autosave
+
+Sounds required:
+  - intro sounds
+  - menu mouse over
+  - menu item click
+  - light on
+  - light off
+  - detector on
+  - detector off
+  - all detectors active
+  - next level clicked
+  - new high score
+  - 
 
 
 Refactoring:
@@ -3652,7 +3670,7 @@ function random_game_ui()
     else
       fill(palette.font_color);
     // -4? Magic number!
-    text("next", (game.gridWidth - 3) * game.gridSize, game.gridHeight * game.gridSize - 4 - sin(game.next_button_bob_timer));
+    text("next", (game.gridWidth - 3) * game.gridSize, game.gridHeight * game.gridSize - game.GRID_QUARTER - sin(game.next_button_bob_timer));
   }
 
   fill(palette.font_color);
@@ -3668,11 +3686,11 @@ function random_game_ui()
   if (game.highest_score_display_timer > 0)
   {
     game.highest_score_display_timer -= deltaTime / 1500;
-    text("high score: " + game.highest_score, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - 4);
+    text("high score: " + game.highest_score, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
   }
   else
   {
-    text("score: " + game.new_scoring_system + " points: " + game.points_for_current_grid, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - 4);
+    text("score: " + game.new_scoring_system + " points: " + game.points_for_current_grid, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
   }
 
   if (game.new_total_fade > 0)
