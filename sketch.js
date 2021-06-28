@@ -11,6 +11,7 @@ Important:
 - Sound juice
 - option screen
   - make button class? or checkbox class?
+  - sound options in options menu
 - Detect if the user is on mobile and make the grid smaller so it
   is easier to choose/move lights, etc.
     - This now requires a few more fixes! Work on this, ie.
@@ -74,17 +75,19 @@ Options:
  - Delete autosave
 
 Sounds required:
-  - intro sounds
-  - menu mouse over
-  - menu item click
-  - light on
-  - light off
-  - detector on
-  - detector off
-  - all detectors active
-  - next level clicked
-  - new high score
-  - 
+  - intro sounds  - no?
+  - menu mouse over - done
+  - menu item click - done
+  - light on  - needs tweaking
+  - light off - needs tweaking
+  - detector on - need
+  - detector off  - need
+  - all detectors active  - need
+  - next level clicked  - done
+  - new high score  - need
+We need an input from the user before we can start playing any sounds
+so maybe after we load stuff we just present a PLAY button that the user
+has to click before the intro, menu, etc. so that way we can play sounds.
 
 
 Refactoring:
@@ -293,7 +296,7 @@ class game
 {
   // make the playing field a different size depending if we're on mobile
   static PLAYFIELD_DIM;
-  static PC_PLAYFIELD_DIM = 22;
+  static PC_PLAYFIELD_DIM = 20;
   static MOBILE_PLAYFIELD_DIM = 14;
 
   // play mode
@@ -357,6 +360,9 @@ class game
 
   static intro_timer = 0;
   static next_button_bob_timer = 0;
+
+  // sound stuff
+  static sound_handler;
 }
 
 // List of tile types
@@ -1188,6 +1194,8 @@ class gameplay_handler
       let new_undo_action = new undo_move(_x, _y, undo_actions.BUILD_WALL);
       undo.add_move_to_undo(new_undo_action);
       set_grid(game.current_level.grid, _x, _y, tiles.FLOOR_BUILT);
+      // TODO: Don't do this is we're undoing?
+      game.sound_handler.play_build_wall();
       this.refresh_grid();
     }
   }
@@ -1201,6 +1209,8 @@ class gameplay_handler
       let new_undo_action = new undo_move(_x, _y, undo_actions.ERASE_WALL);
       undo.add_move_to_undo(new_undo_action);
       set_grid(game.current_level.grid, _x, _y, tiles.FLOOR_BUILDABLE);
+      // TODO: Don't do this if we're undoing?
+      game.sound_handler.play_destory_wall();
       this.refresh_grid();
     }
   }
@@ -1405,9 +1415,12 @@ class detector
         50,
         this.c,
         300,
-        150,
-        3
+        100,
+        3,
+        1
       );
+      // we also play a sound
+      game.sound_handler.play_sound("detector_on");
     }
 
   }
@@ -1425,17 +1438,17 @@ class detector
     if (this.flashing)
     {
       this.flash_radius += (deltaTime / this.flash_inc);
-      strokeWeight(4);
+      strokeWeight(game.GRID_QUARTER);
       noFill();
       let alph = map(this.flash_radius, 0, this.flash_radius_max, 255, 0);
       
-      stroke(150, alph * 0.6);
-      ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.6, this.flash_radius * 0.6);
+      stroke(this.r, this.g, this.b, alph * 0.5);
+      ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.5, this.flash_radius * 0.5);
       
-      stroke(150, alph * 0.8);
-      ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.8, this.flash_radius * 0.8);
+      stroke(this.r, this.g, this.b, alph * 0.75);
+      ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.75, this.flash_radius * 0.75);
       
-      stroke(150, alph);
+      stroke(this.r, this.g, this.b, alph);
       ellipse(grid_center_x, grid_center_y, this.flash_radius, this.flash_radius);
 
       if (this.flash_radius > this.flash_radius_max)
@@ -1510,7 +1523,7 @@ class light_source
     // This might not be the best way to do this but it could work for now?!
     // move this stuff to some color data structure
     this.c = color(r, g, b);
-    this.shadow_color = color(r, g, b, 55);
+    this.shadow_color = color(r, g, b, 65);
 
     this.dark_light = color(r / 2.5, g / 2.5, b / 2.5, 80);
     this.med_light = color(r / 2, g / 2, b / 2, 110);
@@ -1528,7 +1541,7 @@ class light_source
     this.light_inside = color(max(80, r - 30), max(80, g - 30), max(80, b - 30));
 
     this.ls_region = new mouse_region(x * game.gridSize, y * game.gridSize, 
-                                      x * game.gridSize + game.gridSize, y*game.gridSize + game.gridSize);
+                                      (x + 1) * game.gridSize, (y + 1) * game.gridSize);
     this.ls_region.events[mouse_events.CLICK] = () => this.click_light();
     this.ls_region.events[mouse_events.UNCLICK] = () => this.unclick_light();
 
@@ -1566,6 +1579,12 @@ class light_source
     // will replace the already existing region.
     game.global_mouse_handler.register_region(this.name, this.ls_region);
     this.get_new_viz_poly();
+
+    // NOT RIGHT
+    // we need somewhere (game handler?) to check if the old pos is the same as
+    // the new pos. When old pos and new pos are the same for a certain amount of
+    // frames, we'll stop the sound from playing?
+    game.sound_handler.light_start_drag();
   }
 
   click_light()
@@ -1579,6 +1598,7 @@ class light_source
     if (!this.moved)
       this.switch_active();
     this.dragged = false;
+    game.sound_handler.light_stop_drag();
   }
 
   switch_active()
@@ -1589,12 +1609,22 @@ class light_source
       particle_system.particle_explosion(
         this.x * game.gridSize + game.GRID_HALF, 
         this.y * game.gridSize + game.GRID_HALF, 
-        50, 
+        30, 
         color(this.r, this.g, this.b), 
-        200, 
-        75,
-        3
+        300, 
+        100,
+        4
         );
+    if (this.active)
+    {
+      // we were inactive, now we're active
+      game.sound_handler.play_sound("light_on");
+    } 
+    else
+    {
+      // we were active, now we're inactive
+      game.sound_handler.play_sound("light_off");
+    }
   }
 
   add_switch_to_undo_stack()
@@ -1653,10 +1683,10 @@ class light_source
       fill(this.dark_light);
       let animsin = sin(this.anim_cycle) * 4;
       let animcos = cos(this.anim_cycle) * 4;
-      ellipse(this.x * game.gridSize + (game.gridSize / 2), this.y * game.gridSize + (game.gridSize/2), game.gridSize * 3 + animsin , game.gridSize * 3 + animsin);
+      ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * 3 + animsin , game.gridSize * 3 + animsin);
   
       fill(this.med_light);
-      ellipse(this.x * game.gridSize + (game.gridSize / 2), this.y * game.gridSize + (game.gridSize/2), game.gridSize * 2 + animcos, game.gridSize * 2 + animcos);
+      ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * 2 + animcos, game.gridSize * 2 + animcos);
       blendMode(BLEND);
     }
   
@@ -1865,7 +1895,7 @@ class undo_move
 
 class particle
 {
-  constructor(x, y, c, x_vel, y_vel, lifetime)
+  constructor(x, y, c, x_vel, y_vel, lifetime, particle_type=0)
   {
     this.x = x;
     this.y = y;
@@ -1875,6 +1905,9 @@ class particle
     this.lifetime = lifetime;
     this.life = 0;
     this.active = true;
+    this.particle_type = particle_type;
+    this.oldx = x;
+    this.oldy = y;
   }
 
   update()
@@ -1886,6 +1919,8 @@ class particle
       this.active = false;
       return;
     }
+    this.oldx = this.x;
+    this.oldy = this.y;
     this.x += this.x_vel;
     this.y += this.y_vel;
   }
@@ -1894,9 +1929,19 @@ class particle
   {
     let alph_amount = map(this.life, 0, this.lifetime, 255, 0);
     this.color.setAlpha(alph_amount);
-    fill(this.color);
-    noStroke();
-    ellipse(this.x, this.y, 4, 4);
+
+    if (this.particle_type === 0)
+    {
+      fill(this.color);
+      noStroke();
+      ellipse(this.x, this.y, 4, 4);
+    }
+    else if (this.particle_type === 1)
+    {
+      stroke(this.color);
+      noFill();
+      line(this.x, this.y, this.oldx, this.oldy);
+    }
   }
 }
 
@@ -1930,7 +1975,7 @@ class particle_system
     particle_system.particles.push(p);
   }
 
-  static particle_explosion(x, y, amount, color, max_life, spread, max_speed)
+  static particle_explosion(x, y, amount, color, max_life, spread, max_speed, particle_type=0)
   {
     for (i = 0; i < amount; ++i)
     {
@@ -1940,11 +1985,82 @@ class particle_system
         color, 
         random() * (max_speed * 2) - max_speed, 
         random() * (max_speed * 2) - max_speed, 
-        max_life + random(spread));
+        max_life + random(spread),
+        particle_type);
       particle_system.add_particle(p);
     }
   }
 
+}
+
+class sound
+{
+  // no intro sound since sound can't play until the user has interacted with
+  // the sketch!
+
+  constructor()
+  {
+    this.use_drag_sounds = false;
+    this.sounds_enabled = false;
+    this.sounds = {};
+    this.drag_sound = undefined;
+    this.need_init_audio_context = true;
+  }
+
+  check_play_sound()
+  {
+    // make sure we have a valid audio context before we allow a sound
+    // to play!
+    // return (getAudioContext().state === 'running');
+    if (!this.sounds_enabled)
+      return false;
+    return !this.need_init_audio_context;
+  }
+
+  play_sound(name)
+  {
+    if (!this.check_play_sound())
+      return;
+    this.sounds[name].play();
+  }
+
+  light_start_drag()
+  {
+    if (!this.use_drag_sounds)
+      return;
+    // this one has to be special because it's a loop?
+    if (!this.drag_sound.isPlaying())
+      this.drag_sound.play();
+  }
+
+  light_stop_drag()
+  {
+    if (!this.use_drag_sounds)
+      return;
+    this.drag_sound.stop();
+  }
+
+  play_build_wall()
+  {
+    // choose from one of the random wall building sounds
+    let rand_build_str = `build_wall_${Math.floor(Math.random() * 3) + 1}`;
+    this.play_sound(rand_build_str);
+  }
+
+  play_destory_wall()
+  {
+    // choose from one of the random wall destruction sounds
+    this.play_sound("remove_wall");
+  }
+}
+
+function mousePressed() {
+  // TODO: Only do this once
+  if (game.sound_handler.need_init_audio_context)
+  {
+    userStartAudio();
+    game.sound_handler.need_init_audio_context = false;
+  }
 }
 
 //////// DOM ADJUSTMENT
@@ -1962,6 +2078,32 @@ function preload() {
   // any things to load before our game starts, fonts, music, etc.
   // This font is nice for gameplay stuff
   spectro_font = loadFont('assets/LemonMilk.otf');
+  // load all of our sounds in preload since it might take a moment, and this
+  // should (in theory) mitigate the errors (but it doesn't)
+  game.sound_handler = new sound();
+
+  soundFormats('wav', 'mp3');  // todo: make these sounds mp3/wav so the browser can use
+                        // whichever format is easier!
+  game.sound_handler.sounds["menu_hover"] = loadSound('assets/sounds/menu_hover');
+  game.sound_handler.sounds["menu_click"] = loadSound('assets/sounds/menu_click');
+  game.sound_handler.sounds["light_on"] = loadSound('assets/sounds/light_on');
+  game.sound_handler.sounds["light_off"] = loadSound('assets/sounds/light_off');
+  game.sound_handler.sounds["next_level_clicked"] = loadSound('assets/sounds/next_level_clicked');
+  game.sound_handler.drag_sound = loadSound('assets/sounds/light_moving');
+  // game.sound_handler.sounds["drag_sound"] = loadSound('assets/sounds/light_moving');
+  // game.sound_handler.sounds["drag_sound"].setVolume(0.2);
+  game.sound_handler.sounds["detector_on"] = loadSound('assets/sounds/detector_on');
+
+  // // TODO sounds:
+  game.sound_handler.sounds["build_wall_1"] = loadSound('assets/sounds/build_wall_1');
+  game.sound_handler.sounds["build_wall_2"] = loadSound('assets/sounds/build_wall_2');
+  game.sound_handler.sounds["build_wall_3"] = loadSound('assets/sounds/build_wall_3');
+  game.sound_handler.sounds["build_wall_1"].setVolume(0.3);
+  game.sound_handler.sounds["build_wall_2"].setVolume(0.3);
+  game.sound_handler.sounds["build_wall_3"].setVolume(0.3);
+  game.sound_handler.sounds["remove_wall"] = loadSound('assets/sounds/remove_wall');
+  game.sound_handler.sounds["remove_wall"].setVolume(0.3);
+  
 }
 
 function setup() {
@@ -2023,8 +2165,6 @@ function windowResized()
   game.gameHeight = largest_dim;
   game.gameWidth = largest_dim;
   game.gridSize = target_gridSize;
-  // gridWidth = int(gameWidth / game.gridSize);
-  // game.gridHeight = int(gameHeight / game.gridSize);
 
   game.GRID_HALF = int(game.gridSize / 2);
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
@@ -2098,8 +2238,14 @@ function do_setup_main_menu()
     for (let m of menus.main_menu_options)
     {
       let reg = new mouse_region(0, (i + 1) * game.gridSize * 2, game.gridSize * game.gridWidth, (i + 2) * game.gridSize * 2);
-      reg.events[mouse_events.CLICK] = () => handle_main_menu_selection(int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1);
-      reg.events[mouse_events.ENTER_REGION] = () => {menus.main_menu_selected = int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1;};
+      reg.events[mouse_events.CLICK] = () => {
+        game.sound_handler.play_sound("menu_click");
+        handle_main_menu_selection(int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1);
+      }
+      reg.events[mouse_events.ENTER_REGION] = () => {
+        menus.main_menu_selected = int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1;
+        game.sound_handler.play_sound("menu_hover");
+      };
       // reg.events[mouse_events.EXIT_REGION] = () => {menus.main_menu_selected = undefined; };
       game.global_mouse_handler.register_region(m + "main_menu", reg);
       ++i;
@@ -2311,6 +2457,7 @@ function do_teardown_options()
 //////// TOP MENU
 function change_top_menu_entry(index, new_name, new_func)
 {
+  // unused?
   menus.top_menu_choices[index] = new_name;
   menus.top_menu_callbacks[index] = () => new_func;
 }
@@ -2470,6 +2617,7 @@ function keyPressed() {
   {
     if (game.current_gamemode === game.GAMEMODE_RANDOM && next_level_available)
     {
+      game.sound_handler.play_sound("next_level_clicked");
       game.game_state = game.game_state = states.RANDOM_LEVEL_TRANSITION_OUT;
     }
   }
@@ -2689,6 +2837,7 @@ function do_intro()
     textSize(font_size * 3);
     textAlign(CENTER, CENTER);
     offs = 0;
+    // if we can figure out a way to play an intro sound, do it here
   }
   else if (game.intro_timer < 3500)
   {
@@ -3624,7 +3773,10 @@ function setup_random_game()
   game.ghandler = new gameplay_handler();
   // next level button, will start hidden and disabled
   let next_region = new mouse_region((game.gridWidth - 3) * game.gridSize, (game.gridHeight - 1) * game.gridSize, game.gridWidth * game.gridSize, game.gridHeight * game.gridSize);
-  next_region.events[mouse_events.CLICK] = () => { game.game_state = states.RANDOM_LEVEL_TRANSITION_OUT; };
+  next_region.events[mouse_events.CLICK] = () => { 
+    game.sound_handler.play_sound("next_level_clicked");
+    game.game_state = states.RANDOM_LEVEL_TRANSITION_OUT; 
+  };
   next_region.events[mouse_events.ENTER_REGION] = () => { over_next_level = true; };
   next_region.events[mouse_events.EXIT_REGION] = () => { over_next_level = false; };
   next_region.enabled = false;
