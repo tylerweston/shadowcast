@@ -391,6 +391,7 @@ class palette
   static edge_color;  // done
   static edge_circle_color; // done
   static font_color;
+  static bright_font_color;
 
   // ------+--------+----
   // r g b | color  | # 
@@ -2202,6 +2203,7 @@ function initialize_colors() {
   palette.edge_circle_color = color(70, 70, 70);
 
   palette.font_color = color(35, 35, 35);
+  palette.bright_font_color = color(157, 157, 157);
 
   // ------+--------+----
   // r g b | color  | # 
@@ -3647,7 +3649,7 @@ function do_setup_show_time_results()
     // TODO: Tweak to find better placement
     let x1 = game.gridWidth * 10;
     let y1 = (game.gridHeight - 5) * game.gridSize;
-    let x2 = game.gridWidth * 14;
+    let x2 = game.gridWidth * 17;
     let y2 = (game.gridHeight - 4) * game.gridSize + game.GRID_HALF;
     // fill(255, 0, 0);
     // rect(x1, y1, x2 - x1, y2 - y1);
@@ -3658,9 +3660,9 @@ function do_setup_show_time_results()
     game.global_mouse_handler.register_region("time_result_play_again_btn", play_again_btn);
 
     // TODO: Tweak to find better placement
-    x1 = width - (game.gridWidth * 13);
+    x1 = width - (game.gridWidth * 14);
     y1 = (game.gridHeight - 5) * game.gridSize;
-    x2 = width - (game.gridWidth * 9);
+    x2 = width - (game.gridWidth * 8);
     y2 = (game.gridHeight - 4) * game.gridSize + game.GRID_HALF;
     // fill(0, 255, 0);
     // rect(x1, y1, x2 - x1, y2 - y1);
@@ -3720,7 +3722,7 @@ function do_show_time_results()
   strokeWeight(2);
   stroke(0);
   textSize(game.gridSize);
-  fill (palette.font_color);
+  fill (palette.bright_font_color);
   textAlign(CENTER);
   text("Total time played: " + game.total_time_played, width / 2, game.gridSize * 7);
   text("High score: " + game.high_timer_score, width / 2, game.gridSize * 9);
@@ -3748,7 +3750,7 @@ function do_show_time_results()
     fill(palette.font_color);
   text("again", x1, y2);
 
-  x1 = width - (game.gridWidth * 13);
+  x1 = width - (game.gridWidth * 14);
   y1 = (game.gridHeight - 5) * game.gridSize;
   x2 = width - (game.gridWidth * 9);
   y2 = (game.gridHeight - 4) * game.gridSize;
