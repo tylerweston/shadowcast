@@ -7,6 +7,7 @@ r, g, b: switch corresponding light
 space: go to next level (if available)
 
 Important:
+- Finish interactive tutorial!
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
 - Sound juice
 - option screen
@@ -171,6 +172,10 @@ class states
   static ABOUT = 9; // done
   static TEARDOWN_ABOUT = 22; // done
 
+  // The tutorial game that will happen on the first time
+  // a user tries to play the game.
+  static TUTORIAL_GAME = 23;
+
   // to do: maybe setup all gui elements in one function
   // at start so we don't need to store if they have been
   // setup or not yet?
@@ -267,7 +272,6 @@ class undo
   
   static start_new_undo_frame()
   {
-    // console.log("Starting new undo frame");
     // undo.current_undo_frame.splice(0, undo.current_undo_frame.length);
   }
   
@@ -303,6 +307,7 @@ class game
   static GAMEMODE_RANDOM = 0;
   static GAMEMODE_LEVELS = 1;  // Not implemented yet
   static GAMEMODE_TIME = 2;
+  static GAMEMODE_TUTORIAL = 3;
 
   static edges = [];        // done // move to edges class
   static lightsources = []; //done
@@ -360,6 +365,10 @@ class game
 
   static intro_timer = 0;
   static next_button_bob_timer = 0;
+
+  // Tutorial game stuff
+  static first_time_playing;
+  static current_tutorial_level = 0;
 
   // sound stuff
   static sound_handler;
@@ -1978,7 +1987,7 @@ class particle_system
 
   static particle_explosion(x, y, amount, color, max_life, spread, max_speed, particle_type=0)
   {
-    for (i = 0; i < amount; ++i)
+    for (let _ = 0; _ < amount; ++_)
     {
       let p = new particle(
         x, 
@@ -2108,6 +2117,16 @@ function preload() {
 }
 
 function setup() {
+  if (getItem("played_before") === null)
+  {
+    storeItem("played_before", true);
+    game.first_time_playing = true;
+  }
+  else
+  {
+    game.first_time_playing = false;
+  }
+
   // console.log("On mobile? " + mobileCheck());
   if (mobileCheck())
     game.PLAYFIELD_DIM = game.MOBILE_PLAYFIELD_DIM;
@@ -2301,6 +2320,15 @@ function do_main_menu()
     ++i;
   }
 
+  // IF the user hasn't played before, let's show a pop-up box
+  // suggesting they play the tutorial
+  if (game.first_time_playing)
+  {
+    game.first_time_playing = false;  // only show tutorial once
+    teardown_main_menu();
+    game.current_gamemode = game.GAMEMODE_TUTORIAL;
+    game.game_state = states.NEW_GAME;
+  }
 }
 
 function enable_main_menu()
@@ -2617,7 +2645,9 @@ function keyPressed() {
   }
   else if (key === ' ')
   {
-    if (game.current_gamemode === game.GAMEMODE_RANDOM && next_level_available)
+    if ((game.current_gamemode === game.GAMEMODE_RANDOM ||
+      game.current_gamemode === game.GAMEMODE_TUTORIAL) 
+      && next_level_available)
     {
       game.sound_handler.play_sound("next_level_clicked");
       game.game_state = game.game_state = states.RANDOM_LEVEL_TRANSITION_OUT;
@@ -2801,6 +2831,10 @@ function do_game()
     }
     time_game_ui();
   }
+  if (game.current_gamemode === game.GAMEMODE_TUTORIAL)
+  {
+    tutorial_game_ui();
+  }
 
   if (game.save_fade > 0)
   {
@@ -2821,6 +2855,7 @@ function do_game()
     rect(0, 0, game.gameWidth, game.gameHeight);
   }
 
+  // todo: we can remove this tutorial at some point, we won't need it anymore!
   if (game.show_tutorial)
     tutorial();
 
@@ -2924,6 +2959,18 @@ function do_level_transition_out()
       time_level();
       make_edges();
     }
+
+    if (game.current_gamemode === game.GAMEMODE_TUTORIAL)
+    {
+      game.current_tutorial_level++;
+      // check if we're done the tutorial here?
+      if (game.current_tutorial_level > 3)
+      {
+        teardown_tutorial_game();
+        return;
+      }
+      make_tutorial_level();
+    }
     game.game_state = states.RANDOM_LEVEL_TRANSITION_IN;
   }
 }
@@ -3020,6 +3067,8 @@ function setup_game()
     setup_random_game();
   if (game.current_gamemode === game.GAMEMODE_TIME)
     setup_time_game();
+  if (game.current_gamemode === game.GAMEMODE_TUTORIAL)
+    setup_tutorial_game();
 }
 
 //////// DRAWING 
@@ -3106,9 +3155,6 @@ function draw_menu()
   stroke(0);
   strokeWeight(2);
   textAlign(LEFT, TOP);
-  
-  // console.log("Undo stack size: " + undo.undo_stack.length);
-  // console.log("Redo stack length: " + undo.redo_stack.length);
 
   for (let m of menus.top_menu_choices)
   {
@@ -3617,7 +3663,7 @@ function time_level()
   new_random_level.initialize_grid();
 
   initializeGrid(new_random_level.grid);
-  turn_lights_off();
+  // turn_lights_off();
   init_random_detectors(new_random_level, difficulty_to_detector_amount());
   make_some_floor_unbuildable(new_random_level.grid, difficulty_to_shrink_amount());
   shrink_lights();
@@ -3630,7 +3676,7 @@ function time_level()
 
 function tear_down_time_game()
 {
-  game.global_mouse_handler.disable("game.ghandler"); // remove entirely at some point!
+  game.global_mouse_handler.disable_region("game.ghandler"); // remove entirely at some point!
 }
 
 function time_game_ui()
@@ -3891,7 +3937,9 @@ function random_level()
 function init_light_sources()
 {
   // init lights
-  game.lightsources = []
+  //game.lightsources = []
+  game.lightsources.splice(0, game.lightsources.length);
+
   // RGB lights
   let source = new light_source(game.gridWidth - 5, game.gridHeight - 5, false, 255, 0, 0);
   game.lightsources.push(source);
@@ -3913,7 +3961,8 @@ function init_light_sources()
 function init_random_detectors(lvl, num_detectors)
 {
   // initialize a randomized array of detectors
-  game.detectors = []
+  //game.detectors = []
+  game.detectors.splice(0, game.detectors.length);
 
   for (i = 0 ; i < num_detectors; ++ i)
   {
@@ -3969,9 +4018,10 @@ function init_random_detectors(lvl, num_detectors)
         break;
     }
 
-    let d = new detector(xp, yp, r, g, b);
-    game.detectors.push(d);
-    set_grid(lvl.grid, xp, yp, tiles.DETECTOR_TILE);
+    // let d = new detector(xp, yp, r, g, b);
+    // game.detectors.push(d);
+    // set_grid(lvl.grid, xp, yp, tiles.DETECTOR_TILE);
+    make_detector(xp, yp, r, g, b);
   }
 }
 
@@ -4069,6 +4119,141 @@ function reset_grid(lvl)
     }
   }
 }
+
+//////// TUTORIAL GAME MODE
+function setup_tutorial_game()
+{
+  game.ghandler = new gameplay_handler();
+  // next level button, will start hidden and disabled
+  let next_region = new mouse_region((game.gridWidth - 3) * game.gridSize, (game.gridHeight - 1) * game.gridSize, game.gridWidth * game.gridSize, game.gridHeight * game.gridSize);
+  next_region.events[mouse_events.CLICK] = () => { 
+    game.sound_handler.play_sound("next_level_clicked");
+    game.game_state = states.RANDOM_LEVEL_TRANSITION_OUT; 
+  };
+  next_region.events[mouse_events.ENTER_REGION] = () => { over_next_level = true; };
+  next_region.events[mouse_events.EXIT_REGION] = () => { over_next_level = false; };
+  next_region.enabled = false;
+  game.global_mouse_handler.register_region("next_btn", next_region);
+
+  game.current_tutorial_level = 0;
+  make_tutorial_level();
+  game.game_state = states.GAME;
+}
+
+function  make_tutorial_level()
+{
+  // start with an empty level
+  let new_tutorial_level = new level();
+  new_tutorial_level.xsize = game.gridWidth;
+  new_tutorial_level.ysize = game.gridHeight;
+  new_tutorial_level.initialize_grid();
+
+  initializeGrid(new_tutorial_level.grid);
+  // clear lights and detectors!
+  clear_lights();
+  clear_detectors();
+  game.current_level = new_tutorial_level;
+
+  // now, depending on our current tutorial level, we'll add some stuff
+  // to the board
+  
+  switch (game.current_tutorial_level)
+  {
+    case 0:
+      make_light(5, 5, 255, 0, 0);
+      make_detector(game.gridWidth - 5, game.gridHeight - 5, 255, 0, 0);
+      break;
+    case 1:
+      make_light(5, 5, 255, 0, 0);
+      make_light(game.gridWidth-5, 5, 0, 255, 0);
+      make_detector(game.gridWidth - 5, game.gridHeight - 5, 255, 255, 0);
+      break;
+    case 2:
+      let center_grid = game.gridHeight / 2;
+      make_light(2, center_grid, 255, 0, 0);
+      make_light(game.gridWidth - 2, center_grid, 0, 0, 255);
+      make_detector(center_grid - 2, center_grid, 255, 0, 0);
+      make_detector(center_grid + 2, center_grid, 0, 0, 255);
+      break;
+    case 3:
+      let center_grid2 = game.gridHeight / 2;
+      init_light_sources();
+      make_detector(center_grid2, 3, 255, 255, 0);
+      make_detector(center_grid2 - 3, game.gridHeight - 3, 0, 255, 255);
+      make_detector(center_grid2 + 3, game.gridHeight - 3, 255, 0, 255);
+      break;
+  }
+  make_edges();
+  update_all_light_viz_polys();
+}
+
+function tutorial_game_ui()
+{
+  // todo: Nicer way to do this?
+  strokeWeight(2);
+  stroke(37);
+  fill(230);
+  switch (game.current_tutorial_level)
+  {
+    case 0:
+      text("click light to turn on", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
+      break;
+    case 1:
+      text("mix lights", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
+      break;
+    case 2:
+      text("click grid to build wall", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
+      break;
+    case 3:
+      text("drag lights to move", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
+      break;
+  }
+  // draw all required tutorial game instructions, etc. here
+  if (next_level_available)
+  {
+    game.next_button_bob_timer += (deltaTime / 100);
+    if (game.next_button_bob_timer > TWO_PI)
+      game.next_button_bob_timer = 0;
+
+    if (over_next_level)
+      fill(255)
+    else
+      fill(palette.font_color);
+
+    text("next", (game.gridWidth - 3) * game.gridSize, game.gridHeight * game.gridSize - game.GRID_QUARTER - sin(game.next_button_bob_timer));
+  }
+}
+
+function make_detector(x, y, r, g, b)
+{
+  let d = new detector(x, y, r, g, b);
+  game.detectors.push(d);
+  set_grid(game.current_level.grid, x, y, tiles.DETECTOR_TILE);
+}
+
+function make_light(x, y, r, g, b)
+{
+  let new_light = new light_source(x, y, false, r, g, b);
+  game.lightsources.push(new_light);
+}
+
+function clear_lights()
+{
+  game.lightsources = [];
+}
+
+function clear_detectors()
+{
+  game.detectors = [];
+}
+
+function teardown_tutorial_game()
+{
+  // disable gameplay handler and return to main menu
+  game.game_state = states.MAIN_MENU_SETUP;
+  game.global_mouse_handler.disable_region("game.ghandler"); // remove entirely at some point!
+}
+
 
 //////// EDGE ALG
 function scale_all_edges(new_scale)
