@@ -3,11 +3,11 @@ spectro
 tyler weston, 2021
 
 Controls:
-r, g, b: switch corresponding light
+r, g, b: switch corresponding light (This currently doesn't work during tutorial!)
 space: go to next level (if available)
 
 Important:
-- Finish interactive tutorial!
+- Make tutorial nicer
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
 - Sound juice
 - option screen
@@ -175,6 +175,7 @@ class states
   // The tutorial game that will happen on the first time
   // a user tries to play the game.
   static TUTORIAL_GAME = 23;
+  static TUTORIAL_GAME_INTRO = 24;
 
   // to do: maybe setup all gui elements in one function
   // at start so we don't need to store if they have been
@@ -369,6 +370,7 @@ class game
   // Tutorial game stuff
   static first_time_playing;
   static current_tutorial_level = 0;
+  static tutorial_game_intro_timer = 0;
 
   // sound stuff
   static sound_handler;
@@ -2127,6 +2129,7 @@ function setup() {
     game.first_time_playing = false;
   }
 
+
   // console.log("On mobile? " + mobileCheck());
   if (mobileCheck())
     game.PLAYFIELD_DIM = game.MOBILE_PLAYFIELD_DIM;
@@ -2198,12 +2201,15 @@ function windowResized()
   let new_scale = largest_dim / game.current_dim;
   game.global_mouse_handler.scale_regions(new_scale);
   scale_all_edges(new_scale);
+  game.current_dim = largest_dim;
 
   // TODO: Check if we actually have viz polys? ie, we are in game?
   // TODO: Only update screen if we are in game
-  update_all_light_viz_polys();
-  game.current_dim = largest_dim;
-  do_game();
+  if (game.current_gamemode !== undefined)
+  {
+    update_all_light_viz_polys();
+    do_game();
+  }
 }
 
 function initialize_colors() {
@@ -2327,7 +2333,7 @@ function do_main_menu()
     game.first_time_playing = false;  // only show tutorial once
     teardown_main_menu();
     game.current_gamemode = game.GAMEMODE_TUTORIAL;
-    game.game_state = states.NEW_GAME;
+    game.game_state = states.TUTORIAL_GAME_INTRO;
   }
 }
 
@@ -3140,6 +3146,8 @@ function draw() {
   case states.TEARDOWN_ABOUT:
     do_teardown_about_menu()
     break;
+  case states.TUTORIAL_GAME_INTRO:
+    do_tutorial_game_intro();
   }
 }
 
@@ -3913,11 +3921,12 @@ function random_level()
   new_random_level.initialize_grid();
 
   initializeGrid(new_random_level.grid);
+  game.current_level = new_random_level;
   // turn_lights_off();
   init_random_detectors(new_random_level, difficulty_to_detector_amount());
   make_some_floor_unbuildable(new_random_level.grid, difficulty_to_shrink_amount());
   shrink_lights();
-  game.current_level = new_random_level;
+
   // save current level
   game.current_level.save_level(game.lightsources, game.detectors);
   make_edges();
@@ -4121,6 +4130,25 @@ function reset_grid(lvl)
 }
 
 //////// TUTORIAL GAME MODE
+function do_tutorial_game_intro()
+{
+  game.tutorial_game_intro_timer += deltaTime / 1000;
+  textSize(game.gridSize);
+  fill(37);
+  rect(0, 0, width, height);
+  fill(255);
+  text("First time?\n Here's a quick tutorial!\n", game.gridSize, height / 2);
+  if (game.tutorial_game_intro_timer > 4.5)
+  {
+    fill(map(game.tutorial_game_intro_timer, 4.5, 5.0, 37, 255));
+    rect(0, 0, width, height);
+  }
+  if (game.tutorial_game_intro_timer > 5)
+  {
+    game.game_state = states.NEW_GAME;
+  }
+}
+
 function setup_tutorial_game()
 {
   game.ghandler = new gameplay_handler();
@@ -4199,7 +4227,7 @@ function tutorial_game_ui()
       text("click light to turn on", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
       break;
     case 1:
-      text("mix lights", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
+      text("mix light colors", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
       break;
     case 2:
       text("click grid to build wall", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
