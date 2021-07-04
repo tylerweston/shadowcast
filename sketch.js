@@ -122,6 +122,8 @@ Editor stuff (Maybe eventually):
 const MAJOR_VERSION = 0;
 const MINOR_VERSION = 9;
 
+const USE_DEBUG_KEYS = false;
+
 // font
 let spectro_font;
 let font_size;
@@ -374,6 +376,11 @@ class game
 
   // sound stuff
   static sound_handler;
+
+  static number_of_floor_types = 14;
+
+  // visual options
+  static animated_background = true;
 }
 
 // List of tile types
@@ -644,19 +651,93 @@ class level
     this.xsize = 0;
     this.ysize = 0;
     this.grid = [];
-    //this.grid_buttons = [];
+
+    this.odd_grid = [];
   }
 
   initialize_grid()
   {
     // initialize an array of grid here
     this.grid = [];
+    this.odd_grid = [];
     for (var x = 0; x < this.xsize; ++x)
     {
       this.grid[x] = [];
+      this.odd_grid[x] = [];
       for (var y = 0; y < this.ysize; ++y)
       {
         this.grid[x][y] = new grid_obj();
+        this.odd_grid[x][y] = false;
+      }
+    }
+    this.make_floor_pattern();
+  }
+
+  make_floor_pattern()
+  {
+    // make a random floor pattern
+    let floor_type = Math.floor(Math.random() * game.number_of_floor_types);
+    let random_floor_modifier = Math.floor(Math.random() * 4) + 2; 
+    let half_grid_width = game.gridWidth / 2;
+    for (var x = 0; x < this.xsize; ++x)
+    {
+      for (var y = 0; y < this.ysize; ++y)
+      {
+        let odd;
+        switch (floor_type)
+        {
+          case 0:
+            odd = ((x + y) % random_floor_modifier === 0);
+            break;
+          case 1:
+            odd = x % random_floor_modifier === 0;
+            break;
+          case 2:
+            odd = y % random_floor_modifier === 0;
+            break;
+          case 3:
+            odd = ((x + y) % 3 === 0);
+            break;
+          case 4:
+            odd = sin(x + y) > 0
+            break;
+          case 5:
+            odd = (x % 2 === 0) || (y % 2 === 0);
+            break;
+          case 6:
+            odd = cos(y * x) > 0;
+            break;
+          case 7:
+            odd = sin(x + random_floor_modifier) + cos(y + random_floor_modifier) > 0;
+            break;
+          case 8:
+            odd = ((x + y) / 2) < game.gridWidth / 2;
+            break;
+          case 9:
+            odd = ((x + y) % random_floor_modifier === 0);
+            break;
+          case 10:
+            odd = ((x % 2 === 0) && (x <= y)) || ((y % 2 === 0) && (y <= x)) ;
+            break;
+          case 11:
+            odd = ((x % random_floor_modifier === 0) && ((x < half_grid_width && x <= y) || ( x > half_grid_width && x >= y))) 
+            || ((y % random_floor_modifier === 0) && ((y < half_grid_width && y <= x) || (y > half_grid_width && y >= x)));
+            break;
+          case 12:
+            let x_dist = half_grid_width - x;
+            let y_dist = half_grid_width - y;
+            let x_sqr = x_dist * x_dist;
+            let y_sqr = y_dist * y_dist;
+            let calculated_radius = Math.sqrt(x_sqr + y_sqr);
+            odd = (calculated_radius < (half_grid_width / random_floor_modifier) * 2) && 
+            !(calculated_radius < (half_grid_width / random_floor_modifier)) ||
+              calculated_radius > half_grid_width;
+            break;
+          case 13:
+            odd = (x + (y / random_floor_modifier)) % 2 === 0;
+            break;
+        }
+        this.odd_grid[x][y] = odd;
       }
     }
   }
@@ -1297,7 +1378,7 @@ class detector
     // flash juice
     this.flashing = false;
     this.flash_radius = 0;
-    this.flash_inc = random() + 2.5;
+    this.flash_inc = random() + 1.5;
     this.flash_radius_max = game.FLASH_SIZE + random(game.gridSize);
   }
 
@@ -1528,6 +1609,11 @@ class light_source
     this.anim_cycle = random(TWO_PI);
     this.moved = false;
 
+    this.animate_light_on = false;
+    this.animate_light_on_timer = 0;
+    this.animate_light_off = false;
+    this.animate_light_off_timer = 0;
+
     this.dragged = false;
     this.viz_polygon = [];
 
@@ -1618,6 +1704,7 @@ class light_source
     this.add_switch_to_undo_stack();
     this.active = !this.active;
     if (this.active)
+    {
       particle_system.particle_explosion(
         this.x * game.gridSize + game.GRID_HALF, 
         this.y * game.gridSize + game.GRID_HALF, 
@@ -1625,17 +1712,23 @@ class light_source
         color(this.r, this.g, this.b), 
         300, 
         100,
-        4
+        3
         );
+    }
+
     if (this.active)
     {
       // we were inactive, now we're active
       game.sound_handler.play_sound("light_on");
+      this.animate_light_on = true;
+      this.animate_light_on_timer = 0;
     } 
     else
     {
       // we were active, now we're inactive
       game.sound_handler.play_sound("light_off");
+      this.animate_light_off = true;
+      this.animate_light_off_timer = 1;
     }
   }
 
@@ -1688,17 +1781,50 @@ class light_source
     if (this.anim_cycle >= TWO_PI)
       this.anim_cycle = 0;
     this.anim_cycle += deltaTime / 500;
-    if (this.active)
+    if (this.active || this.animate_light_off)
     {
       blendMode(ADD);
       noStroke();
-      fill(this.dark_light);
+
       let animsin = sin(this.anim_cycle) * 4;
       let animcos = cos(this.anim_cycle) * 4;
-      ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * 3 + animsin , game.gridSize * 3 + animsin);
+
+      let large_circle_size = game.gridSize * 3 + animsin;
+      let small_circle_size = game.gridSize * 2 + animcos;
+
+      if (this.animate_light_on)
+      {
+        large_circle_size *= this.animate_light_on_timer;
+        small_circle_size *= this.animate_light_on_timer;
+        this.animate_light_on_timer += (deltaTime / 125);
+        this.dark_light.setAlpha(80 * this.animate_light_on_timer);
+        this.med_light.setAlpha(110 * this.animate_light_on_timer);
+        if (this.animate_light_on_timer >= 1)
+        {
+          this.animate_light_on_timer = 0;
+          this.animate_light_on = false;
+        }
+      }
+      
+      if (this.animate_light_off)
+      {
+        large_circle_size *= this.animate_light_off_timer;
+        small_circle_size *= this.animate_light_off_timer;
+        this.animate_light_off_timer -= (deltaTime / 125);
+        this.dark_light.setAlpha(80 * this.animate_light_off_timer);
+        this.med_light.setAlpha(110 * this.animate_light_off_timer);
+        if (this.animate_light_off_timer <= 0)
+        {
+          this.animate_light_off_timer = 0;
+          this.animate_light_off = false;
+        }
+      }
+
+      fill(this.dark_light);
+      ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, large_circle_size , large_circle_size);
   
       fill(this.med_light);
-      ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * 2 + animcos, game.gridSize * 2 + animcos);
+      ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, small_circle_size, small_circle_size);
       blendMode(BLEND);
     }
   
@@ -2660,6 +2786,9 @@ function keyPressed() {
     }
   }
 
+  if (!USE_DEBUG_KEYS)
+    return;
+
   // TODO: Remove these key codes 
   if (keyCode === LEFT_ARROW) {
     game.difficulty_level--;
@@ -2939,6 +3068,7 @@ function do_level_transition_out()
   rect(0 , 0, game.gameWidth, game.gameHeight * game.global_fade);
   fill(48, 48, 48, game.global_fade * 255);
   rect(0, 0, game.gameWidth, game.gameHeight);
+
   if (game.global_fade >= 1)
   {
     // this is what is going to change around depending on what
@@ -3201,24 +3331,33 @@ function draw_glass()
 function draw_walls_and_floors()
 {
   let lvl = game.current_level;
+
   strokeWeight(1);
-  for (x = 0 ; x < lvl.xsize; ++x)
+
+  for (let x = 0 ; x < lvl.xsize; ++x)
   {
-    for (y = 0; y < lvl.ysize; ++y)
+
+    for (let y = 0; y < lvl.ysize; ++y)
     {
-      let odd = ((x + y) % 2 === 0);
-      let p = (lvl.grid[x][y].permenant); // This should be programmed into the level
+
+      let odd = lvl.odd_grid[x][y];
+      let permenant = lvl.grid[x][y].permenant; // This should be programmed into the level
 
       if (!lvl.grid[x][y].exist)  // EMPTY SPACES
       {
 
         if (lvl.grid[x][y].grid_type == tiles.FLOOR_EMPTY)
         {
-          // stroke(25, 25, 25);
-          // fill(13, 13, 13);
           noStroke();
-          //stroke(palette.empty_outline);
-          fill(palette.empty_fill);
+          if (game.animated_background)
+          {
+            let black_shift = sin(millis() / 300 + (x + y)) * 4;
+            fill(10 + black_shift);
+          }
+          else
+          {
+            fill(palette.empty_fill);
+          }
           square(x * game.gridSize, y * game.gridSize, game.gridSize);
         }
 
@@ -3226,11 +3365,12 @@ function draw_walls_and_floors()
         {
           if (lvl.grid[x][y].fade > 0)
             lvl.grid[x][y].fade -= deltaTime / 250;
+
           stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
           // lerp between the empty fill color and the color of whatever
           // solid thing will be there
           fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
-                          p ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
+                          permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
                           lvl.grid[x][y].fade));
 
           square(x * game.gridSize, y * game.gridSize, game.gridSize);
@@ -3241,13 +3381,15 @@ function draw_walls_and_floors()
       {
         if (lvl.grid[x][y].fade < 1)
           lvl.grid[x][y].fade += deltaTime / 250;
-        if (p)
+
+        if (lvl.grid[x][y].permenant)
           noStroke();
         else
           stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
-        // exact same thing as above!
+        
+          // exact same thing as above!
         fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
-                        p ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
+                        permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
                         lvl.grid[x][y].fade));
         square(x * game.gridSize , y * game.gridSize, game.gridSize);
       }
@@ -3256,7 +3398,7 @@ function draw_walls_and_floors()
       {
         strokeWeight(2);
         stroke(170, 170, 170);
-        if (lvl.grid[x][y].permenant)
+        if (permenant)
         {
           noStroke();
           fill(170, 170, 170, 40);
@@ -3271,6 +3413,7 @@ function draw_walls_and_floors()
         // }
 
       }
+
     }
   }
 }
