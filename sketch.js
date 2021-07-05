@@ -7,14 +7,13 @@ r, g, b: switch corresponding light (This currently doesn't work during tutorial
 space: go to next level (if available)
 
 Important:
-- Make tutorial nicer
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
-- Sound juice
+- Sound juice. Finish this and add options.
 - option screen
   - make button class? or checkbox class?
   - sound options in options menu
 - Detect if the user is on mobile and make the grid smaller so it
-  is easier to choose/move lights, etc.
+  is easier to choose/move lights, etc. ??
     - This now requires a few more fixes! Work on this, ie.
       mobile mode vs PC mode
 
@@ -26,13 +25,6 @@ Visual fixes:
   or something like that? Maybe with the sound it will be OK. The 
   current particles don't look great, maybe they just need to be tweake
   a bit?)  
-- change flooring from automatically tiled to user adjustable?
-  - keep SOME random floor options, but fluff them up! IE, sometime 
-  the floor can be a swirl or some lines or something like that? Write
-  some different tiling algorithms that we can use! Then, when drawing
-  the tiles instead of using ODD use a switch based on if they are floor 1
-  or floor 2 type tiles? 
-- some animation in the background or something like that?
 - Font size may be strange on different size devices? Yes, this needs
   to scale based on the size of the device. ALSO, we may want to make
   the squares a bit larger since playing on a cellphone is awkward!
@@ -43,7 +35,7 @@ Bugs:
   particle will spawn or a menu option will be selected even when the menu
   screen isn't open
 - don't allow holes to spawn on lights?
-- undo is a bit broken still
+- undo is a bit broken still?
 - something broken with just setting is_dragging false to eat mouse input
   between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
@@ -55,14 +47,9 @@ Bugs:
 - Reposition OK button in About menu
 
 QOL improvements:
-- is there a problem with framerate now? Game seems to be a bit slower than
-  before?
 - make it so all text is aligned the same way (ie, all using baseline or
   something so there isn't switching back and forth)
-- detect size of parent div and base the game on that so on different
-  screens, devices, etc, it will work the same way?!
-  - we'd base grid size 
-- Make sure all detectors aren't the same color!
+- Make sure all detectors aren't the same color?
 - fix webpage
 - timer game should be a bit easier to play
   ONLY draw the walls that the light makes visible?
@@ -178,6 +165,7 @@ class states
   // a user tries to play the game.
   static TUTORIAL_GAME = 23;
   static TUTORIAL_GAME_INTRO = 24;
+  static TUTORIAL_GAME_OUTRO = 25;
 
   // to do: maybe setup all gui elements in one function
   // at start so we don't need to store if they have been
@@ -191,13 +179,13 @@ class states
 class menus
 {
 // menu options
-  static top_menu_choices = ["undo", "redo", "reset grid", "save", "load", "main menu", "reset game", "tutorial"];
+  static top_menu_choices = ["undo", "redo", "reset grid", "save", /*"load",*/ "main menu", "reset game", "tutorial"];
   static top_menu_callbacks = [
     () => undo.undo_last_move(),
     () => undo.redo_last_move(),
     () => top_menu_reset_stuff(), 
     () => top_menu_save_level(), 
-    () => top_menu_load(), 
+    /* () => top_menu_load(), */ 
     () => top_menu_main_menu(), 
     () => top_menu_reset_game(), 
     () => top_menu_tutorial(), 
@@ -2255,7 +2243,6 @@ function setup() {
     game.first_time_playing = false;
   }
 
-
   // console.log("On mobile? " + mobileCheck());
   if (mobileCheck())
     game.PLAYFIELD_DIM = game.MOBILE_PLAYFIELD_DIM;
@@ -3278,6 +3265,10 @@ function draw() {
     break;
   case states.TUTORIAL_GAME_INTRO:
     do_tutorial_game_intro();
+    break;
+  case states.TUTORIAL_GAME_OUTRO:
+    do_tutorial_game_outro();
+    break;
   }
 }
 
@@ -3351,7 +3342,7 @@ function draw_walls_and_floors()
           noStroke();
           if (game.animated_background)
           {
-            let black_shift = sin(millis() / 300 + (x + y)) * 4;
+            let black_shift = sin(millis() / 850 + (x + y)) * 4;
             fill(10 + black_shift);
           }
           else
@@ -4086,18 +4077,18 @@ function random_level()
   game.points_for_current_grid = count_score();
 }
 
-function init_light_sources()
+function init_light_sources(start_active = false)
 {
   // init lights
   //game.lightsources = []
   game.lightsources.splice(0, game.lightsources.length);
 
   // RGB lights
-  let source = new light_source(game.gridWidth - 5, game.gridHeight - 5, false, 255, 0, 0);
+  let source = new light_source(game.gridWidth - 5, game.gridHeight - 5, start_active, 255, 0, 0);
   game.lightsources.push(source);
-  source = new light_source(game.gridHeight - 5, 5, false, 0, 255, 0);
+  source = new light_source(game.gridHeight - 5, 5, start_active, 0, 255, 0);
   game.lightsources.push(source);
-  source = new light_source(5, game.gridWidth / 2, false, 0, 0, 255);
+  source = new light_source(5, game.gridWidth / 2, start_active, 0, 0, 255);
   game.lightsources.push(source);
 
   // CMY lights
@@ -4289,6 +4280,7 @@ function do_tutorial_game_intro()
   if (game.tutorial_game_intro_timer > 5)
   {
     game.game_state = states.NEW_GAME;
+    game.tutorial_game_intro_timer = 0;
   }
 }
 
@@ -4348,14 +4340,35 @@ function  make_tutorial_level()
       break;
     case 3:
       let center_grid2 = game.gridHeight / 2;
-      init_light_sources();
+      init_light_sources(true);
       make_detector(center_grid2, 3, 255, 255, 0);
       make_detector(center_grid2 - 3, game.gridHeight - 3, 0, 255, 255);
       make_detector(center_grid2 + 3, game.gridHeight - 3, 255, 0, 255);
+      game.ghandler.try_build_wall(center_grid2, center_grid2);
       break;
   }
   make_edges();
   update_all_light_viz_polys();
+}
+
+function do_tutorial_game_outro()
+{
+  game.tutorial_game_intro_timer += deltaTime / 1000;
+  textSize(game.gridSize);
+  fill(37);
+  rect(0, 0, width, height);
+  fill(255);
+  text("Click save on top menu\nto save progress.\nR,G,B keys switch lights\nSpace for next level\nCtrl-z undos last move\nHave fun!", game.gridSize, height / 2 - game.gridSize * 3);
+  if (game.tutorial_game_intro_timer > 7.5)
+  {
+    fill(map(game.tutorial_game_intro_timer, 7.5, 8.0, 37, 255));
+    rect(0, 0, width, height);
+  }
+  if (game.tutorial_game_intro_timer > 8)
+  {
+    game.game_state = states.MAIN_MENU_SETUP;
+    game.tutorial_game_intro_timer = 0;
+  }
 }
 
 function tutorial_game_ui()
@@ -4367,13 +4380,27 @@ function tutorial_game_ui()
   switch (game.current_tutorial_level)
   {
     case 0:
-      text("click light to turn on", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
-      break;
+      if (game.detectors[0].correct)
+      {
+        text("click next to continue", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
+      }
+      else
+      {
+        text("click light to turn on", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
+      }
+       break;
     case 1:
       text("mix light colors", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
       break;
     case 2:
-      text("click grid to build wall", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
+      if (game.detectors[0].correct && game.detectors[1].correct)
+      {
+        text("use less walls = more points", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
+      }
+      else
+      {
+        text("click grid to build wall", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
+      }
       break;
     case 3:
       text("drag lights to move", 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
@@ -4421,7 +4448,7 @@ function clear_detectors()
 function teardown_tutorial_game()
 {
   // disable gameplay handler and return to main menu
-  game.game_state = states.MAIN_MENU_SETUP;
+  game.game_state = states.TUTORIAL_GAME_OUTRO;
   game.global_mouse_handler.disable_region("game.ghandler"); // remove entirely at some point!
 }
 
