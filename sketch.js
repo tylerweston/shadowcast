@@ -18,7 +18,7 @@ Important:
       mobile mode vs PC mode
 
 Visual fixes:
-- line up font on the bottom better
+- line up all font on the bottom better, ie, intro spectro is a bit wonky
 - decrease the offset around checking for shadow edges?
 - Main menu should be better lined up... looks OK with new font
 - Better light turning on/off juice (maybe a solid color screen flash
@@ -59,8 +59,13 @@ QOL improvements:
 - screenshots of game
 
 Options:
- - Reset highscores
- - Delete autosave
+ - Reset all game data
+ - Disable animated background
+ - Enable sounds
+ - All animation?
+ - Game size? Or have that a different option?
+  - Like a "custom game" option?
+ - Save options and auto restore defaults
 
 Sounds required:
   - intro sounds  - no?
@@ -109,7 +114,7 @@ Editor stuff (Maybe eventually):
 const MAJOR_VERSION = 0;
 const MINOR_VERSION = 9;
 
-const USE_DEBUG_KEYS = false;
+const USE_DEBUG_KEYS = true;
 
 // font
 let spectro_font;
@@ -364,8 +369,7 @@ class game
 
   // sound stuff
   static sound_handler;
-
-  static number_of_floor_types = 14;
+  static sounds_enabled = false;
 
   // visual options
   static animated_background = true;
@@ -664,7 +668,10 @@ class level
   make_floor_pattern()
   {
     // make a random floor pattern
-    let floor_type = Math.floor(Math.random() * game.number_of_floor_types);
+    let number_of_floor_types = 16;
+    let floor_type = Math.floor(Math.random() * number_of_floor_types);
+    // floor_type = 15;
+    // console.log(`Floor type: ${floor_type}`);
     let random_floor_modifier = Math.floor(Math.random() * 4) + 2; 
     let half_grid_width = game.gridWidth / 2;
     for (var x = 0; x < this.xsize; ++x)
@@ -723,6 +730,12 @@ class level
             break;
           case 13:
             odd = (x + (y / random_floor_modifier)) % 2 === 0;
+            break;
+          case 14:
+            odd = tan(x + y * random_floor_modifier) > 0;
+            break;
+          case 15:
+            odd = sin(x - half_grid_width) + tan(y + random_floor_modifier) > 0;
             break;
         }
         this.odd_grid[x][y] = odd;
@@ -1551,7 +1564,7 @@ class detector
       stroke(4);
     ellipse(grid_center_x, grid_center_y, game.gridSize * default_size, game.gridSize * default_size);
 
-    strokeWeight(5);
+    strokeWeight(game.GRID_QUARTER - 3);
     stroke(this.c);
     if (this.correct)
     {
@@ -2058,9 +2071,10 @@ class particle
 
     if (this.particle_type === 0)
     {
+      let p_size = map(this.life, 0, this.lifetime, 15, 1);
       fill(this.color);
       noStroke();
-      ellipse(this.x, this.y, 4, 4);
+      ellipse(this.x, this.y, p_size, p_size);
     }
     else if (this.particle_type === 1)
     {
@@ -2127,7 +2141,6 @@ class sound
   constructor()
   {
     this.use_drag_sounds = false;
-    this.sounds_enabled = false;
     this.sounds = {};
     this.drag_sound = undefined;
     this.need_init_audio_context = true;
@@ -2138,7 +2151,7 @@ class sound
     // make sure we have a valid audio context before we allow a sound
     // to play!
     // return (getAudioContext().state === 'running');
-    if (!this.sounds_enabled)
+    if (!game.sounds_enabled)
       return false;
     return !this.need_init_audio_context;
   }
@@ -2399,6 +2412,16 @@ function do_setup_main_menu()
 
 function do_main_menu()
 {
+    // IF the user hasn't played before, let's show a pop-up box
+  // suggesting they play the tutorial
+  if (game.first_time_playing)
+  {
+    game.first_time_playing = false;  // only show tutorial once
+    teardown_main_menu();
+    game.current_gamemode = game.GAMEMODE_TUTORIAL;
+    game.game_state = states.TUTORIAL_GAME_INTRO;
+  }
+  
   game.current_gamemode = undefined;
   fill(37);
   rect(0, 0, width, height);
@@ -2437,16 +2460,6 @@ function do_main_menu()
 
     text(m, (game.gridWidth - 17) * game.gridSize, (i + 2) * game.gridSize * 2);
     ++i;
-  }
-
-  // IF the user hasn't played before, let's show a pop-up box
-  // suggesting they play the tutorial
-  if (game.first_time_playing)
-  {
-    game.first_time_playing = false;  // only show tutorial once
-    teardown_main_menu();
-    game.current_gamemode = game.GAMEMODE_TUTORIAL;
-    game.game_state = states.TUTORIAL_GAME_INTRO;
   }
 }
 
@@ -2746,6 +2759,11 @@ function keyPressed() {
   // editor keys and stuff will be handled here as well??
   if (mouseIsPressed)
     return; // for now this should be an easy fix around this!
+
+  // don't handle key presses in tutorial game
+  if (game.current_gamemode === game.GAMEMODE_TUTORIAL)
+    return;
+
   if (key === 'r')
   {
     // need to check if we already have an active undo frame?!
@@ -2798,9 +2816,7 @@ function keyPressed() {
   }
 }
 
-//////// MOUSE HANDLING
-
-//////// MAP
+//////// GRID
 function initializeGrid(which_grid)
 {
   // initialize grid
@@ -2858,7 +2874,6 @@ function set_grid(which_grid, x, y, type)
       which_grid[x][y].permenant = true;
       which_grid[x][y].unpassable = true;
       break;
-
   }
 }
 
@@ -3029,7 +3044,6 @@ function do_intro()
     {
       textSize(font_size * 4);
       text("spectro", 0, 0, width, height);
-
     }
   }
   else
@@ -3365,6 +3379,7 @@ function draw_walls_and_floors()
                           lvl.grid[x][y].fade));
 
           square(x * game.gridSize, y * game.gridSize, game.gridSize);
+
         }
       }
 
@@ -3382,7 +3397,12 @@ function draw_walls_and_floors()
         fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
                         permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
                         lvl.grid[x][y].fade));
-        square(x * game.gridSize , y * game.gridSize, game.gridSize);
+        
+
+        if (lvl.grid[x][y].permenant)
+          square(x * game.gridSize , y * game.gridSize, game.gridSize);
+        else
+          rect(x * game.gridSize, y * game.gridSize, game.gridSize, lvl.grid[x][y].fade * game.gridSize);
       }
 
       if (lvl.grid[x][y].grid_type == tiles.GLASS_WALL_TOGGLABLE || lvl.grid[x][y] == tiles.GLASS_WALL)
