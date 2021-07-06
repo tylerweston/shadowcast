@@ -200,6 +200,10 @@ class menus
   static main_menu_options = ["new game", "continue", "timed game", "options", "about"];
   static main_menu_selected = undefined;
   static main_menu_height = menus.main_menu_options.length + 1;
+
+  static option_options = ["animations", "sounds", "reset data", "back"]
+  static option_menu_selected = undefined;
+  static option_menu_height = menus.option_options.length + 1;
 }
 
 class undo_actions
@@ -372,7 +376,8 @@ class game
   static sounds_enabled = false;
 
   // visual options
-  static animated_background = true;
+  // static animated_background = true;
+  static use_animations = true;
 }
 
 // List of tile types
@@ -1529,7 +1534,7 @@ class detector
     square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize);
 
     // draw flash juice
-    if (this.flashing)
+    if (this.flashing && game.use_animations)
     {
       this.flash_radius += (deltaTime / this.flash_inc);
       strokeWeight(game.GRID_QUARTER);
@@ -2091,7 +2096,8 @@ class particle_system
 
   static update_particles()
   {
-    //for (let p of particle_system.particles)
+    if (!game.use_animations)
+      return;
     for (let i = particle_system.particles.length - 1; i >= 0; i--)
     {
       particle_system.particles[i].update();
@@ -2104,6 +2110,8 @@ class particle_system
 
   static draw_particles()
   {
+    if (!game.use_animations)
+      return;
     for (let p of particle_system.particles)
     {
       p.draw();
@@ -2254,6 +2262,27 @@ function setup() {
   else
   {
     game.first_time_playing = false;
+  }
+
+  // check for saved options
+  if (getItem("use_animations") === null)
+  {
+    game.use_animations = true;
+    storeItem("use_animations", true);
+  }
+  else
+  {
+    game.use_animations = getItem("use_animations");
+  }
+
+  if (getItem("sounds_enabled") === null)
+  {
+    game.sounds_enabled = false;
+    storeItem("sounds_enabled", false);
+  }
+  else
+  {
+    game.sounds_enabled = getItem("sounds_enabled");
   }
 
   // console.log("On mobile? " + mobileCheck());
@@ -2412,7 +2441,7 @@ function do_setup_main_menu()
 
 function do_main_menu()
 {
-    // IF the user hasn't played before, let's show a pop-up box
+  // IF the user hasn't played before, let's show a pop-up box
   // suggesting they play the tutorial
   if (game.first_time_playing)
   {
@@ -2420,6 +2449,7 @@ function do_main_menu()
     teardown_main_menu();
     game.current_gamemode = game.GAMEMODE_TUTORIAL;
     game.game_state = states.TUTORIAL_GAME_INTRO;
+    return;
   }
   
   game.current_gamemode = undefined;
@@ -2451,11 +2481,7 @@ function do_main_menu()
     else
       fill(157);
 
-    // disable option hack
-    if (i === 3)
-      fill(57);
-
-    if (i === 2 && !game.have_saved_game)
+    if (i === 1 && !game.have_saved_game)
       fill(57);
 
     text(m, (game.gridWidth - 17) * game.gridSize, (i + 2) * game.gridSize * 2);
@@ -2601,18 +2627,132 @@ function do_setup_options()
 {
   if (states.need_setup_options)
   {
+        // it will be a region that will contain sub-regions for each menu option?
+        let i = 0;
+        for (let m of menus.option_options)
+        {
+          let reg = new mouse_region(0, (i + 1) * game.gridSize * 2, game.gridSize * game.gridWidth, (i + 2) * game.gridSize * 2);
+          reg.events[mouse_events.CLICK] = () => {
+            game.sound_handler.play_sound("menu_click");
+            handle_option_menu_selection(int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1);
+          }
+          reg.events[mouse_events.ENTER_REGION] = () => {
+            menus.option_menu_selected = int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1;
+            game.sound_handler.play_sound("menu_hover");
+          };
+          // reg.events[mouse_events.EXIT_REGION] = () => {menus.main_menu_selected = undefined; };
+          game.global_mouse_handler.register_region(m + "option_menu", reg);
+          ++i;
+        }
     states.need_setup_options = false;
+  }
+  else
+  {
+    for (let m of menus.option_options)
+    {
+      game.global_mouse_handler.enable_region(m + "option_menu");
+    }
   }
   game.game_state = states.OPTIONS;
 }
 
+function handle_option_menu_selection(option_index)
+{
+  switch (option_index)
+  {
+    // game.use_animations
+    // game.sounds_enabled
+    case 0:
+      game.use_animations = !game.use_animations;
+      storeItem("use_animations", game.use_animations);
+      break;
+    case 1:
+      game.sounds_enabled = !game.sounds_enabled;
+      storeItem("sounds_enabled", game.sounds_enabled);
+      break;
+    case 2:
+      // TODO: ARE YOU SURE?!
+      remove_saved_data();
+      break;
+    case 3:
+      game.game_state = states.TEARDOWN_OPTIONS;
+      break;
+  }
+}
+
 function do_options_menu()
 {
-  game.game_state = states.TEARDOWN_OPTIONS;
+  fill(37);
+  rect(0, 0, width, height);
+
+  // display menu options
+  textSize(font_size * 2);
+  var i = 0;
+  stroke(0);
+  strokeWeight(2);
+
+  blendMode(ADD);
+  fill(255, 0, 0);
+  text("options", (game.gridWidth - 17) * game.gridSize, game.gridSize * 2 - 5);
+  fill(0, 255, 0);
+  text("options", (game.gridWidth - 17) * game.gridSize, game.gridSize * 2);
+  fill(0, 0, 255);
+  text("options", (game.gridWidth - 17) * game.gridSize, game.gridSize * 2 + 5);
+  blendMode(BLEND);
+
+  if ((mouseY <= game.gridSize * 2) || (mouseY >= game.gridSize * 2 * (menus.option_menu_height)))
+    menus.option_menu_selected = undefined;
+
+  for (let m of menus.option_options)
+  {
+    if (i === 0)
+    {
+      if (game.use_animations)
+      {
+        fill(0 , 155, 0);
+        text("Y", 0, (i + 2) * game.gridSize * 2);
+      }
+      else
+      {
+        fill(155, 0, 0);
+        text("N", 0, (i + 2) * game.gridSize * 2);  
+      }
+    }
+
+    if (i === 1)
+    {
+      if (game.sounds_enabled)
+      {
+        fill(0, 155, 0);
+        text("Y", 0, (i + 2) * game.gridSize * 2);
+      }
+      else
+      {
+        fill(155, 0, 0);
+        text("N", 0, (i + 2) * game.gridSize * 2);
+      }
+    }
+
+    if (menus.option_menu_selected === i)
+      fill(253);
+    else
+      fill(157);
+
+
+
+    text(m, (game.gridWidth - 17) * game.gridSize, (i + 2) * game.gridSize * 2);
+    ++i;
+  }
+  //game.game_state = states.TEARDOWN_OPTIONS;
 }
 
 function do_teardown_options()
 {
+  for (let m of menus.option_options)
+  {
+    game.global_mouse_handler.disable_region(m + "option_menu");
+  }
+
   game.game_state = states.MAIN_MENU_SETUP;
 }
 
@@ -2628,6 +2768,14 @@ function top_menu_main_menu()
 {
   // Exit to main menu, check here if we need to load or save
   // anything, etc.
+  if (game.current_gamemode === game.GAMEMODE_TIME)
+  {
+    tear_down_time_game();
+  }
+  if (game.current_gamemode === game.GAMEMODE_RANDOM)
+  {
+    tear_down_random_game();
+  }
   game.game_state = states.MAIN_MENU_SETUP;
 } 
 
@@ -3354,7 +3502,7 @@ function draw_walls_and_floors()
         if (lvl.grid[x][y].grid_type == tiles.FLOOR_EMPTY)
         {
           noStroke();
-          if (game.animated_background)
+          if (game.use_animations)
           {
             let black_shift = sin(millis() / 850 + (x + y)) * 4;
             fill(10 + black_shift);
@@ -3825,11 +3973,12 @@ function time_level()
   new_random_level.initialize_grid();
 
   initializeGrid(new_random_level.grid);
+  game.current_level = new_random_level;
   // turn_lights_off();
   init_random_detectors(new_random_level, difficulty_to_detector_amount());
   make_some_floor_unbuildable(new_random_level.grid, difficulty_to_shrink_amount());
   shrink_lights();
-  game.current_level = new_random_level;
+
   // save current level
   make_edges();
   update_all_light_viz_polys();
@@ -3838,6 +3987,8 @@ function time_level()
 
 function tear_down_time_game()
 {
+  // TODO: Clean up any other variables that are used here,
+  // reset timers, etc.
   game.global_mouse_handler.disable_region("game.ghandler"); // remove entirely at some point!
 }
 
@@ -4016,7 +4167,12 @@ function setup_random_game()
 
 function tear_down_random_game()
 {
-  game.global_mouse_handler.disable("game.ghandler"); // remove entirely at some point!
+  // TODO: Clean up any other variables that are used here,
+  // reset timers, etc.
+  game.highest_score_changed = 0
+  game.highest_score_display_timer = 0;
+  game.new_total_fade = 0;
+  game.global_mouse_handler.disable_region("game.ghandler"); // remove entirely at some point!
 }
 
 function random_game_ui()
@@ -4743,11 +4899,22 @@ function update_all_light_viz_polys()
 }
 
 //////// OTHER
+function remove_saved_data()
+{
+  // This will erase all game data including saves, high scores, etc.
+  // use with care
+
+  clearStorage();
+}
+
 function two_option_dialog(dialog_text, option1_text, option2_text)
 {
   // display an option in the middle of the screen and give
   // two options, return either a 0 for option 1 if clicked
   // or a 1 for option 2 if clicked
+  // TODO: We can't really "return" something here since we don't
+  // know where we're returning to, store the result in some variable 
+  // somewhere instead!
   noStroke();
   fill (0, 70);
   rect(game.gridSize * 2 + game.GRID_HALF, game.gridSize * 2 + game.GRID_HALF, width - game.gridSize * 4, height - game.gridSize * 4);
