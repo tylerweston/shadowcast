@@ -111,10 +111,10 @@ Editor stuff (Maybe eventually):
 // global variables
 
 // game version things
-const MAJOR_VERSION = 0;
-const MINOR_VERSION = 9;
+const MAJOR_VERSION = 1;
+const MINOR_VERSION = 0;
 
-const USE_DEBUG_KEYS = true;
+const USE_DEBUG_KEYS = false;
 
 // font
 let spectro_font;
