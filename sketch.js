@@ -1863,6 +1863,11 @@ class light_source
     }
     ellipse(this.x * game.gridSize + (game.gridSize / 2), this.y * game.gridSize + (game.gridSize / 2), game.gridSize * 0.85, game.gridSize * 0.85);
   }
+
+  end_light_mouse_handler()
+  {
+    game.global_mouse_handler.disable_region(this.name);
+  }
 }
 
 class edge
@@ -4613,6 +4618,7 @@ function make_light(x, y, r, g, b)
 
 function clear_lights()
 {
+  game.lightsources.forEach(l => l.end_light_mouse_handler());
   game.lightsources = [];
 }
 
@@ -4624,6 +4630,8 @@ function clear_detectors()
 function teardown_tutorial_game()
 {
   // disable gameplay handler and return to main menu
+  clear_lights();
+  clear_detectors();
   game.game_state = states.TUTORIAL_GAME_OUTRO;
   game.global_mouse_handler.disable_region("game.ghandler"); // remove entirely at some point!
 }
