@@ -1,3 +1,5 @@
+"use strict";
+
 /*
 spectro
 tyler weston, 2021
@@ -16,6 +18,8 @@ Important:
   is easier to choose/move lights, etc. ??
     - This now requires a few more fixes! Work on this, ie.
       mobile mode vs PC mode
+    - Maybe it just needs to be a better way to choose the lights, ie.
+      if on mobile and a click is really close to a light, auto choose it?
 
 Visual fixes:
 - line up all font on the bottom better, ie, intro spectro is a bit wonky
@@ -45,6 +49,8 @@ Bugs:
 - When we "shrink" lights onto the board, they may get placed on top of a
   detector, which makes them unmovable! make sure this doesn't happen!
 - Reposition OK button in About menu
+- Make sure all particles are cleared at the start of the game, sometimes
+  there are leftover particles
 
 QOL improvements:
 - make it so all text is aligned the same way (ie, all using baseline or
@@ -56,13 +62,12 @@ QOL improvements:
 - The "easy" way to do this DOESN'T look good, either figure
   out a different way to do this or keep it the same for now
 - difficulty balance in progression - timer game is too hard?
-- screenshots of game
 
 Options:
  - Reset all game data
  - Disable animated background
  - Enable sounds
- - All animation?
+ - All animation?rgb
  - Game size? Or have that a different option?
   - Like a "custom game" option?
  - Save options and auto restore defaults
@@ -233,7 +238,7 @@ class undo
       return;
     // Iterate over the undo frame in reverse since it is a stack we push
     // moves to, so we want to undo the last added moves first
-    for (var i = undo_frame.length - 1; i >= 0; i--) {
+    for (let i = undo_frame.length - 1; i >= 0; i--) {
       undo_frame[i].undo_move();
     }
     undo.redo_stack.push(undo_frame);
@@ -657,11 +662,11 @@ class level
     // initialize an array of grid here
     this.grid = [];
     this.odd_grid = [];
-    for (var x = 0; x < this.xsize; ++x)
+    for (let x = 0; x < this.xsize; ++x)
     {
       this.grid[x] = [];
       this.odd_grid[x] = [];
-      for (var y = 0; y < this.ysize; ++y)
+      for (let y = 0; y < this.ysize; ++y)
       {
         this.grid[x][y] = new grid_obj();
         this.odd_grid[x][y] = false;
@@ -679,9 +684,9 @@ class level
     // console.log(`Floor type: ${floor_type}`);
     let random_floor_modifier = Math.floor(Math.random() * 4) + 2; 
     let half_grid_width = game.gridWidth / 2;
-    for (var x = 0; x < this.xsize; ++x)
+    for (let x = 0; x < this.xsize; ++x)
     {
-      for (var y = 0; y < this.ysize; ++y)
+      for (let y = 0; y < this.ysize; ++y)
       {
         let odd;
         switch (floor_type)
@@ -799,9 +804,9 @@ class level
     level_string += new_score_string;
 
     let cur_char = "";
-    for (var x = 0; x < this.xsize; ++x)
+    for (let x = 0; x < this.xsize; ++x)
     {
-      for (var y = 0; y < this.ysize; ++y)
+      for (let y = 0; y < this.ysize; ++y)
       {
         switch (this.grid[x][y].grid_type)
         {
@@ -1773,7 +1778,7 @@ class light_source
       // {
       beginShape();
       vertex(cx, cy);
-      for (i = 0; i < this.viz_polygon.length; ++ i)
+      for (let i = 0; i < this.viz_polygon.length; ++ i)
         vertex(this.viz_polygon[i].x, this.viz_polygon[i].y);
       vertex(this.viz_polygon[0].x, this.viz_polygon[0].y);
       endShape();
@@ -2877,7 +2882,7 @@ function close_menu()
 function make_menu()
 {
   // the top right menu button
-  menu_region = new mouse_region((game.gridWidth - 3) * game.gridSize, 0,
+  let menu_region = new mouse_region((game.gridWidth - 3) * game.gridSize, 0,
                                   game.gridWidth * game.gridSize, game.gridSize);
   menu_region.events[mouse_events.CLICK] = () => { launch_menu(); };
   menu_region.events[mouse_events.UNCLICK] = () => {top_menu_accept_input = true;};
@@ -2886,7 +2891,7 @@ function make_menu()
   game.global_mouse_handler.register_region("top_menu", menu_region);
   
   // initialize the menu handler and region stuff
-  open_menu_region = new mouse_region((game.gridWidth - 8) * game.gridSize, 0, game.gridWidth * game.gridSize, menus.top_menu_height * game.gridSize);
+  let open_menu_region = new mouse_region((game.gridWidth - 8) * game.gridSize, 0, game.gridWidth * game.gridSize, menus.top_menu_height * game.gridSize);
   open_menu_region.events[mouse_events.EXIT_REGION] = () => {close_menu();};
   open_menu_region.events[mouse_events.UNCLICK] = () => {top_menu_accept_input = true;};
   game.global_mouse_handler.register_region("opened_top_menu", open_menu_region);
@@ -2973,9 +2978,9 @@ function keyPressed() {
 function initializeGrid(which_grid)
 {
   // initialize grid
-  for (x = 0; x < game.gridWidth; ++x)
+  for (let x = 0; x < game.gridWidth; ++x)
   {
-    for (y = 0; y < game.gridHeight; ++y)
+    for (let y = 0; y < game.gridHeight; ++y)
     {
       set_grid(which_grid, x, y, tiles.FLOOR_BUILDABLE);
       if (x === 0 || x === game.gridWidth - 1 || y === 0 || y === game.gridHeight - 1)
@@ -3163,7 +3168,6 @@ function do_intro()
     game.intro_timer += deltaTime;
     textSize(font_size * 3);
     textAlign(CENTER, CENTER);
-    offs = 0;
     // if we can figure out a way to play an intro sound, do it here
   }
   else if (game.intro_timer < 3500)
@@ -3476,9 +3480,9 @@ function draw_glass()
   fill(255, 150);
   strokeWeight(4);
   stroke(90, 50);
-  for (x = 0 ; x < lvl.xsize; ++x)
+  for (let x = 0 ; x < lvl.xsize; ++x)
   {
-    for (y = 0; y < lvl.ysize; ++y)
+    for (let y = 0; y < lvl.ysize; ++y)
     {
       if (lvl.grid[x][y].grid_type == tiles.GLASS_WALL || lvl.grid[x][y].grid_type == tiles.GLASS_WALL_TOGGLABLE)
         square(x * game.gridSize, y * game.gridSize, game.gridSize);
@@ -3680,9 +3684,9 @@ function load_level(level_string)
     // reserved for edited single map game
   }
 
-  for (var x = 0; x < xsize; ++x)
+  for (let x = 0; x < xsize; ++x)
   {
-    for (var y = 0; y < ysize; ++y)
+    for (let y = 0; y < ysize; ++y)
     {
       let cur_ch = level_string.charAt(level_string_index++);
       set_grid(new_lvl.grid, x, y, parseInt(cur_ch));
@@ -3693,7 +3697,7 @@ function load_level(level_string)
   // next two char are number of light sources
   let n_lights = level_string.substring(level_string_index, level_string_index + 2);
   level_string_index += 2;
-  for (var light_i = 0; light_i < n_lights; ++light_i)
+  for (let light_i = 0; light_i < n_lights; ++light_i)
   {
     // read two chars x pos
     let lx = parseInt(level_string.substring(level_string_index, level_string_index + 2));
@@ -3713,7 +3717,7 @@ function load_level(level_string)
   let loaded_detectors = [];
   let n_d = level_string.substring(level_string_index, level_string_index + 2);
   level_string_index += 2;
-  for (var d_i = 0; d_i < n_d; ++d_i)
+  for (let d_i = 0; d_i < n_d; ++d_i)
   {
     // read two chars x pos
     let dx = parseInt(level_string.substring(level_string_index, level_string_index + 2));
@@ -4288,7 +4292,7 @@ function init_random_detectors(lvl, num_detectors)
   //game.detectors = []
   game.detectors.splice(0, game.detectors.length);
 
-  for (i = 0 ; i < num_detectors; ++ i)
+  for (let i = 0 ; i < num_detectors; ++ i)
   {
     let col_val = [0, 255];
     let r = random(col_val);
@@ -4324,9 +4328,9 @@ function init_random_detectors(lvl, num_detectors)
       }
       // Don't pop up next to detectors that are already on the
       // ground
-      for (xoff = - 1; xoff <= 1; ++xoff)
+      for (let xoff = - 1; xoff <= 1; ++xoff)
       {
-        for (yoff = -1; yoff <= 1; ++yoff)
+        for (let yoff = -1; yoff <= 1; ++yoff)
         {
           if (xoff === 0 && yoff === 0)
             continue;
@@ -4399,9 +4403,9 @@ function shrink_lights()
 function make_some_floor_unbuildable(which_grid, shrink_amount)
 {
   // bring in some floor from the outside
-  for (x = 1 ; x < game.gridWidth - 1; ++x)
+  for (let x = 1 ; x < game.gridWidth - 1; ++x)
   {
-    for (y = 1; y < game.gridHeight - 1; ++y)
+    for (let y = 1; y < game.gridHeight - 1; ++y)
     {
       if (x < shrink_amount || game.gridWidth - 1 < x + shrink_amount || y < shrink_amount || game.gridHeight - 1 < y + shrink_amount)
       {
@@ -4411,7 +4415,7 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
   }
   if (game.difficulty_level > 5)
   {
-    for (i = 0; i < game.difficulty_level - 3; ++i)
+    for (let i = 0; i < game.difficulty_level - 3; ++i)
     {
       // TODO: Make sure this doesn't happen on one of the lights?
       // or say it's a feature, not a bug
@@ -4431,9 +4435,9 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
 
 function reset_grid(lvl)
 {
-  for (x = 0 ; x < lvl.xsize; ++x)
+  for (let x = 0 ; x < lvl.xsize; ++x)
   {
-    for (y = 0; y < lvl.ysize; ++ y)
+    for (let y = 0; y < lvl.ysize; ++ y)
     {
       // TODO: Other stuff to reset?
       if (lvl.grid[x][y].grid_type == tiles.FLOOR_BUILT)
@@ -4658,18 +4662,18 @@ function make_edges()
   let grid = game.current_level.grid;
   game.edges = []; // should we do the splice thing here?
   // clear edges
-  for (x = 0; x < game.gridWidth; ++x)
+  for (let x = 0; x < game.gridWidth; ++x)
   {
-    for (y = 0; y < game.gridHeight; ++y)
+    for (let y = 0; y < game.gridHeight; ++y)
     {
       grid[x][y].edge_id = [0, 0, 0, 0];
       grid[x][y].edge_exist = [false, false, false, false];
     }
   }
 
-  for (x = 0; x < game.gridWidth; ++x)
+  for (let x = 0; x < game.gridWidth; ++x)
   {
-    for (y = 0; y < game.gridHeight; ++y)
+    for (let y = 0; y < game.gridHeight; ++y)
     {
       if(grid[x][y].exist)  // does cell exist
       {
@@ -4774,7 +4778,7 @@ function get_visible_polygon(xpos, ypos, radius)
   for (let e of game.edges)
   {
     // consider start and endpoint of edge
-    for (i = 0; i < 2; ++i)
+    for (let i = 0; i < 2; ++i)
     {
       let rdx = (i === 0 ? e.sx : e.ex) - xpos;
       let rdy = (i === 0 ? e.sy : e.ey) - ypos;
@@ -4782,7 +4786,7 @@ function get_visible_polygon(xpos, ypos, radius)
       let base_ang = atan2(rdy, rdx);
 
       let ang = 0;
-      for (j = 0; j < 3; ++j)
+      for (let j = 0; j < 3; ++j)
       {
         if (j === 0) ang = base_ang - 0.00001;
         if (j === 1) ang = base_ang;
