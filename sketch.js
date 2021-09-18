@@ -317,6 +317,7 @@ class game
   static edges = [];        // done // move to edges class
   static lightsources = []; //done
   static detectors = [];  // done
+  static jiggle = undefined;
 
   static gameHeight;  //done     
   static gameWidth;   //done
@@ -328,6 +329,7 @@ class game
   static gridHeight;  // done
 
   static FLASH_SIZE;  // done
+  static JIGGLE_CONSTRAINT = 1;
 
   static current_gamemode = undefined;  // done
   
@@ -1536,7 +1538,28 @@ class detector
 
     noStroke();
     fill(37);
-    square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize);
+    if (game.use_animations)
+    {
+      //square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize);
+      let top_left_offset = game.jiggle.jiggle_grid[this.x][this.y];
+      let top_right_offset = game.jiggle.jiggle_grid[this.x + 1][this.y];
+      let bottom_left_offset = game.jiggle.jiggle_grid[this.x][this.y + 1];
+      let bottom_right_offset = game.jiggle.jiggle_grid[this.x + 1][this.y + 1];
+      let top_left_point = [this.x * game.gridSize, this.y * game.gridSize];
+      let top_right_point = [(this.x + 1) * game.gridSize, this.y * game.gridSize];
+      let bottom_left_point = [this.x * game.gridSize, (this.y + 1) * game.gridSize];
+      let bottom_right_point = [(this.x + 1) * game.gridSize, (this.y + 1) * game.gridSize];
+      beginShape();
+      vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
+      vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
+      vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
+      vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
+      endShape(CLOSE);
+    }
+    else
+    {
+      square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize);
+    }
 
     // draw flash juice
     if (this.flashing && game.use_animations)
@@ -1567,7 +1590,7 @@ class detector
     this.anim_cycle += this.anim_speed;
     if (this.anim_cycle > TWO_PI)
       this.anim_cycle = 0;
-    strokeWeight(game.GRID_QUARTER);
+    strokeWeight(game.GRID_QUARTER + 1);
     if (this.r == 0 & this.g == 0 & this.b == 0)
       stroke(170);
     else
@@ -1632,13 +1655,13 @@ class light_source
     // This might not be the best way to do this but it could work for now?!
     // move this stuff to some color data structure
     this.c = color(r, g, b);
-    this.shadow_color = color(r, g, b, 65);
+    this.shadow_color = color(r, g, b, 100);
 
-    this.dark_light = color(r / 2.5, g / 2.5, b / 2.5, 80);
-    this.med_light = color(r / 2, g / 2, b / 2, 110);
+    this.dark_light = color(r / 4, g / 4, b / 4, 80);
+    this.med_light = color(r / 3, g / 3, b / 3, 110);
 
     this.selected_on_outside = color(max(120, r), max(120, g), max(120, b));
-    this.selected_on_inside = color(max(100, r - 50), max(100, g - 50), max(100, b - 50));
+    this.selected_on_inside = color(max(150, r - 50), max(150, g - 50), max(150, b - 50));
 
     this.selected_off_outside = color(max(80, r - 70), max(80, g - 70), max(80, b - 70));
     this.selected_off_inside = color(max(50, r - 110), max(50, g - 110), max(50, b - 110));
@@ -1719,11 +1742,12 @@ class light_source
       particle_system.particle_explosion(
         this.x * game.gridSize + game.GRID_HALF, 
         this.y * game.gridSize + game.GRID_HALF, 
-        30, 
+        35, 
         color(this.r, this.g, this.b), 
         300, 
-        100,
-        3
+        125,
+        3,
+        1
         );
     }
 
@@ -1838,6 +1862,11 @@ class light_source
       ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, small_circle_size, small_circle_size);
       blendMode(BLEND);
     }
+    strokeWeight(4);
+    fill(0);
+    stroke(0);
+    ellipse(this.x * game.gridSize + (game.gridSize / 2), this.y * game.gridSize + (game.gridSize / 2), game.gridSize * 0.85, game.gridSize * 0.85);
+
   
     strokeWeight(2);
     if (this.selected)
@@ -1883,6 +1912,11 @@ class edge
     this.sy = sy;
     this.ex = ex;
     this.ey = ey;
+
+    this.sx_grid = jiggle.get_index(sx); //int(sx / game.gridSize);
+    this.sy_grid = jiggle.get_index(sy); //int(sy / game.gridSize);
+    this.ex_grid = jiggle.get_index(ex); //int(ex / game.gridSize);
+    this.ey_grid = jiggle.get_index(ey); //int(ey / game.gridSize);
   }
 
   scale_edge(new_scale)
@@ -1907,6 +1941,67 @@ class grid_obj
     this.permenant = false;
     this.unpassable = false;
     this.grid_type = tiles.FLOOR_EMPTY;
+  }
+}
+
+class jiggle
+{
+  static jiggle_timer = 0;
+  // memoize grid divisions
+  static index_memo = {};
+  constructor(xsize, ysize)
+  {
+    this.xsize = xsize + 1;
+    this.ysize = ysize + 1;
+    this.jiggle_grid = [];
+    for (let x = 0; x < this.xsize; ++x)
+    {
+      this.jiggle_grid[x] = [];
+      let double_jiggle = game.JIGGLE_CONSTRAINT * 2;
+      for (let y = 0; y < this.ysize; ++y)
+      {
+        this.jiggle_grid[x][y] = [Math.random() * double_jiggle - game.JIGGLE_CONSTRAINT, 
+                                  Math.random() * double_jiggle - game.JIGGLE_CONSTRAINT];
+      }
+    }
+
+
+  }
+
+  // convert to jiggle_index
+  static get_index(num)
+  {
+    if (this.index_memo[num] === undefined)
+    {
+      this.index_memo[num] = int(num / game.gridSize);
+    }
+    return this.index_memo[num];
+  }
+
+  update_jiggles()
+  {
+    if (jiggle.jiggle_timer < 35)
+    {
+      jiggle.jiggle_timer += deltaTime;
+      return;
+    }
+    else
+    {
+      jiggle.jiggle_timer = 0;
+    }
+
+    for (let x = 0 ; x < this.xsize; ++x)
+    {
+      for (let y = 0; y < this.ysize; ++y)
+      {
+        let [jiggle_x, jiggle_y] = this.jiggle_grid[x][y];
+        jiggle_x += Math.random() * 2 - 1;
+        jiggle_y += Math.random() * 2 - 1;
+        jiggle_x = constrain(jiggle_x, -game.JIGGLE_CONSTRAINT, game.JIGGLE_CONSTRAINT);
+        jiggle_y = constrain(jiggle_y, -game.JIGGLE_CONSTRAINT, game.JIGGLE_CONSTRAINT);
+        this.jiggle_grid[x][y] = [jiggle_x, jiggle_y];
+      }
+    }
   }
 }
 
@@ -2086,7 +2181,7 @@ class particle
 
     if (this.particle_type === 0)
     {
-      let p_size = map(this.life, 0, this.lifetime, 15, 1);
+      let p_size = map(this.life, 0, this.lifetime, 20, 1);
       fill(this.color);
       noStroke();
       ellipse(this.x, this.y, p_size, p_size);
@@ -2094,7 +2189,8 @@ class particle
     else if (this.particle_type === 1)
     {
       stroke(this.color);
-      noFill();
+      strokeWeight(3);
+      // noFill();
       line(this.x, this.y, this.oldx, this.oldy);
     }
   }
@@ -2124,7 +2220,9 @@ class particle_system
       return;
     for (let p of particle_system.particles)
     {
+      blendMode(ADD);
       p.draw();
+      blendMode(BLEND);
     }
   }
 
@@ -2314,6 +2412,8 @@ function setup() {
   game.gridWidth = game.PLAYFIELD_DIM;
   game.gridHeight = game.PLAYFIELD_DIM;
 
+  game.jiggle = new jiggle(game.gridWidth, game.gameHeight);
+
   game.GRID_HALF = int(game.gridSize / 2);
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
   game.FLASH_SIZE = game.gridSize * 4;
@@ -2322,6 +2422,7 @@ function setup() {
 
   // setup is called once at the start of the game
   cnv = createCanvas(game.gameWidth, game.gameHeight);
+  frameRate(60);
   centerCanvas();
   initialize_colors();  // Can't happen until a canvas has been created!
   game.current_dim = largest_dim;
@@ -2378,19 +2479,19 @@ function windowResized()
 }
 
 function initialize_colors() {
-  palette.solid_wall_fill = color(160, 160, 170);
+  palette.solid_wall_fill = color(155, 155, 170);
   palette.solid_wall_permenant_fill = color(180, 180, 190);
   palette.solid_wall_outline = color(120, 120, 120);
 
-  palette.buildable_fill = color(33, 33, 33);
-  palette.buildable_2_fill = color(37, 37, 37);
+  palette.buildable_fill = color(33, 33, 43);
+  palette.buildable_2_fill = color(37, 37, 47);
   palette.buildable_outline = color(43, 43, 43);
 
   palette.empty_outline = color(25, 25, 25);
   palette.empty_fill = color(13, 13, 13);
 
-  palette.edge_color = color(80, 80, 80);
-  palette.edge_circle_color = color(70, 70, 70);
+  palette.edge_color = color(20, 20, 20);
+  palette.edge_circle_color = color(40, 40, 40);
 
   palette.font_color = color(35, 35, 35);
   palette.bright_font_color = color(157, 157, 157);
@@ -3088,15 +3189,17 @@ function do_game()
     }
   }
 
-  // draw particles underneath detectors
-  particle_system.update_particles();
-  particle_system.draw_particles();
+
 
   // these eventually will take current_level as well?
   draw_detectors(); 
   
   // these eventually will take current_level as well?
   draw_light_sources(); 
+
+  // draw particles underneath detectors
+  particle_system.update_particles();
+  particle_system.draw_particles();
 
   // Draw glass (Extra tiles to draw would happen here?)
   draw_glass();
@@ -3495,19 +3598,31 @@ function draw_walls_and_floors()
   let lvl = game.current_level;
 
   strokeWeight(1);
-
+  game.jiggle.update_jiggles();
   for (let x = 0 ; x < lvl.xsize; ++x)
   {
 
     for (let y = 0; y < lvl.ysize; ++y)
     {
 
+      // TODO: Refactor this, new class?
+      let top_left_offset = game.jiggle.jiggle_grid[x][y];
+      let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
+      let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
+      let bottom_right_offset = game.jiggle.jiggle_grid[x + 1][y + 1];
+
+      let top_left_point;
+      let top_right_point;
+      let bottom_left_point;
+      let bottom_right_point;
+
       let odd = lvl.odd_grid[x][y];
       let permenant = lvl.grid[x][y].permenant; // This should be programmed into the level
 
+      let do_draw = false;
+
       if (!lvl.grid[x][y].exist)  // EMPTY SPACES
       {
-
         if (lvl.grid[x][y].grid_type == tiles.FLOOR_EMPTY)
         {
           noStroke();
@@ -3520,7 +3635,12 @@ function draw_walls_and_floors()
           {
             fill(palette.empty_fill);
           }
-          square(x * game.gridSize, y * game.gridSize, game.gridSize);
+          // square(x * game.gridSize, y * game.gridSize, game.gridSize);
+          do_draw = true;
+          top_left_point = [x * game.gridSize, y * game.gridSize];
+          top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
+          bottom_left_point = [x * game.gridSize, (y + 1) * game.gridSize];
+          bottom_right_point = [(x + 1) * game.gridSize, (y + 1) * game.gridSize];
         }
 
         else if (lvl.grid[x][y].grid_type == tiles.FLOOR_BUILDABLE)
@@ -3528,82 +3648,215 @@ function draw_walls_and_floors()
           if (lvl.grid[x][y].fade > 0)
             lvl.grid[x][y].fade -= deltaTime / 250;
 
-          stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
-          // lerp between the empty fill color and the color of whatever
-          // solid thing will be there
-          fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
-                          permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
-                          lvl.grid[x][y].fade));
+          if (game.use_animations)
+          {
+            stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
+            // lerp between the empty fill color and the color of whatever
+            // solid thing will be there
+            fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
+                            permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
+                            lvl.grid[x][y].fade));
+          }
+          else
+          {
+            stroke(palette.buildable_outline);
+            fill(odd ? palette.buildable_fill : palette.buildable_2_fill);
+          }
 
-          square(x * game.gridSize, y * game.gridSize, game.gridSize);
+          // square(x * game.gridSize, y * game.gridSize, game.gridSize);
+          do_draw = true;
+          top_left_point = [x * game.gridSize, y * game.gridSize];
+          top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
+          bottom_left_point = [x * game.gridSize, (y + 1) * game.gridSize];
+          bottom_right_point = [(x + 1) * game.gridSize, (y + 1) * game.gridSize];
 
         }
       }
 
       else if (lvl.grid[x][y].exist)  // SOLID WALLS
       {
+
         if (lvl.grid[x][y].fade < 1)
           lvl.grid[x][y].fade += deltaTime / 250;
 
         if (lvl.grid[x][y].permenant)
+        {
           noStroke();
-        else
-          stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
+        } else {
+          if (game.use_animations)
+            stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
+          else
+            stroke(palette.solid_wall_outline);
+        }
         
-          // exact same thing as above!
-        fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
-                        permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
-                        lvl.grid[x][y].fade));
+        // exact same thing as above!
+        
+        if (game.use_animations)
+          fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
+                          permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
+                          lvl.grid[x][y].fade));
+        else
+            fill(permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill);
         
 
         if (lvl.grid[x][y].permenant)
-          square(x * game.gridSize , y * game.gridSize, game.gridSize);
-        else
-          rect(x * game.gridSize, y * game.gridSize, game.gridSize, lvl.grid[x][y].fade * game.gridSize);
-      }
-
-      if (lvl.grid[x][y].grid_type == tiles.GLASS_WALL_TOGGLABLE || lvl.grid[x][y] == tiles.GLASS_WALL)
-      {
-        strokeWeight(2);
-        stroke(170, 170, 170);
-        if (permenant)
         {
-          noStroke();
-          fill(170, 170, 170, 40);
+          // square(x * game.gridSize , y * game.gridSize, game.gridSize);
+          do_draw = true;
+          top_left_point = [x * game.gridSize, y * game.gridSize];
+          top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
+          bottom_left_point = [x * game.gridSize, (y + 1) * game.gridSize];
+          bottom_right_point = [(x + 1) * game.gridSize, (y + 1) * game.gridSize];
         }
-        square(x * game.gridSize + 1, y * game.gridSize + 1, game.gridSize - 3);
-
-        // TODO: Little glass lines on the windows?
-        // strokeWeight(1);
-        // for (j = 0; j < 5; ++ j)
-        // {
-        //  line(x * game.gridSize + 10 - j, y * game.gridSize - j, x * game.gridSize + j, y * game.gridSize + 10 + j);
-        // }
-
+        else
+        {
+          // rect(x * game.gridSize, y * game.gridSize, game.gridSize, lvl.grid[x][y].fade * game.gridSize);
+          do_draw = true;
+          top_left_point = [x * game.gridSize, y * game.gridSize];
+          top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
+          if (game.use_animations)
+          {
+            bottom_left_point = [x * game.gridSize,  (y + lvl.grid[x][y].fade) * game.gridSize];
+            bottom_right_point = [(x + 1) * game.gridSize,  (y + lvl.grid[x][y].fade) * game.gridSize];
+          } else {
+            bottom_left_point = [x * game.gridSize,  (y + 1) * game.gridSize];
+            bottom_right_point = [(x + 1) * game.gridSize,  (y + 1) * game.gridSize];
+          }
+        }
       }
 
+      // if (lvl.grid[x][y].grid_type == tiles.GLASS_WALL_TOGGLABLE || lvl.grid[x][y] == tiles.GLASS_WALL)
+      // // TODO: This is unused! Don't worry about it for now
+      // {
+      //   strokeWeight(2);
+      //   stroke(170, 170, 170);
+      //   if (permenant)
+      //   {
+      //     noStroke();
+      //     fill(170, 170, 170, 40);
+      //   }
+      //   square(x * game.gridSize + 1, y * game.gridSize + 1, game.gridSize - 3);
+
+      //   // TODO: Little glass lines on the windows?
+      //   // strokeWeight(1);
+      //   // for (j = 0; j < 5; ++ j)
+      //   // {
+      //   //  line(x * game.gridSize + 10 - j, y * game.gridSize - j, x * game.gridSize + j, y * game.gridSize + 10 + j);
+      //   // }
+
+      // }
+
+      // draw
+      if (do_draw)
+      {
+        if (!game.use_animations)
+        {
+          top_left_offset = [0, 0];
+          top_right_offset = [0, 0];
+          bottom_left_offset = [0, 0];
+          bottom_right_offset = [0, 0];
+        }
+        beginShape();
+        vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
+        vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
+        vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
+        vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
+        endShape(CLOSE);
+      }
     }
   }
 }
 
 function draw_edges()
 {
+  if (!game.use_animations)
+  {
+    blendMode(DARKEST);
+    strokeWeight(1);
+    stroke(palette.edge_color);
+    fill(palette.edge_circle_color)
+    for (let e of game.edges)
+    {
+      ellipse(e.sx, e.sy, 5, 5);
+      ellipse(e.ex, e.ey, 5, 5);
+    }
+    strokeWeight(5);
+    stroke(palette.edge_color);
+    for (let e of game.edges)
+    {
+      line(e.sx, e.sy, e.ex, e.ey);
+    }
+    blendMode(BLEND);
+    return;
+  }
+  // else, we are using animation:
   // strokeWeight(2);
   // stroke(palette.edge_circle_color);
   // fill(palette.edge_circle_color);
-  // // stroke(palette.edge_circle_color);
-  // for (let e of edges)
-  // {
-  //   ellipse(e.sx, e.sy, 2, 2);
-  //   ellipse(e.ex, e.ey, 2, 2);
-  // }
-
-  strokeWeight(3);
+  blendMode(DARKEST);
+  strokeWeight(1);
+  stroke(palette.edge_color);
+  fill(palette.edge_circle_color)
   for (let e of game.edges)
   {
-    stroke(palette.edge_color);
-    line(e.sx, e.sy, e.ex, e.ey);
+    let sx_index = jiggle.get_index(e.sx);//int(curr_x / game.gridSize);
+    let sy_index = jiggle.get_index(e.sy);//int(curr_y / game.gridSize);
+    let ex_index = jiggle.get_index(e.ex);//int(next_x / game.gridSize);
+    let ey_index = jiggle.get_index(e.ey);//int(next_y / game.gridSize);
+    let [sx, sy] = game.jiggle.jiggle_grid[sx_index][sy_index];
+    let [ex, ey] = game.jiggle.jiggle_grid[ex_index][ey_index];
+    ellipse(e.sx + sx, e.sy + sy, 5, 5);
+    ellipse(e.ex + ex, e.ey + ey, 5, 5);
   }
+
+  strokeWeight(5);
+  stroke(palette.edge_color);
+
+  for (let e of game.edges)
+  {
+    // instead of drawing a straight line between the start and end point,
+    // we need to iterate over the line and draw each gridpoint
+    let start_x = e.sx;
+    let start_y = e.sy;
+    let end_x = e.ex;
+    let end_y = e.ey;
+    let curr_x = start_x;
+    let curr_y = start_y;
+    let next_x = curr_x;
+    let next_y = curr_y;
+    // console.log("curr: " + curr_x + "," + curr_y);
+    // console.log("end:  " + end_x + "," + end_y);
+    while (!(curr_x === end_x && curr_y === end_y))
+    {
+      if (curr_x < end_x)
+      {
+        next_x = curr_x + game.gridSize;
+      }
+      if (curr_y < end_y)
+      {
+        next_y = curr_y + game.gridSize;
+      }
+      // console.log("curr: " + curr_x + "," + curr_y);
+      // console.log("next: " + next_x + "," + next_y);
+      // TODO: Memoize this, it's pretty slow rn
+      let sx_index = jiggle.get_index(curr_x);//int(curr_x / game.gridSize);
+      let sy_index = jiggle.get_index(curr_y);//int(curr_y / game.gridSize);
+      let ex_index = jiggle.get_index(next_x);//int(next_x / game.gridSize);
+      let ey_index = jiggle.get_index(next_y);//int(next_y / game.gridSize);
+      let [sx_off, sy_off] = game.jiggle.jiggle_grid[sx_index][sy_index];
+      let [ex_off, ey_off] = game.jiggle.jiggle_grid[ex_index][ey_index];
+      line(curr_x + sx_off, curr_y + sy_off, next_x + ex_off, next_y + ey_off);
+      curr_x = next_x;
+      curr_y = next_y;
+    }
+
+
+    // stroke(palette.edge_color);
+    // let [sx_off, sy_off] = game.jiggle.jiggle_grid[e.sx_grid][e.sy_grid];
+    // let [ex_off, ey_off] = game.jiggle.jiggle_grid[e.ex_grid][e.ey_grid];
+    // line(e.sx + sx_off, e.sy + sy_off, e.ex + ex_off, e.ey + ey_off);
+  }
+  blendMode(BLEND);
 }
 
 function draw_detectors()
@@ -4213,11 +4466,11 @@ function random_game_ui()
   if (game.highest_score_display_timer > 0)
   {
     game.highest_score_display_timer -= deltaTime / 1500;
-    text("high score: " + game.highest_score, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
+    text("high score: " + game.highest_score, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - 2);
   }
   else
   {
-    text("score: " + game.new_scoring_system + " points: " + game.points_for_current_grid, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
+    text("score: " + game.new_scoring_system + " points: " + game.points_for_current_grid, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - 2);
   }
 
   if (game.new_total_fade > 0)
@@ -4265,7 +4518,6 @@ function random_level()
 function init_light_sources(start_active = false)
 {
   // init lights
-  //game.lightsources = []
   game.lightsources.splice(0, game.lightsources.length);
 
   // RGB lights
@@ -4782,7 +5034,6 @@ function get_visible_polygon(xpos, ypos, radius)
     {
       let rdx = (i === 0 ? e.sx : e.ex) - xpos;
       let rdy = (i === 0 ? e.sy : e.ey) - ypos;
-
       let base_ang = atan2(rdy, rdx);
 
       let ang = 0;
@@ -4971,6 +5222,7 @@ function resetStuff()
   game.points_for_current_grid = count_score();
   turn_lights_off();
   make_edges();
+  update_all_light_viz_polys();
 }
 
 function count_score()
