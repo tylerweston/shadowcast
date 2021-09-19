@@ -21,6 +21,8 @@ sketch.js:3087 Uncaught RangeError: Maximum call stack size exceeded
     at mouse_handler.disable_region (sketch.js:569)
     at disable_menu (sketch.js:3088)
     at close_menu (sketch.js:3098)
+Something funny with some circular mumbo-jumbo going on
+with the mouse and callback functions.
 
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
 - Sound juice. Finish this and add options.
@@ -35,6 +37,8 @@ sketch.js:3087 Uncaught RangeError: Maximum call stack size exceeded
       if on mobile and a click is really close to a light, auto choose it?
 
 Visual fixes:
+- detectors should be colored depending on if they are on an 
+  odd or even square
 - line up all font on the bottom better, ie, intro spectro is a bit wonky
 - Main menu should be better lined up... looks OK with new font
 - Font size may be strange on different size devices? Yes, this needs
@@ -1542,6 +1546,8 @@ class detector
   {
     noStroke();
     fill(37);
+    fill(game.current_level.odd_grid[this.x][this.y]?
+      palette.buildable_fill : palette.buildable_2_fill);
     if (game.use_animations)
     {
       //square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize);
@@ -1695,6 +1701,7 @@ class light_source
     //this.mask_image = createGraphics(this.light_big_size * game.gridSize, this.light_big_size * game.gridSize);
     this.cur_image_source = createGraphics(game.gameWidth, game.gameHeight);
     this.masked_light;
+    //  this.masked_light_img = createImage(game.gameWidth, game.gameHeight);
     this.force_update = false;
 
     // This might not be the best way to do this but it could work for now?!
@@ -1860,7 +1867,7 @@ class light_source
     }
     this.mask_image.vertex(this.viz_polygon[0].x, this.viz_polygon[0].y);
     this.mask_image.endShape();
-    this.mask_image_get = this.mask_image.get();
+    // this.mask_image_get = this.mask_image.get();
   }
 
   get_light_mask()
@@ -1899,7 +1906,7 @@ class light_source
       {
         large_circle_size *= this.animate_light_on_timer;
         small_circle_size *= this.animate_light_on_timer;
-        this.animate_light_on_timer += (deltaTime / 125);
+        this.animate_light_on_timer += (deltaTime / 100);
         this.dark_light.setAlpha(60 * this.animate_light_on_timer);
         this.med_light.setAlpha(110 * this.animate_light_on_timer);
         if (this.animate_light_on_timer >= 1)
@@ -1932,7 +1939,6 @@ class light_source
       if (this.anim_frame === 0 || this.animate_light_on || this.animate_light_off)
       {
         // want to mask this by our drawn viz polygons
-        // let source_image = createGraphics(game.gameWidth, game.gameHeight);
         this.cur_image_source.clear();
         this.cur_image_source.noStroke();
         for (let ring = 4; ring > 0; --ring)
@@ -1948,16 +1954,22 @@ class light_source
         this.cur_image_source.fill(this.med_light);
         this.cur_image_source.ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, small_circle_size, small_circle_size);
     
-        // let masked_light;
-        // this.update_light_mask();
-        (this.masked_light =  this.cur_image_source.get()).mask(this.mask_image_get);
+        // TODO: This is the most expensive operation by far, figure out a way to cut
+        // down on the cost!
+        (this.masked_light =  this.cur_image_source.get()).mask(this.mask_image);
+        // (this.cur_image_source.get()).mask(this.mask_image);
+        //this.masked_light = 
+        // this.masked_light = this.cur_image_source.mask(this.mask_image);
+
       }
       this.anim_frame += deltaTime;
       if (this.anim_frame > 75)
       {
         this.anim_frame = 0;
       }
+      // image(this.cur_image_source, 0, 0);
       image(this.masked_light, 0, 0);
+      // image(this.masked_light_img, 0, 0);
       // source_image.remove();
       // masked_light = null;
       blendMode(BLEND);
@@ -2085,20 +2097,26 @@ class jiggle
       jiggle.jiggle_timer += deltaTime;
       return;
     }
-    else
-    {
-      jiggle.jiggle_timer = 0;
-    }
+    jiggle.jiggle_timer = 0;
 
+    let jiggle_x, jiggle_y;
     for (let x = 0 ; x < this.xsize; ++x)
     {
       for (let y = 0; y < this.ysize; ++y)
       {
-        let [jiggle_x, jiggle_y] = this.jiggle_grid[x][y];
+        [jiggle_x, jiggle_y] = this.jiggle_grid[x][y];
         jiggle_x += Math.random() * 2 - 1;
         jiggle_y += Math.random() * 2 - 1;
-        jiggle_x = constrain(jiggle_x, -game.JIGGLE_CONSTRAINT, game.JIGGLE_CONSTRAINT);
-        jiggle_y = constrain(jiggle_y, -game.JIGGLE_CONSTRAINT, game.JIGGLE_CONSTRAINT);
+        // jiggle_x = constrain(jiggle_x, -game.JIGGLE_CONSTRAINT, game.JIGGLE_CONSTRAINT);
+        // jiggle_y = constrain(jiggle_y, -game.JIGGLE_CONSTRAINT, game.JIGGLE_CONSTRAINT);
+        if (jiggle_x < -game.JIGGLE_CONSTRAINT)
+          jiggle_x = -game.JIGGLE_CONSTRAINT;
+        if (jiggle_x > game.JIGGLE_CONSTRAINT)
+          jiggle_x = game.JIGGLE_CONSTRAINT;
+        if (jiggle_y < -game.JIGGLE_CONSTRAINT)
+          jiggle_y = -game.JIGGLE_CONSTRAINT;
+        if (jiggle_y > game.JIGGLE_CONSTRAINT)
+          jiggle_y = game.JIGGLE_CONSTRAINT;
         this.jiggle_grid[x][y] = [jiggle_x, jiggle_y];
       }
     }
@@ -2478,6 +2496,51 @@ class sound
   }
 }
 
+// p5 additional functions
+p5.Graphics.prototype.remove = function() {
+  if (this.elt.parentNode) {
+    this.elt.parentNode.removeChild(this.elt);
+  }
+  var idx = this._pInst._elements.indexOf(this);
+  // console.log(this._pInst);
+  if (idx !== -1) {
+    this._pInst._elements.splice(idx, 1);
+  }
+  for (var elt_ev in this._events) {
+    this.elt.removeEventListener(elt_ev, this._events[elt_ev]);
+  }
+};
+
+// p5.Graphics.prototype.mask = function(inputMask) {
+  
+//   if (inputMask === undefined) {
+//     inputMask = this;
+//   }
+//   const currBlend = this.drawingContext.globalCompositeOperation;
+
+//   let scaleFactor = 1;
+//   if (inputMask instanceof p5.Renderer) {
+//     scaleFactor = inputMask._pInst._pixelDensity;
+//   }
+
+//   const copyArgs = [
+//     inputMask,
+//     0,
+//     0,
+//     scaleFactor * inputMask.width,
+//     scaleFactor * inputMask.height,
+//     0,
+//     0,
+//     this.width,
+//     this.height
+//   ];
+
+//   this.drawingContext.globalCompositeOperation = 'destination-in';
+//   p5.Renderer2D.prototype.copy.apply(this, copyArgs);
+//   this.drawingContext.globalCompositeOperation = currBlend;
+
+// }
+
 function mousePressed() {
   // TODO: Only do this once
   if (game.sound_handler.need_init_audio_context)
@@ -2792,6 +2855,7 @@ function handle_main_menu_selection(menu_index)
   {
     case 0:
       teardown_main_menu();
+      disable_menu();
       // confirm we want a new game
       storeItem("savedgame", null);
       game.current_gamemode = game.GAMEMODE_RANDOM;
@@ -2801,6 +2865,7 @@ function handle_main_menu_selection(menu_index)
       if (!game.have_saved_game)
         return;
       teardown_main_menu();
+      disable_menu();
       game.current_gamemode = game.GAMEMODE_RANDOM;
       game.game_state = states.NEW_GAME;
       break; 
@@ -3144,7 +3209,8 @@ function disable_menu()
 
 function close_menu()
 {
-  disable_menu();
+  // disable_menu();
+  // top_menu_accept_input = false;
   game.global_mouse_handler.enable_region("top_menu");
   show_menu = false;
 }
@@ -3316,8 +3382,9 @@ function clear_grid_spot(which_grid, x, y)
 //////// STATES
 function do_game()
 {
-  let grid = game.current_level.grid;
+ //  let grid = game.current_level.grid;
 
+  game.jiggle.update_jiggles();
   // draw base grid (walls + floors)
   draw_walls_and_floors();
   draw_detector_floors();
@@ -3824,7 +3891,6 @@ function draw_walls_and_floors()
   let lvl = game.current_level;
 
   strokeWeight(1);
-  game.jiggle.update_jiggles();
   for (let x = 0 ; x < lvl.xsize; ++x)
   {
 
@@ -5591,16 +5657,3 @@ window.mobileCheck = function() {
 // });
 
 // from: https://stackoverflow.com/questions/49859246/objects-generated-with-creategraphics-using-p5-js-are-not-being-garbage-collec
-p5.Graphics.prototype.remove = function() {
-  if (this.elt.parentNode) {
-    this.elt.parentNode.removeChild(this.elt);
-  }
-  var idx = this._pInst._elements.indexOf(this);
-  // console.log(this._pInst);
-  if (idx !== -1) {
-    this._pInst._elements.splice(idx, 1);
-  }
-  for (var elt_ev in this._events) {
-    this.elt.removeEventListener(elt_ev, this._events[elt_ev]);
-  }
-};
