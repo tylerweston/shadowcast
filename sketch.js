@@ -1708,7 +1708,7 @@ class light_source
     // This might not be the best way to do this but it could work for now?!
     // move this stuff to some color data structure
     this.c = color(r, g, b);
-    this.shadow_color = color(r, g, b, 100);
+    this.shadow_color = color(r, g, b, 255 / 3);
 
     this.dark_light = color(r / 6, g / 6, b / 6, 60);
     this.med_light = color(r / 4, g / 4, b / 4, 90);
@@ -1900,15 +1900,15 @@ class light_source
       let animsin = sin(this.anim_cycle) * 4;
       let animcos = cos(this.anim_cycle) * 4;
 
-      let large_circle_size = game.gridSize * 14 + animsin;
-      let small_circle_size = game.gridSize * 3 + animcos;
+      let large_circle_size = game.gridSize * 8 + animsin;
+      let small_circle_size = game.gridSize * 2 + animcos;
 
       if (this.animate_light_on)
       {
         large_circle_size *= this.animate_light_on_timer;
         small_circle_size *= this.animate_light_on_timer;
         this.animate_light_on_timer += (deltaTime / 125);
-        this.dark_light.setAlpha(80 * this.animate_light_on_timer);
+        this.dark_light.setAlpha(60 * this.animate_light_on_timer);
         this.med_light.setAlpha(110 * this.animate_light_on_timer);
         if (this.animate_light_on_timer >= 1)
         {
@@ -1945,8 +1945,8 @@ class light_source
         this.cur_image_source.noStroke();
         for (let ring = 4; ring > 0; --ring)
         {
-          let r_size = ring * game.GRID_HALF;
-          this.cur_image_source.fill(this.dark_light, 100 - r_size);
+          let r_size = ring * game.gridSize * 2;
+          this.cur_image_source.fill(this.dark_light, 100 - ring * 20);
           this.cur_image_source.ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, large_circle_size + r_size , large_circle_size + r_size);
   
         }
@@ -2267,7 +2267,7 @@ class particle
     this.oldy = y;
     // this.origin_x = x;
     // this.origin_y = y;
-    this.path_points = 9;
+    this.path_points = 6;
     this.path = [];
   }
 
@@ -2660,7 +2660,7 @@ function initialize_colors() {
   palette.solid_wall_permenant_fill = color(160, 160, 170);
   palette.solid_wall_outline = color(120, 120, 120);
 
-  palette.buildable_fill = color(33, 33, 43);
+  palette.buildable_fill = color(27, 27, 27);
   palette.buildable_2_fill = color(37, 37, 47);
   palette.buildable_outline = color(43, 43, 43);
 
@@ -3363,13 +3363,17 @@ function do_game()
     }
   }
 
+
+
   draw_light_sources(); 
 
-  draw_detectors(); 
-  
   // draw particles underneath detectors
   particle_system.update_particles();
   particle_system.draw_particles();
+
+  draw_detectors(); 
+  
+  draw_floor_lines();
 
 
 
@@ -3504,7 +3508,7 @@ function do_level_transition_out()
   do_game();
   fill(17, 255);
   rect(0 , 0, game.gameWidth, game.gameHeight * game.global_fade);
-  fill(48, 48, 48, game.global_fade * 255);
+  fill(12, 12, 12, game.global_fade * 255);
   rect(0, 0, game.gameWidth, game.gameHeight);
 
   if (game.global_fade >= 1)
@@ -3770,6 +3774,57 @@ function draw_glass()
         square(x * game.gridSize, y * game.gridSize, game.gridSize);
     }
   }
+}
+
+function draw_floor_lines()
+{
+  let lvl = game.current_level;
+  strokeWeight(1);
+  blendMode(DARKEST);
+  stroke(0, 30);
+  //stroke(255, 0, 0);
+  noFill();
+  for (let x = 0 ; x < lvl.xsize; ++x)
+  {
+
+    for (let y = 0; y < lvl.ysize; ++y)
+    {
+      if (game.current_level.grid[x][y].grid_type == tiles.FLOOR_EMPTY)
+        continue;
+      // TODO: Refactor this, new class?
+      let top_left_offset = game.jiggle.jiggle_grid[x][y];
+      let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
+      let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
+
+      let top_left_point = [x * game.gridSize, y * game.gridSize];
+      let top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
+      let bottom_left_point = [x * game.gridSize, (y + 1) * game.gridSize];
+
+      if (!game.use_animations)
+      {
+        top_left_offset = [0, 0];
+        top_right_offset = [0, 0];
+        bottom_left_offset = [0, 0];
+        // bottom_right_offset = [0, 0];
+      }
+      if(x > 0 && x < game.gridWidth - 1)
+      {
+      line(top_left_point[0] + top_left_offset[0], 
+        top_left_point[1] + top_left_offset[1],
+        top_right_point[0] + top_right_offset[0],
+        top_right_point[1] + top_right_offset[1]);
+      }
+
+      if (y > 0 && y < game.gridHeight - 1)
+      {
+      line(top_left_point[0] + top_left_offset[0], 
+        top_left_point[1] + top_left_offset[1],
+        bottom_left_point[0] + bottom_left_offset[0],
+        bottom_left_point[1] + bottom_left_offset[1]);
+      }
+    }
+  }
+  blendMode(BLEND);
 }
 
 function draw_walls_and_floors()
