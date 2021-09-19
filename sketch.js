@@ -1521,8 +1521,8 @@ class detector
         this.y * game.gridSize + game.GRID_HALF,
         50,
         this.c,
-        450,
-        250,
+        350,
+        150,
         12,
         1
       );
@@ -1806,7 +1806,15 @@ class light_source
       beginShape();
       vertex(cx, cy);
       for (let i = 0; i < this.viz_polygon.length; ++ i)
+      {
+        // let jiggle_x = jiggle.get_index(this.viz_polygon[i].x);
+        // let jiggle_y = jiggle.get_index(this.viz_polygon[i].y);
+        // let [jx, jy] = jiggle.jiggle_grid[jiggle_x][jiggle_y];
+        // let rdx = this.viz_polygon[i].x + jx;
+        // let rdy = this.viz_polygon[i].y + jy;
         vertex(this.viz_polygon[i].x, this.viz_polygon[i].y);
+        // vertex(rdx, rdy);
+      }
       vertex(this.viz_polygon[0].x, this.viz_polygon[0].y);
       endShape();
       // }  
@@ -2547,8 +2555,8 @@ function initialize_colors() {
   palette.empty_outline = color(25, 25, 25);
   palette.empty_fill = color(13, 13, 13);
 
-  palette.edge_color = color(20, 20, 20);
-  palette.edge_circle_color = color(40, 40, 40);
+  palette.edge_color = color(50, 50, 60);
+  palette.edge_circle_color = color(60, 60, 70);
 
   palette.font_color = color(35, 35, 35);
   palette.bright_font_color = color(157, 157, 157);
@@ -3209,10 +3217,6 @@ function do_game()
   // draw base grid (walls + floors)
   draw_walls_and_floors();
 
-  // draw edges
-  draw_edges();
-
-
   // draw detectors (for now, check active status as well)
 
   // TODO: This should  happen somewhere else?
@@ -3253,6 +3257,9 @@ function do_game()
   particle_system.draw_particles();
 
   draw_light_sources(); 
+
+  // draw edges
+  draw_edges();
 
   // // Draw glass (Extra tiles to draw would happen here?)
   // draw_glass();
@@ -5091,6 +5098,7 @@ function get_visible_polygon(xpos, ypos, radius)
     {
       let rdx = (i === 0 ? e.sx : e.ex) - xpos;
       let rdy = (i === 0 ? e.sy : e.ey) - ypos;
+
       let base_ang = atan2(rdy, rdx);
 
       let ang = 0;
@@ -5135,7 +5143,9 @@ function get_visible_polygon(xpos, ypos, radius)
         }
         // IF we collided with something, add us to our viz list
         if (valid)
+        {
           viz_polygon.push(new viz_poly_point(min_ang, min_px, min_py));
+        }
       }
     }
   }
