@@ -36,12 +36,7 @@ sketch.js:3087 Uncaught RangeError: Maximum call stack size exceeded
 
 Visual fixes:
 - line up all font on the bottom better, ie, intro spectro is a bit wonky
-- decrease the offset around checking for shadow edges?
 - Main menu should be better lined up... looks OK with new font
-- Better light turning on/off juice (maybe a solid color screen flash
-  or something like that? Maybe with the sound it will be OK. The 
-  current particles don't look great, maybe they just need to be tweake
-  a bit?)  
 - Font size may be strange on different size devices? Yes, this needs
   to scale based on the size of the device. ALSO, we may want to make
   the squares a bit larger since playing on a cellphone is awkward!
@@ -71,9 +66,6 @@ QOL improvements:
 - Make sure all detectors aren't the same color?
 - fix webpage
 - timer game should be a bit easier to play
-  ONLY draw the walls that the light makes visible?
-- The "easy" way to do this DOESN'T look good, either figure
-  out a different way to do this or keep it the same for now
 - difficulty balance in progression - timer game is too hard?
 
 Options:
@@ -107,7 +99,7 @@ Refactoring:
   - collect and fix that stuff up
 - make a button or ui class or something like that that will make creating
   buttons easier. This is the next big job probably!
-s
+
 Maybe eventually:
 - change game grid size - allow this to be customized - this might be implemented?
   - just need some bits to resize themselves automatically
@@ -327,29 +319,29 @@ class game
   static GAMEMODE_TIME = 2;
   static GAMEMODE_TUTORIAL = 3;
 
-  static edges = [];        // done // move to edges class
-  static lightsources = []; //done
-  static detectors = [];  // done
+  static edges = [];
+  static lightsources = [];
+  static detectors = [];
   static jiggle = undefined;
 
-  static gameHeight;  //done     
-  static gameWidth;   //done
-  static gridSize;    // done
-  static GRID_HALF;   // done
+  static gameHeight;
+  static gameWidth;
+  static gridSize;
+  static GRID_HALF;
   static GRID_QUARTER;
-  static current_dim; // done
-  static gridWidth; // done
-  static gridHeight;  // done
+  static current_dim;
+  static gridWidth;
+  static gridHeight;
 
-  static FLASH_SIZE;  // done
+  static FLASH_SIZE;
   static JIGGLE_CONSTRAINT = 1.75;
 
-  static current_gamemode = undefined;  // done
+  static current_gamemode = undefined;
   
-  static game_state = states.SETUP;  //done
+  static game_state = states.SETUP;
 
-  static global_fade = 0; // done
-  static save_fade = 0; // done
+  static global_fade = 0;
+  static save_fade = 0;
 
   static ghandler;
   static ehandler = null;
@@ -362,12 +354,12 @@ class game
 
   // random game / score
   static have_saved_game;
-  static highest_score; // done
-  static new_high_score_juice = 0;  // done
-  static highest_score_changed = 0; // done
-  static highest_score_display_timer = 0; // done
-  static new_total; // done
-  static new_total_fade;  // done
+  static highest_score;
+  static new_high_score_juice = 0;
+  static highest_score_changed = 0;
+  static highest_score_display_timer = 0;
+  static new_total;
+  static new_total_fade;
   static new_scoring_system = 0;
   static points_for_current_grid = 0;
 
