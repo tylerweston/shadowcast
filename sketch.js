@@ -329,7 +329,7 @@ class game
   static gridHeight;  // done
 
   static FLASH_SIZE;  // done
-  static JIGGLE_CONSTRAINT = 1;
+  static JIGGLE_CONSTRAINT = 1.5;
 
   static current_gamemode = undefined;  // done
   
@@ -1378,7 +1378,7 @@ class detector
     this.x = x;
     this.y = y;
     // color stuff
-    this.c = color(r,g,b);
+    this.c = color(r, g, b);
     this.r = r;
     this.g = g;
     this.b = b;
@@ -1514,15 +1514,16 @@ class detector
     {
       this.flash_radius = 0;
       this.flashing = true;
+      // detector
       particle_system.particle_explosion
       (
         this.x * game.gridSize + game.GRID_HALF,
         this.y * game.gridSize + game.GRID_HALF,
         50,
         this.c,
-        300,
-        100,
-        3,
+        450,
+        250,
+        12,
         1
       );
       // we also play a sound
@@ -1737,19 +1738,21 @@ class light_source
   {
     this.add_switch_to_undo_stack();
     this.active = !this.active;
-    if (this.active)
-    {
-      particle_system.particle_explosion(
-        this.x * game.gridSize + game.GRID_HALF, 
-        this.y * game.gridSize + game.GRID_HALF, 
-        35, 
-        color(this.r, this.g, this.b), 
-        300, 
-        125,
-        3,
-        1
-        );
-    }
+
+    // if (this.active)
+    // {
+    //   // lightsource
+    //   particle_system.particle_explosion(
+    //     this.x * game.gridSize + game.GRID_HALF, 
+    //     this.y * game.gridSize + game.GRID_HALF, 
+    //     35, 
+    //     color(this.r, this.g, this.b), 
+    //     375, 
+    //     175,
+    //     6.5,
+    //     1
+    //     );
+    // }
 
     if (this.active)
     {
@@ -2157,6 +2160,10 @@ class particle
     this.particle_type = particle_type;
     this.oldx = x;
     this.oldy = y;
+    this.origin_x = x;
+    this.origin_y = y;
+    this.path_points = 8;
+    this.path = [];
   }
 
   update()
@@ -2168,15 +2175,46 @@ class particle
       this.active = false;
       return;
     }
+
+    if (this.path.length === this.path_points)
+    {
+      this.path.shift();
+    }
+
+    if (this.path.length < this.path_points)
+    {
+      this.path.push([this.x, this.y]);
+    }
+
+    let rand_scale = this.life / 128;
+    this.x_vel += ((Math.random() * 2 - 1) * rand_scale);
+    this.y_vel += ((Math.random() * 2 - 1) * rand_scale);
     this.oldx = this.x;
     this.oldy = this.y;
+    let cur_x_grid = int(this.x / game.gridSize);
+    let cur_y_grid = int(this.y / game.gridSize);
     this.x += this.x_vel;
     this.y += this.y_vel;
+    let target_x_grid = int(this.x / game.gridSize);
+    let target_y_grid = int(this.y / game.gridSize);
+    // ricochet particles off existing walls
+    // target_x_grid = constrain(target_x_grid, 0, game.current_level.grid.gridWidth);
+    // target_y_grid = constrain(target_y_grid, 0, game.current_level.grid.gridHeight);
+    if (game.current_level.grid[cur_x_grid][target_y_grid].exist)
+    {
+      this.y_vel = -this.y_vel;
+      this.y += this.y_vel;
+    }
+    if (game.current_level.grid[target_x_grid][cur_y_grid].exist)
+    {
+      this.x_vel = -this.x_vel;
+      this.x += this.x_vel;
+    }
   }
 
   draw()
   {
-    let alph_amount = map(this.life, 0, this.lifetime, 255, 0);
+    let alph_amount = map(this.life, 0, this.lifetime, 200, 75);
     this.color.setAlpha(alph_amount);
 
     if (this.particle_type === 0)
@@ -2189,6 +2227,16 @@ class particle
     else if (this.particle_type === 1)
     {
       stroke(this.color);
+      strokeWeight(1);
+      beginShape(LINES);
+      this.path.forEach(path_entry => {
+        vertex(path_entry[0], path_entry[1]);
+      });
+      endShape();
+      // strokeWeight(1);
+      // line(this.x, this.y, (this.x + this.origin_x) / 2, (this.y + this.origin_y) / 2);
+
+
       strokeWeight(3);
       // noFill();
       line(this.x, this.y, this.oldx, this.oldy);
@@ -2199,6 +2247,7 @@ class particle
 class particle_system
 {
   static particles = [];
+  static MAX_PARTICLES = 2000;
 
   static update_particles()
   {
@@ -2214,21 +2263,29 @@ class particle_system
     }
   }
 
+  static clear_particles()
+  {
+    particle_system.particles = [];
+  }
+
   static draw_particles()
   {
     if (!game.use_animations)
       return;
+
+    //blendMode(ADD);
     for (let p of particle_system.particles)
     {
-      blendMode(ADD);
       p.draw();
-      blendMode(BLEND);
     }
+    //blendMode(BLEND);
+
   }
 
   static add_particle(p)
   {
-    particle_system.particles.push(p);
+    if (particle_system.particles.length < particle_system.MAX_PARTICLES)
+      particle_system.particles.push(p);
   }
 
   static particle_explosion(x, y, amount, color, max_life, spread, max_speed, particle_type=0)
@@ -2416,7 +2473,7 @@ function setup() {
 
   game.GRID_HALF = int(game.gridSize / 2);
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
-  game.FLASH_SIZE = game.gridSize * 4;
+  game.FLASH_SIZE = game.gridSize * 5;
 
   font_size = game.gridSize;
 
@@ -2457,7 +2514,7 @@ function windowResized()
 
   game.GRID_HALF = int(game.gridSize / 2);
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
-  game.FLASH_SIZE = game.gridSize * 4;
+  game.FLASH_SIZE = game.gridSize * 5;
   font_size = game.gridSize;
 
   resizeCanvas(game.gameWidth, game.gameHeight);
@@ -3190,21 +3247,27 @@ function do_game()
   }
 
 
-
-  // these eventually will take current_level as well?
   draw_detectors(); 
   
-  // these eventually will take current_level as well?
-  draw_light_sources(); 
-
   // draw particles underneath detectors
   particle_system.update_particles();
   particle_system.draw_particles();
 
-  // Draw glass (Extra tiles to draw would happen here?)
-  draw_glass();
+  draw_light_sources(); 
+
+
+
+
+
+
+
+
+  // // Draw glass (Extra tiles to draw would happen here?)
+  // draw_glass();
 
   // Render any text that we have to
+  stroke(0);
+  strokeWeight(1);
   textSize(game.gridSize - 2);
   fill(palette.font_color);
   text("level: " + game.difficulty_level, 0 + game.GRID_HALF, game.gridSize - 4);
@@ -3459,7 +3522,9 @@ function tutorial()
 
 function setup_game()
 {
-  undo.reset_undo_stacks();  // ensure we have a fresh redo stack to start
+  particle_system.clear_particles();
+  disable_menu();             // top menu starts disabled;
+  undo.reset_undo_stacks();   // ensure we have a fresh redo stack to start
   if (game.current_gamemode === game.GAMEMODE_RANDOM)
     setup_random_game();
   if (game.current_gamemode === game.GAMEMODE_TIME)
