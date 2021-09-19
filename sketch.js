@@ -3246,20 +3246,13 @@ function do_game()
     }
   }
 
-
   draw_detectors(); 
   
-
-  draw_light_sources(); 
-
   // draw particles underneath detectors
   particle_system.update_particles();
   particle_system.draw_particles();
 
-
-
-
-
+  draw_light_sources(); 
 
   // // Draw glass (Extra tiles to draw would happen here?)
   // draw_glass();
