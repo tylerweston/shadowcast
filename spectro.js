@@ -9,6 +9,7 @@ r, g, b: switch corresponding light (This currently doesn't work during tutorial
 space: go to next level (if available)
 
 Important:
+- leaving top menu doesn't always deactivate it!
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
 - Sound juice. Finish this and add options.
 - option screen
@@ -22,6 +23,13 @@ Important:
       if on mobile and a click is really close to a light, auto choose it?
 
 Visual fixes:
+- get intro back into game
+- move up level and menu text in main game a little bit
+- add more floor patterns
+- fix / add more default floor animations
+- add more bonus floor animations
+- floor animations should start when all detectors are activated
+  - maybe some special ones that only happen then?
 - line up all font on the bottom better, ie, intro spectro is a bit wonky
 - Main menu should be better lined up... looks OK with new font
 - Font size may be strange on different size devices? Yes, this needs
@@ -309,6 +317,7 @@ class game
   static lightsources = [];
   static detectors = [];
   static jiggle = undefined;
+  static floor_animation = undefined;
 
   static gameHeight;
   static gameWidth;
@@ -1417,8 +1426,8 @@ class detector
     
         if (!l.active)
           continue;
-        let xtarget = l.x  * game.gridSize + (game.gridSize / 2);
-        let ytarget = l.y * game.gridSize + (game.gridSize / 2)
+        let xtarget = l.x  * game.gridSize + (game.GRID_HALF);
+        let ytarget = l.y * game.gridSize + (game.GRID_HALF)
 
         // line segment1 is xtarget,ytarget to xpos, ypos
         // line segment2 e2.sx, e2.sy to e2.ex, e2.ey
@@ -1511,7 +1520,7 @@ class detector
   activate_juice()
   {
     this.flash_radius = 0;
-    this.flash_inc = random() + 1.5;
+    this.flash_inc = random() + 2;
     this.flashing = true;
     // detector
     particle_system.particle_explosion
@@ -2152,15 +2161,254 @@ class grid_obj
   }
 }
 
+class floor_animation
+{
+  constructor(xsize, ysize)
+  {
+    this.xsize = xsize;
+    this.ysize = ysize;
+    // TODO: What is the difference between anim_timer and
+    // animation frame? Do they need to be different things?
+    this.anim_timer = 0;
+    this.jiggle_animation_color = [];
+    this.base_floor_animation = 0;
+    this.update_count = 0;
+
+    this.has_animation = false;
+    this.animation_type;
+    this.animation_frame = 0;
+    this.animation_max_frames = 0;
+    this.animation_array = [];
+    this.num_animations = 3;
+    this.animation_lengths = [12, 12, 12];
+    this.animation_fading = false;
+
+    for (let x = 0; x < this.xsize; ++x)
+    {
+      this.jiggle_animation_color[x] = [];
+      this.animation_array[x] = [];
+      for (let y = 0; y < this.ysize; ++y)
+      {
+        this.jiggle_animation_color[x][y] = 48;
+        this.animation_array[x][y] = 0;
+      }
+    }
+    this.update();
+  }
+
+  clear_animation_array()
+  {
+    for (let x = 0; x < this.xsize; ++x)
+    {
+      for (let y = 0; y < this.ysize; ++y)
+      {
+        this.animation_array[x][y] = 0;
+      }
+    }
+  }
+
+  start_animation()
+  {
+    // only allow one animation at a time
+    if (this.has_animation || this.animation_fading)
+      return;
+
+    this.has_animation = true;
+    this.animation_frame = 0;
+    this.clear_animation_array();
+    this.animation_type = Math.floor(Math.random() * this.num_animations);
+    // console.log(`new animation type ${this.animation_type}`);
+  }
+
+  fade_animation_array()
+  {
+    // Once we're done our animation, return all animation entries back to
+    // zero so the board fades back to it's original state.
+    let did_update = false;
+    for (let x = 0; x < this.xsize; ++x)
+    {
+      for (let y = 0; y < this.ysize; ++y)
+      {
+        if (Math.floor(this.animation_array[x][y]) > 0)
+        {
+          this.animation_array[x][y] /= 2;
+          did_update = true;
+        }
+      }
+    }
+    if (!did_update)
+    {
+      // If we didn't update any values on our loop through the animation array,
+      // we've zeroed all the entries, so we're done fading.
+      this.animation_fading = false;
+    }
+
+  }
+
+  get_color(x, y)
+  {
+    return color(this.jiggle_animation_color[x][y], 80);
+  }
+
+  update()
+  {
+    // This is the base floor animation
+    // TODO: Case this out to have various floor idle animations
+    this.anim_timer += deltaTime / 256;
+    this.update_count += deltaTime;
+    if (this.update_count < 50)
+      return;
+
+    this.update_count = 0;
+
+    let target_col;
+    for (let x = 0; x < this.xsize; ++x)
+    {
+      for (let y = 0; y < this.ysize; ++y)
+      {
+        switch (this.base_floor_animation)
+        {
+          case 0:
+            target_col = 32 + sin(x + y + this.anim_timer / 2) * 16;
+            break;
+          case 1:
+            target_col = 64 + (abs((sin(y + (x * 2) + this.anim_timer / 4) + 0.5)  
+            + noise(x * 0.01, y * 0.01) / 32) * 32);
+            break;
+        }
+        // target_col = 64 + (abs((sin(y + (x * 2) + this.anim_timer / 4) + 0.5)  
+        // + noise(x * 0.01, y * 0.01) / 32) * 32);
+        //  target_col = 32 + sin(x + y + this.anim_timer / 2) * 16;
+        this.jiggle_animation_color[x][y] = target_col;
+      }
+    }
+    
+    // if we have an animation, run some animation frames
+    if (this.has_animation)
+    {
+      this.update_animation();
+      this.apply_animation();
+    }
+
+    if (this.animation_fading)
+    {
+      this.fade_animation_array();
+      this.apply_animation();
+    }
+
+    if (Math.random() < 0.005)  // 0.005
+    {
+      this.start_animation();
+    }
+
+  }
+
+  update_animation()
+  {
+
+    this.animation_frame += deltaTime / 128;
+    if (this.animation_frame > this.animation_lengths[this.animation_type])
+    {
+      // If we're finished animating, start fading out
+      this.has_animation = false;
+      this.animation_fading = true;
+    }
+
+    // temp_var is just something we can use in our calculations
+    let temp_var;
+
+    for (let x = 0; x < this.xsize; ++x)
+    {
+      for (let y = 0; y < this.ysize; ++y)
+      {
+        switch (this.animation_type)
+        {
+          // upwards wave
+          case 0:
+            temp_var = this.animation_array[x][y];
+            if (y < this.ysize - 1)
+            {
+              temp_var = this.animation_array[x][y + 1];
+              this.animation_array[x][y + 1] = this.animation_array[x][y + 1] * 0.7;
+            }
+            else
+            {
+              if (this.animation_frame < 6)
+              {
+                if (Math.random() < 0.3)
+                  temp_var = Math.floor(Math.random() * 90);
+              }
+            }
+            this.animation_array[x][y] = temp_var;
+            break;
+
+          // R to L wave
+          case 1:
+            temp_var = this.animation_array[x][y];
+            if (x < this.xsize - 1)
+            {
+              temp_var = this.animation_array[x + 1][y];
+              this.animation_array[x + 1][y] = this.animation_array[x  + 1][y] * 0.7;
+            }
+            else
+            {
+              if (this.animation_frame < 6)
+              {
+                if (Math.random() < 0.3)
+                  temp_var = Math.floor(Math.random() * 90);
+              }
+            }
+            this.animation_array[x][y] = temp_var;
+            break;
+        
+          // downwards wave
+          case 2:
+            let yb = this.ysize - y;
+            temp_var = this.animation_array[x][yb];
+            if (yb > 1)
+            {
+              temp_var = this.animation_array[x][yb - 1];
+              this.animation_array[x][yb - 1] = this.animation_array[x][yb - 1] * 0.7;
+            }
+            else
+            {
+              if (this.animation_frame < 6)
+              {
+                if (Math.random() < 0.3)
+                  temp_var = Math.floor(Math.random() * 90);
+              }
+            }
+            this.animation_array[x][yb] = temp_var;
+            break;
+        }
+      }
+    }
+
+  }
+
+  apply_animation()
+  {
+    // apply animation array to line colors;
+    for (let x = 0; x < this.xsize; ++x)
+    {
+      for (let y = 0; y < this.ysize; ++y)
+      {
+        this.jiggle_animation_color[x][y] += this.animation_array[x][y];
+      }
+    }
+  }
+}
+
 class jiggle
 {
   static jiggle_timer = 0;
+
   // memoize grid divisions
   static index_memo = {};
   constructor(xsize, ysize)
   {
-    this.xsize = xsize + 1;
-    this.ysize = ysize + 1;
+    this.xsize = xsize;
+    this.ysize = ysize;
     this.jiggle_grid = [];
     for (let x = 0; x < this.xsize; ++x)
     {
@@ -2172,8 +2420,6 @@ class jiggle
                                   Math.random() * double_jiggle - game.JIGGLE_CONSTRAINT];
       }
     }
-
-
   }
 
   // convert to jiggle_index
@@ -2194,6 +2440,7 @@ class jiggle
       return;
     }
     jiggle.jiggle_timer = 0;
+
 
     let jiggle_x, jiggle_y;
     for (let x = 0 ; x < this.xsize; ++x)
@@ -2217,6 +2464,20 @@ class jiggle
       }
     }
   }
+
+  // jiggle_wave()
+  // {
+  //   // let jiggle_x, jiggle_y;
+  //   // for (let x = 0 ; x < this.xsize; ++x)
+  //   // {
+  //   //   for (let y = 0; y < this.ysize; ++y)
+  //   //   {
+  //   //     [jiggle_x, jiggle_y] = this.jiggle_grid[x][y];
+  //   //     jiggle_y *= sin(x + this.anim_time / 100) / 2;
+  //   //     this.jiggle_grid[x][y] = [jiggle_x, jiggle_y];
+  //   //   }
+  //   // }
+  // }
 }
 
 class viz_poly_point
@@ -2783,7 +3044,9 @@ function setup() {
   game.gridWidth = game.PLAYFIELD_DIM;
   game.gridHeight = game.PLAYFIELD_DIM;
 
-  game.jiggle = new jiggle(game.gridWidth, game.gameHeight);
+  game.jiggle = new jiggle(game.gridWidth + 1, game.gridHeight + 1);
+  game.floor_animation = new floor_animation(game.gridWidth + 1, 
+    game.gridHeight + 1)
 
   game.GRID_HALF = int(game.gridSize / 2);
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
@@ -2840,8 +3103,7 @@ function windowResized()
   scale_all_edges(new_scale);
   game.current_dim = largest_dim;
 
-  // TODO: Check if we actually have viz polys? ie, we are in game?
-  // TODO: Only update screen if we are in game
+  // if we are currently in a game, update game specific info.
   if (game.current_gamemode !== undefined)
   {
     update_all_light_viz_polys();
@@ -2856,7 +3118,7 @@ function initialize_colors() {
 
   palette.buildable_fill = color(27, 27, 27);
   palette.buildable_2_fill = color(37, 37, 47);
-  palette.buildable_outline = color(43, 43, 43);
+  palette.buildable_outline = color(32, 32, 32);
 
   palette.empty_outline = color(17, 12, 12);
   palette.empty_fill = color(13, 13, 13);
@@ -2921,6 +3183,7 @@ function do_setup_main_menu()
   random_level();
   game.have_saved_game = (getItem("savedgame") !== null);
   game.game_state = states.MAIN_MENU;
+  game.floor_animation.start_animation();
 }
 
 function do_main_menu()
@@ -2978,7 +3241,10 @@ function do_main_menu()
 function draw_menu_background()
 {
   game.jiggle.update_jiggles();
+  game.floor_animation.update();
   draw_walls_and_floors();
+  draw_detector_floors();
+  draw_floor_lines();
   draw_edges();
 }
 
@@ -3467,6 +3733,8 @@ function keyPressed() {
   } else if (key === 'e') {
     let lvl_txt = get_level_and_load();
     try_load_level(lvl_txt);
+  } else if (key === 'a') {
+    game.floor_animation.start_animation();
   }
 }
 
@@ -3545,6 +3813,7 @@ function do_game()
  //  let grid = game.current_level.grid;
 
   game.jiggle.update_jiggles();
+  game.floor_animation.update();
   // draw base grid (walls + floors)
   draw_walls_and_floors();
   draw_detector_floors();
@@ -3582,8 +3851,6 @@ function do_game()
     }
   }
 
-
-
   draw_light_sources(); 
 
   // draw particles underneath detectors
@@ -3594,9 +3861,6 @@ function do_game()
   
   draw_floor_lines();
 
-
-
-  // draw edges
   draw_edges();
 
   // // Draw glass (Extra tiles to draw would happen here?)
@@ -4001,9 +4265,9 @@ function draw_glass()
 function draw_floor_lines()
 {
   let lvl = game.current_level;
-  strokeWeight(1);
-  blendMode(DARKEST);
-  stroke(0, 30);
+  strokeWeight(2);
+  blendMode(ADD);
+  //stroke(0, 30);
   //stroke(255, 0, 0);
   noFill();
   for (let x = 0 ; x < lvl.xsize; ++x)
@@ -4011,6 +4275,8 @@ function draw_floor_lines()
 
     for (let y = 0; y < lvl.ysize; ++y)
     {
+      //stroke(30, 80);
+      stroke(game.floor_animation.get_color(x, y));
       if (game.current_level.grid[x][y].grid_type == tiles.FLOOR_EMPTY)
         continue;
       // TODO: Refactor this, new class?
@@ -4991,7 +5257,7 @@ function init_light_sources(start_active = false)
   game.lightsources.push(source);
   source = new light_source(game.gridHeight - 5, 5, start_active, 0, 255, 0);
   game.lightsources.push(source);
-  source = new light_source(5, game.gridWidth / 2, start_active, 0, 0, 255);
+  source = new light_source(5, int(game.gridWidth / 2), start_active, 0, 0, 255);
   game.lightsources.push(source);
 
   // CMY lights
@@ -5235,14 +5501,14 @@ function  make_tutorial_level()
       make_detector(game.gridWidth - 5, game.gridHeight - 5, 255, 255, 0);
       break;
     case 2:
-      let center_grid = game.gridHeight / 2;
+      let center_grid = int(game.gridHeight / 2);
       make_light(2, center_grid, 255, 0, 0);
       make_light(game.gridWidth - 2, center_grid, 0, 0, 255);
       make_detector(center_grid - 2, center_grid, 255, 0, 0);
       make_detector(center_grid + 2, center_grid, 0, 0, 255);
       break;
     case 3:
-      let center_grid2 = game.gridHeight / 2;
+      let center_grid2 = int(game.gridHeight / 2);
       init_light_sources(true);
       make_detector(center_grid2, 3, 255, 255, 0);
       make_detector(center_grid2 - 3, game.gridHeight - 3, 0, 255, 255);
