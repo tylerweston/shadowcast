@@ -139,7 +139,7 @@ Editor stuff (Maybe eventually):
 
 // game version things
 const MAJOR_VERSION = 1;
-const MINOR_VERSION = 0;
+const MINOR_VERSION = 1;
 
 const USE_DEBUG_KEYS = false;
 
