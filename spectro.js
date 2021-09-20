@@ -2165,10 +2165,13 @@ class grid_obj
   }
 }
 
+<<<<<<< HEAD
 // TODO: Refactor
 // Should have a floor animation runner and then floors have functions
 // and optionally take parameters. This way of doing it right now isn't the best
 
+=======
+>>>>>>> 1c9b93cda64686f6bfe124130b07317e278d143e
 class floor_animation
 {
   constructor(xsize, ysize)
@@ -2187,6 +2190,7 @@ class floor_animation
     this.animation_frame = 0;
     this.animation_max_frames = 0;
     this.animation_array = [];
+<<<<<<< HEAD
     this.num_animations = 5;
     this.animation_lengths = [12, 12, 12, 10, 16];
     this.animation_fading = false;
@@ -2194,6 +2198,12 @@ class floor_animation
     this.x_target;
     this.y_target;
 
+=======
+    this.num_animations = 3;
+    this.animation_lengths = [12, 12, 12];
+    this.animation_fading = false;
+
+>>>>>>> 1c9b93cda64686f6bfe124130b07317e278d143e
     for (let x = 0; x < this.xsize; ++x)
     {
       this.jiggle_animation_color[x] = [];
@@ -2227,6 +2237,7 @@ class floor_animation
     this.has_animation = true;
     this.animation_frame = 0;
     this.clear_animation_array();
+<<<<<<< HEAD
     
     this.animation_type = Math.floor(Math.random() * this.num_animations);
     
@@ -2246,6 +2257,10 @@ class floor_animation
         this.y_target = Math.floor(Math.random() * game.gridHeight);
       }
     }
+=======
+    this.animation_type = Math.floor(Math.random() * this.num_animations);
+    // console.log(`new animation type ${this.animation_type}`);
+>>>>>>> 1c9b93cda64686f6bfe124130b07317e278d143e
   }
 
   fade_animation_array()
@@ -2275,7 +2290,11 @@ class floor_animation
 
   get_color(x, y)
   {
+<<<<<<< HEAD
     return color(this.jiggle_animation_color[x][y], 50);
+=======
+    return color(this.jiggle_animation_color[x][y], 80);
+>>>>>>> 1c9b93cda64686f6bfe124130b07317e278d143e
   }
 
   update()
@@ -2324,8 +2343,11 @@ class floor_animation
       this.apply_animation();
     }
 
+<<<<<<< HEAD
     // TODO: Make this a variable somewhere to play around with different amount
     // of bg animation.
+=======
+>>>>>>> 1c9b93cda64686f6bfe124130b07317e278d143e
     if (Math.random() < 0.005)  // 0.005
     {
       this.start_animation();
@@ -2347,10 +2369,13 @@ class floor_animation
     // temp_var is just something we can use in our calculations
     let temp_var;
 
+<<<<<<< HEAD
     let half_grid_width = int(game.gridWidth / 2);
     let x_dist, y_dist, x_sqr, y_sqr;
     let reverse_time = this.animation_lengths[this.animation_type] - this.animation_frame;
 
+=======
+>>>>>>> 1c9b93cda64686f6bfe124130b07317e278d143e
     for (let x = 0; x < this.xsize; ++x)
     {
       for (let y = 0; y < this.ysize; ++y)
@@ -2414,6 +2439,7 @@ class floor_animation
             }
             this.animation_array[x][yb] = temp_var;
             break;
+<<<<<<< HEAD
         
           // twinkles
           case 3:
@@ -2439,6 +2465,12 @@ class floor_animation
         }
       }
     }
+=======
+        }
+      }
+    }
+
+>>>>>>> 1c9b93cda64686f6bfe124130b07317e278d143e
   }
 
   apply_animation()
@@ -4332,10 +4364,16 @@ function draw_floor_lines()
 
     for (let y = 0; y < lvl.ysize; ++y)
     {
+<<<<<<< HEAD
 
       stroke(game.floor_animation.get_color(x, y));
       if (game.current_level.grid[x][y].grid_type == tiles.FLOOR_EMPTY 
           || game.current_level.grid[x][y].exist)
+=======
+      //stroke(30, 80);
+      stroke(game.floor_animation.get_color(x, y));
+      if (game.current_level.grid[x][y].grid_type == tiles.FLOOR_EMPTY)
+>>>>>>> 1c9b93cda64686f6bfe124130b07317e278d143e
         continue;
       // TODO: Refactor this, new class?
       let top_left_offset = game.jiggle.jiggle_grid[x][y];
