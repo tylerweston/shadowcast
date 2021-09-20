@@ -22,8 +22,6 @@ Important:
       if on mobile and a click is really close to a light, auto choose it?
 
 Visual fixes:
-- detectors should be colored depending on if they are on an 
-  odd or even square
 - line up all font on the bottom better, ie, intro spectro is a bit wonky
 - Main menu should be better lined up... looks OK with new font
 - Font size may be strange on different size devices? Yes, this needs
@@ -32,12 +30,10 @@ Visual fixes:
 
 Bugs:
 - Window resizing is broken?
-- There is still something a bit funky with clicking near the top right?
-  maybe something to do with the menu buttons? Sometimes it seems like a
-  particle will spawn or a menu option will be selected even when the menu
-  screen isn't open
 - don't allow holes to spawn on lights?
-- undo is a bit broken still?
+- undo is a bit broken still, it automatically fires off
+  since the undo button is over the menu button. Problem
+  with how state is being translated.
 - something broken with just setting is_dragging false to eat mouse input
   between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
@@ -2922,6 +2918,7 @@ function do_setup_main_menu()
   }
   disable_menu(); // disable the top menu in case it is active
   enable_main_menu();
+  random_level();
   game.have_saved_game = (getItem("savedgame") !== null);
   game.game_state = states.MAIN_MENU;
 }
@@ -2980,7 +2977,9 @@ function do_main_menu()
 
 function draw_menu_background()
 {
-
+  game.jiggle.update_jiggles();
+  draw_walls_and_floors();
+  draw_edges();
 }
 
 function enable_main_menu()
