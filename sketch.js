@@ -24,6 +24,18 @@ sketch.js:3087 Uncaught RangeError: Maximum call stack size exceeded
 Something funny with some circular mumbo-jumbo going on
 with the mouse and callback functions.
 
+deal with:
+sketch.js:1916 Uncaught TypeError: Cannot read properties of undefined (reading 'x')
+    at light_source.update_light_mask (sketch.js:1916)
+    at light_source.switch_active (sketch.js:1839)
+    at light_source.unclick_light (sketch.js:1831)
+    at Object.ls_region.events.<computed> (sketch.js:1773)
+    at mouse_handler.run_callbacks (sketch.js:541)
+    at mouse_handler.handle (sketch.js:625)
+    at draw (sketch.js:3879)
+    at _.o.default.redraw (p5.min.js:3)
+    at _draw (p5.min.js:3)
+
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
 - Sound juice. Finish this and add options.
 - option screen
@@ -46,6 +58,7 @@ Visual fixes:
   the squares a bit larger since playing on a cellphone is awkward!
 
 Bugs:
+- Window resizing is broken?
 - There is still something a bit funky with clicking near the top right?
   maybe something to do with the menu buttons? Sometimes it seems like a
   particle will spawn or a menu option will be selected even when the menu
@@ -314,7 +327,7 @@ class game
 {
   // make the playing field a different size depending if we're on mobile
   static PLAYFIELD_DIM;
-  static PC_PLAYFIELD_DIM = 20;
+  static PC_PLAYFIELD_DIM = 19;
   static MOBILE_PLAYFIELD_DIM = 14;
 
   // play mode
@@ -338,7 +351,7 @@ class game
   static gridHeight;
 
   static FLASH_SIZE;
-  static JIGGLE_CONSTRAINT = 1.75;
+  static JIGGLE_CONSTRAINT = 2;
 
   static current_gamemode = undefined;
   
@@ -381,6 +394,8 @@ class game
 
   static intro_timer = 0;
   static next_button_bob_timer = 0;
+
+  static ok_btn_animation_timer = 0;
 
   // Tutorial game stuff
   static first_time_playing;
@@ -691,8 +706,6 @@ class level
     // make a random floor pattern
     let number_of_floor_types = 16;
     let floor_type = Math.floor(Math.random() * number_of_floor_types);
-    // floor_type = 15;
-    // console.log(`Floor type: ${floor_type}`);
     let random_floor_modifier = Math.floor(Math.random() * 4) + 2; 
     let half_grid_width = game.gridWidth / 2;
     for (let x = 0; x < this.xsize; ++x)
@@ -1396,7 +1409,7 @@ class detector
     this.old_correct = false;
     // animation stuff
     this.anim_cycle = random(TWO_PI);
-    this.anim_speed = ((random() + 1) / 55) + 0.0025;
+    this.anim_speed = ((random() + 1) / 7);
     // flash juice
     this.flashing = false;
     this.flash_radius = 0;
@@ -1521,25 +1534,30 @@ class detector
     // if we used to be not active, and now we are, start a flash
     if (this.correct && !this.old_correct)
     {
-      this.flash_radius = 0;
-      this.flash_inc = random() + 1.5;
-      this.flashing = true;
-      // detector
-      particle_system.particle_explosion
-      (
-        this.x * game.gridSize + game.GRID_HALF,
-        this.y * game.gridSize + game.GRID_HALF,
-        50,
-        this.c,
-        550,
-        250,
-        7,
-        1
-      );
-      // we also play a sound
-      game.sound_handler.play_sound("detector_on");
+      this.activate_juice();
     }
 
+  }
+
+  activate_juice()
+  {
+    this.flash_radius = 0;
+    this.flash_inc = random() + 1.5;
+    this.flashing = true;
+    // detector
+    particle_system.particle_explosion
+    (
+      this.x * game.gridSize + game.GRID_HALF,
+      this.y * game.gridSize + game.GRID_HALF,
+      40,
+      this.c,
+      750,
+      250,
+      10,
+      1
+    );
+    // we also play a sound
+    game.sound_handler.play_sound("detector_on");
   }
 
   draw_floor()
@@ -1578,45 +1596,28 @@ class detector
     let grid_center_y = this.y * game.gridSize + game.GRID_HALF;
 
     noStroke();
-    // fill(37);
-    // if (game.use_animations)
-    // {
-    //   //square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize);
-    //   let top_left_offset = game.jiggle.jiggle_grid[this.x][this.y];
-    //   let top_right_offset = game.jiggle.jiggle_grid[this.x + 1][this.y];
-    //   let bottom_left_offset = game.jiggle.jiggle_grid[this.x][this.y + 1];
-    //   let bottom_right_offset = game.jiggle.jiggle_grid[this.x + 1][this.y + 1];
-    //   let top_left_point = [this.x * game.gridSize, this.y * game.gridSize];
-    //   let top_right_point = [(this.x + 1) * game.gridSize, this.y * game.gridSize];
-    //   let bottom_left_point = [this.x * game.gridSize, (this.y + 1) * game.gridSize];
-    //   let bottom_right_point = [(this.x + 1) * game.gridSize, (this.y + 1) * game.gridSize];
-    //   beginShape();
-    //   vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
-    //   vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
-    //   vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
-    //   vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
-    //   endShape(CLOSE);
-    // }
-    // else
-    // {
-    //   square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize);
-    // }
 
     // draw flash juice
     if (this.flashing && game.use_animations)
     {
       this.flash_radius += (deltaTime / this.flash_inc);
-      this.flash_inc += 0.1;
-      strokeWeight(game.GRID_QUARTER);
+      this.flash_inc += 0.15;
+      strokeWeight(game.GRID_HALF);
       noFill();
       let alph = map(this.flash_radius, 0, this.flash_radius_max, 75, 0);
       
-      stroke(this.r, this.g, this.b, alph * 0.5);
-      ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.5, this.flash_radius * 0.5);
-      
-      stroke(this.r, this.g, this.b, alph * 0.75);
-      ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.75, this.flash_radius * 0.75);
-      
+      if (this.flash_radius > game.gridSize * 2)
+      {
+        stroke(this.r, this.g, this.b, alph * 0.3);
+        ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.3, this.flash_radius * 0.3);
+      }
+
+      if (this.flash_radius > game.gridSize * 2)
+      {
+        stroke(this.r, this.g, this.b, alph * 0.7);
+        ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.5, this.flash_radius * 0.5);
+      }
+
       stroke(this.r, this.g, this.b, alph);
       ellipse(grid_center_x, grid_center_y, this.flash_radius, this.flash_radius);
 
@@ -1627,22 +1628,22 @@ class detector
       }
     }
 
-
-    let default_size = 0.8;
-    default_size *= (sin(this.anim_cycle) + 9) / 10;
     this.anim_cycle += this.anim_speed;
     if (this.anim_cycle > TWO_PI)
       this.anim_cycle = 0;
-    strokeWeight(game.GRID_QUARTER + 1);
-    noFill();
+
     if (this.r == 0 & this.g == 0 & this.b == 0)
       stroke(170);
     else
-      stroke(4);
-    ellipse(grid_center_x, grid_center_y, game.gridSize * default_size, game.gridSize * default_size);
+      stroke(4);    
+    strokeWeight(6);
 
-    strokeWeight(game.GRID_QUARTER - 3);
-    stroke(this.c);
+    noFill();
+    rect((this.x + 0.1) * game.gridSize, 
+      (this.y + 0.1) * game.gridSize, 
+      0.8 * game.gridSize, 
+      0.8 * game.gridSize);
+
     if (this.correct)
     {
       fill(this.c);
@@ -1651,7 +1652,49 @@ class detector
     {
       noFill();
     }
-    ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
+    strokeWeight(4);
+    if (this.correct)
+    {
+      stroke(160 + sin(this.anim_cycle) * 40);
+    } 
+    else
+    {
+      stroke(this.c);
+    }
+    rect((this.x + 0.1) * game.gridSize, 
+      (this.y + 0.1) * game.gridSize, 
+      0.8 * game.gridSize, 
+      0.8 * game.gridSize);
+
+
+
+
+    // let default_size = 0.8;
+    // default_size *= (sin(this.anim_cycle) + 9) / 10;
+    // this.anim_cycle += this.anim_speed;
+    // if (this.anim_cycle > TWO_PI)
+    //   this.anim_cycle = 0;
+    // strokeWeight(game.GRID_QUARTER + 1);
+    // noFill();
+    // if (this.r == 0 & this.g == 0 & this.b == 0)
+    //   stroke(170);
+    // else
+    //   stroke(4);
+    // ellipse(grid_center_x, grid_center_y, game.gridSize * default_size, game.gridSize * default_size);
+    // // square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize * default_size, game.gridSize * default_size);
+
+    // strokeWeight(game.GRID_QUARTER - 3);
+    // stroke(this.c);
+    // if (this.correct)
+    // {
+    //   fill(this.c);
+    // }
+    // else
+    // {
+    //   noFill();
+    // }
+    // ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
+    // square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize, game.gridSize);
   }
 
   move(_x, _y)
@@ -1695,11 +1738,23 @@ class light_source
 
     this.dragged = false;
     this.viz_polygon = [];
-    this.light_big_size = 12;
+
+    this.light_big_size = 5;
+    this.light_small_size = 2;
+    this.num_rings = 6;
+    this.ring_ratio = int(100 / this.num_rings);
+    this.total_width = this.light_big_size + ((this.num_rings + 1) * 2);
+    this.half_total_width = int(this.total_width / 2);
+    this.image_xoffset;
+    this.image_yoffset;
+
     this.mask_image = createGraphics(game.gameWidth, game.gameHeight);
+    this.mask_image.pixelDensity(1);
     this.mask_image_get;
     //this.mask_image = createGraphics(this.light_big_size * game.gridSize, this.light_big_size * game.gridSize);
     this.cur_image_source = createGraphics(game.gameWidth, game.gameHeight);
+    this.cur_image_source_get;
+    this.need_fresh_image = true;
     this.masked_light;
     //  this.masked_light_img = createImage(game.gameWidth, game.gameHeight);
     this.force_update = false;
@@ -1710,7 +1765,7 @@ class light_source
     this.shadow_color = color(r, g, b, 255 / 3);
 
     this.dark_light = color(r / 6, g / 6, b / 6, 60);
-    this.med_light = color(r / 4, g / 4, b / 4, 90);
+    this.med_light = color(r / 4, g / 4, b / 4, 70);
 
     this.selected_on_outside = color(max(120, r), max(120, g), max(120, b));
     this.selected_on_inside = color(max(150, r - 50), max(150, g - 50), max(150, b - 50));
@@ -1743,6 +1798,8 @@ class light_source
     let cy = this.y * game.gridSize + game.GRID_HALF;
     this.viz_polygon = get_visible_polygon(cx, cy, 10);
     remove_duplicate_viz_points(this.viz_polygon);
+    this.need_fresh_image = true;
+    this.force_update = true;
   }
 
   check_leave_grid()
@@ -1765,6 +1822,7 @@ class light_source
     this.get_new_viz_poly();
     this.update_light_mask();
     this.force_update = true;
+    this.need_fresh_image = true;
 
     // NOT RIGHT
     // we need somewhere (game handler?) to check if the old pos is the same as
@@ -1791,6 +1849,8 @@ class light_source
   {
     this.add_switch_to_undo_stack();
     this.update_light_mask();
+    this.need_fresh_image = true;
+    this.force_update = true;
     this.active = !this.active;
 
     if (this.active)
@@ -1867,6 +1927,7 @@ class light_source
     }
     this.mask_image.vertex(this.viz_polygon[0].x, this.viz_polygon[0].y);
     this.mask_image.endShape();
+    this.need_fresh_image = true;
     // this.mask_image_get = this.mask_image.get();
   }
 
@@ -1896,18 +1957,22 @@ class light_source
       blendMode(ADD);
       // noStroke();
 
-      let animsin = sin(this.anim_cycle) * 4;
-      let animcos = cos(this.anim_cycle) * 4;
+      // let animsin = sin(this.anim_cycle) * 4;
+      // let animcos = cos(this.anim_cycle) * 4;
 
-      let large_circle_size = game.gridSize * 8 + animsin;
-      let small_circle_size = game.gridSize * 2 + animcos;
+      let large_circle_size = game.gridSize * this.light_big_size; // + animsin;
+      let small_circle_size = game.gridSize * this.light_small_size; // + animcos;
 
       if (this.animate_light_on)
       {
+        // skip light growing animation for now
+        this.animate_light_on_timer = 1;
+
+        this.need_fresh_image = true;
         large_circle_size *= this.animate_light_on_timer;
         small_circle_size *= this.animate_light_on_timer;
-        this.animate_light_on_timer += (deltaTime / 100);
-        this.dark_light.setAlpha(60 * this.animate_light_on_timer);
+        this.animate_light_on_timer += (deltaTime / 128);
+        this.dark_light.setAlpha(80 * this.animate_light_on_timer);
         this.med_light.setAlpha(110 * this.animate_light_on_timer);
         if (this.animate_light_on_timer >= 1)
         {
@@ -1918,9 +1983,10 @@ class light_source
       
       if (this.animate_light_off)
       {
+        this.need_fresh_image = true;
         large_circle_size *= this.animate_light_off_timer;
         small_circle_size *= this.animate_light_off_timer;
-        this.animate_light_off_timer -= (deltaTime / 125);
+        this.animate_light_off_timer -= (deltaTime / 128);
         this.dark_light.setAlpha(80 * this.animate_light_off_timer);
         this.med_light.setAlpha(110 * this.animate_light_off_timer);
         if (this.animate_light_off_timer <= 0)
@@ -1941,10 +2007,10 @@ class light_source
         // want to mask this by our drawn viz polygons
         this.cur_image_source.clear();
         this.cur_image_source.noStroke();
-        for (let ring = 4; ring > 0; --ring)
+        for (let ring = this.num_rings; ring > 0; --ring)
         {
           let r_size = ring * game.gridSize * 2;
-          this.cur_image_source.fill(this.dark_light, 100 - ring * 20);
+          this.cur_image_source.fill(this.dark_light, 100 - ring * this.ring_ratio);
           this.cur_image_source.ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, large_circle_size + r_size , large_circle_size + r_size);
   
         }
@@ -1954,21 +2020,73 @@ class light_source
         this.cur_image_source.fill(this.med_light);
         this.cur_image_source.ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, small_circle_size, small_circle_size);
     
+        if (this.need_fresh_image)
+        {
+          this.cur_image_source_get = this.cur_image_source.get();
+        }
+        else
+        {
+          // this.image_xoffset = (this.x - this.half_total_width) * game.gridSize + game.GRID_HALF;
+          // this.image_yoffset = (this.y - this.half_total_width) * game.gridSize + game.GRID_HALF
+          // // this.cur_image_source_get = this.cur_image_source.get(
+          // //   this.image_xoffset, 
+          // //   this.image_yoffset , 
+          // //   this.total_width * game.gridSize, 
+          // //   this.total_width * game.gridSize);
+          // // this.cur_image_source_get.copy(
+          // //               this.cur_image_source,
+          // //               this.image_xoffset, 
+          // //               this.image_yoffset , 
+          // //               this.total_width * game.gridSize, 
+          // //               this.total_width * game.gridSize,
+          // //               this.image_xoffset, 
+          // //               this.image_yoffset , 
+          // //               this.total_width * game.gridSize, 
+          // //               this.total_width * game.gridSize
+          // //               );
+          // this.cur_image_source_get = this.cur_image_source.get(
+          //               this.image_xoffset, 
+          //               this.image_yoffset , 
+          //               this.total_width * game.gridSize, 
+          //               this.total_width * game.gridSize,
+          // )
+          // console.log("Get()ting image_source");
+          // this.cur_image_source_get = this.cur_image_source.get();
+        }
+        //this.cur_image_source.get()
+        // fill(255, 0, 0);
+        // rect((this.x - this.half_total_width) * game.gridSize + game.GRID_HALF, 
+        //   (this.y - this.half_total_width) * game.gridSize + game.GRID_HALF, 
+        //   this.total_width * game.gridSize, 
+        //   this.total_width * game.gridSize);
         // TODO: This is the most expensive operation by far, figure out a way to cut
         // down on the cost!
-        (this.masked_light =  this.cur_image_source.get()).mask(this.mask_image);
-        // (this.cur_image_source.get()).mask(this.mask_image);
-        //this.masked_light = 
-        // this.masked_light = this.cur_image_source.mask(this.mask_image);
-
+        // (this.masked_light =  this.cur_image_source.get()).mask(this.mask_image);
+        (this.masked_light = this.cur_image_source_get).mask(this.mask_image); 
       }
       this.anim_frame += deltaTime;
-      if (this.anim_frame > 75)
+      if (this.anim_frame > 200)
       {
         this.anim_frame = 0;
       }
-      // image(this.cur_image_source, 0, 0);
+
+      // // image(this.cur_image_source, 0, 0);
+      // if (this.need_fresh_image)
+      // {
+      //   image(this.masked_light, 0, 0);
+      // }
+      // else
+      // {
+      //   image(this.masked_light, this.image_xoffset, this.image_yoffset);
+      // }
       image(this.masked_light, 0, 0);
+
+      if (this.need_fresh_image)
+      {
+        this.need_fresh_image = false;
+      }
+
+
       // image(this.masked_light_img, 0, 0);
       // source_image.remove();
       // masked_light = null;
@@ -2275,9 +2393,10 @@ class particle
     this.particle_type = particle_type;
     this.oldx = x;
     this.oldy = y;
+    this.sub_type = Math.floor(Math.random() * 6);
     // this.origin_x = x;
     // this.origin_y = y;
-    this.path_points = 6;
+    this.path_points = 8;
     this.path = [];
   }
 
@@ -2301,9 +2420,37 @@ class particle
       this.path.push([this.x, this.y]);
     }
 
-    let rand_scale = this.life / 100;
-    this.x_vel += ((Math.random() * 2 - 1) * rand_scale);
-    this.y_vel += ((Math.random() * 2 - 1) * rand_scale);
+    let rand_scale = this.life / 64;
+    // cool effect 1
+    // this.sub_type = 2;
+    switch (this.sub_type)
+    {
+      case 0:
+        this.x_vel = this.x_vel * 1.02 + ((Math.random() * 2 - 1) * rand_scale);
+        this.y_vel = this.y_vel * 1.02 + ((Math.random() * 2 - 1) * rand_scale);
+        break;
+      case 1:
+        this.x_vel = this.x_vel * 0.9 + ((Math.random() * 2 - 1) * rand_scale);
+        this.y_vel = this.y_vel * 0.9 + ((Math.random() * 2 - 1) * rand_scale);
+        break;
+      case 2:
+        this.x_vel *= 0.6 + ((Math.random() * 2 - 1) * rand_scale / 4);
+        this.y_vel *=  0.6 + ((Math.random() * 2 - 1) * rand_scale / 4);
+        break;
+      case 3:
+        this.x_vel *= Math.abs(sin(this.x));
+        this.y_vel *= Math.abs(cos(this.y));
+        break;
+      case 4:
+        // no transformation
+        break
+      case 5:
+        this.x_vel
+      // case 4:
+      //   this.x_vel 
+    }
+
+
     this.oldx = this.x;
     this.oldy = this.y;
     let cur_x_grid = int(this.x / game.gridSize);
@@ -2322,8 +2469,6 @@ class particle
     let target_y_grid = int(this.y / game.gridSize);
     target_y_grid = constrain(target_y_grid, 0, game.gridHeight - 1);
     // ricochet particles off existing walls
-    // target_x_grid = constrain(target_x_grid, 0, game.current_level.grid.gridWidth);
-    // target_y_grid = constrain(target_y_grid, 0, game.current_level.grid.gridHeight);
     if (target_y_grid < 0 ||
       target_y_grid > game.gridHeight ||
       (game.current_level.grid[cur_x_grid][target_y_grid] &&
@@ -2356,6 +2501,21 @@ class particle
     }
     else if (this.particle_type === 1)
     {
+      stroke(0, alph_amount);
+      strokeWeight(2);
+      beginShape(LINES);
+      this.path.forEach(path_entry => {
+        vertex(path_entry[0], path_entry[1]);
+      });
+      endShape();
+      // strokeWeight(1);
+      // line(this.x, this.y, (this.x + this.origin_x) / 2, (this.y + this.origin_y) / 2);
+
+
+      strokeWeight(4);
+      // noFill();
+      line(this.x, this.y, this.oldx, this.oldy);
+
       stroke(this.color);
       strokeWeight(1);
       beginShape(LINES);
@@ -2502,7 +2662,6 @@ p5.Graphics.prototype.remove = function() {
     this.elt.parentNode.removeChild(this.elt);
   }
   var idx = this._pInst._elements.indexOf(this);
-  // console.log(this._pInst);
   if (idx !== -1) {
     this._pInst._elements.splice(idx, 1);
   }
@@ -2564,7 +2723,10 @@ function centerCanvas() {
 function preload() {
   // any things to load before our game starts, fonts, music, etc.
   // This font is nice for gameplay stuff
-  spectro_font = loadFont('assets/LemonMilk.otf');
+
+  //spectro_font = loadFont('assets/LemonMilk.otf');
+  // spectro_font = loadFont('assets/AnakCute.ttf');
+  spectro_font = loadFont('assets/ChildsHand.ttf');
   // load all of our sounds in preload since it might take a moment, and this
   // should (in theory) mitigate the errors (but it doesn't)
   game.sound_handler = new sound();
@@ -2650,7 +2812,7 @@ function setup() {
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
   game.FLASH_SIZE = game.gridSize * 8;
 
-  font_size = game.gridSize;
+  font_size = int(game.gridSize * 0.8);
 
   // setup is called once at the start of the game
   cnv = createCanvas(game.gameWidth, game.gameHeight);
@@ -2690,7 +2852,7 @@ function windowResized()
   game.GRID_HALF = int(game.gridSize / 2);
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
   game.FLASH_SIZE = game.gridSize * 8;
-  font_size = game.gridSize;
+  font_size = game.gridSize * 0.8;
 
   resizeCanvas(game.gameWidth, game.gameHeight);
   centerCanvas();
@@ -2722,7 +2884,7 @@ function initialize_colors() {
   palette.empty_outline = color(17, 12, 12);
   palette.empty_fill = color(13, 13, 13);
 
-  palette.edge_color = color(50, 50, 60);
+  palette.edge_color = color(70, 70, 80);
   palette.edge_circle_color = color(60, 60, 70);
 
   palette.font_color = color(215, 215, 215);
@@ -2925,16 +3087,16 @@ function do_about_menu()
    "and Jane Haselgrove for all the pizza.\n";
 
   //stroke(130);
-  textSize(font_size / 2);
-  textAlign(CENTER, CENTER);
+  textSize(font_size);
+  textAlign(TOP, TOP);
   noStroke();
   blendMode(ADD);
   fill(255, 0, 0);
-  text(s, game.gridSize * 3, game.gridSize * 3, width - game.gridSize * 6, height - game.gridSize * 6 - 5);
+  text(s, game.gridSize * 4, game.gridSize * 4);
   fill(0, 255, 0);
-  text(s, game.gridSize * 3, game.gridSize * 3, width - game.gridSize * 6, height - game.gridSize * 6);
+  text(s, game.gridSize * 4, game.gridSize * 4 + 2);
   fill(0, 0, 255);
-  text(s, game.gridSize * 3, game.gridSize * 3, width - game.gridSize * 6, height - game.gridSize * 6 + 5);
+  text(s, game.gridSize * 4, game.gridSize * 4 + 4);
 
 
   blendMode(BLEND);
@@ -2943,13 +3105,23 @@ function do_about_menu()
   {
     noStroke();
     fill(255, 20);
-    ellipse((width / 2), height - 4.5 * game.gridSize, game.gridSize * 2, game.gridSize * 2);
+    let xpos = width / 2;
+    let ypos = height - 4.25 * game.gridSize;
+    xpos += sin(game.ok_btn_animation_timer / 2) * 8;
+    ypos += cos(game.ok_btn_animation_timer + ypos) * 8;
+    game.ok_btn_animation_timer += deltaTime / 64;
+    if (game.ok_btn_animation_timer > TWO_PI)
+    {
+      game.ok_btn_animation_timer = 0;
+    }
+    ellipse(xpos, ypos, game.gridSize * 2, game.gridSize * 2);
 
-    fill(255, 255, 255);
+    fill(255);
   }
   else 
   {
-    fill(0, 0, 0);
+    fill(0);
+    game.ok_btn_animation_timer = 0;
   }
   stroke(130);
   strokeWeight(2);
@@ -3445,7 +3617,7 @@ function do_game()
   // Render any text that we have to
   stroke(0);
   strokeWeight(3);
-  textSize(game.gridSize - 2);
+  textSize(font_size);
   fill(palette.font_color);
   text("level: " + game.difficulty_level, 0 + game.GRID_HALF, game.gridSize - 4);
 
@@ -3504,13 +3676,16 @@ function do_game()
 
 function do_intro()
 {
+  // TODO: Fix intro! Broken!
   blendMode(ADD);
   let random_cols = [color(255, 0, 0), color(0, 255, 0), color(0, 0, 255)];
+  // textAlign(CENTER, CENTER);
+  textAlign(CENTER, TOP);
   if (game.intro_timer === 0)
   {
     game.intro_timer += deltaTime;
     textSize(font_size * 3);
-    textAlign(CENTER, CENTER);
+
     // if we can figure out a way to play an intro sound, do it here
   }
   else if (game.intro_timer < 3500)
@@ -3675,8 +3850,8 @@ function tutorial()
   fill(180);
   stroke(130);
   textSize(font_size / 2);
-  textAlign(CENTER, CENTER);
-  text(s, game.gridSize * 3, game.gridSize * 3, width - game.gridSize * 6, height - game.gridSize * 6);
+  textAlign(CENTER, TOP);
+  text(s, game.gameWidth / 2, game.gridSize * 4);
 
   if (over_btn)
   {
@@ -4642,7 +4817,7 @@ function do_show_time_results()
   rect(game.gridSize * 3, game.gridSize * 3, width - game.gridSize * 6, height - game.gridSize * 6);
   strokeWeight(2);
   stroke(0);
-  textSize(game.gridSize);
+  textSize(font_size);
   fill (palette.bright_font_color);
   textAlign(CENTER);
   text("Total time played: " + game.total_time_played, width / 2, game.gridSize * 7);
@@ -4769,11 +4944,11 @@ function random_game_ui()
   if (game.highest_score_display_timer > 0)
   {
     game.highest_score_display_timer -= deltaTime / 1500;
-    text("high score: " + game.highest_score, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - 4);
+    text("high score: " + game.highest_score, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
   }
   else
   {
-    text("score: " + game.new_scoring_system + " points: " + game.points_for_current_grid, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - 2);
+    text("score: " + game.new_scoring_system + " points: " + game.points_for_current_grid, 0 + game.GRID_HALF, game.gridHeight * game.gridSize - game.GRID_QUARTER);
   }
 
   if (game.new_total_fade > 0)
@@ -4871,7 +5046,7 @@ function init_random_detectors(lvl, num_detectors)
       xp = int(random(2, lvl.xsize - 2));
       yp = int(random(2, lvl.ysize - 2));
       gtype = lvl.grid[xp][yp].grid_type;
-      // Don't let us pop-up on game.lightsources as well, since it is
+      // Don't let us pop-up on lightsources as well, since it is
       // hard to notice
       for (let l of game.lightsources)
       {
@@ -5007,7 +5182,7 @@ function reset_grid(lvl)
 function do_tutorial_game_intro()
 {
   game.tutorial_game_intro_timer += deltaTime / 1000;
-  textSize(game.gridSize);
+  textSize(font_size);
   fill(37);
   rect(0, 0, width, height);
   fill(255);
@@ -5094,7 +5269,7 @@ function  make_tutorial_level()
 function do_tutorial_game_outro()
 {
   game.tutorial_game_intro_timer += deltaTime / 1000;
-  textSize(game.gridSize);
+  textSize(font_size);
   fill(37);
   rect(0, 0, width, height);
   fill(255);
@@ -5500,7 +5675,7 @@ function two_option_dialog(dialog_text, option1_text, option2_text)
   fill(180);
   stroke(130);
   textSize(28);
-  textAlign(CENTER, CENTER);
+  textAlign(TOP, TOP);
   text(dialog_text, game.gridSize * 3, game.gridSize * 3, width - game.gridSize * 6, height - game.gridSize * 6);
 }
 
