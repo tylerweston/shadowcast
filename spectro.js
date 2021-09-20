@@ -9,33 +9,6 @@ r, g, b: switch corresponding light (This currently doesn't work during tutorial
 space: go to next level (if available)
 
 Important:
-deal with:
-sketch.js:3087 Uncaught RangeError: Maximum call stack size exceeded
-    at disable_menu (sketch.js:3087)
-    at close_menu (sketch.js:3098)
-    at open_menu_region.events.<computed> (sketch.js:3116)
-    at mouse_handler.disable_region (sketch.js:569)
-    at disable_menu (sketch.js:3088)
-    at close_menu (sketch.js:3098)
-    at open_menu_region.events.<computed> (sketch.js:3116)
-    at mouse_handler.disable_region (sketch.js:569)
-    at disable_menu (sketch.js:3088)
-    at close_menu (sketch.js:3098)
-Something funny with some circular mumbo-jumbo going on
-with the mouse and callback functions.
-
-deal with:
-sketch.js:1916 Uncaught TypeError: Cannot read properties of undefined (reading 'x')
-    at light_source.update_light_mask (sketch.js:1916)
-    at light_source.switch_active (sketch.js:1839)
-    at light_source.unclick_light (sketch.js:1831)
-    at Object.ls_region.events.<computed> (sketch.js:1773)
-    at mouse_handler.run_callbacks (sketch.js:541)
-    at mouse_handler.handle (sketch.js:625)
-    at draw (sketch.js:3879)
-    at _.o.default.redraw (p5.min.js:3)
-    at _draw (p5.min.js:3)
-
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
 - Sound juice. Finish this and add options.
 - option screen
@@ -1646,7 +1619,7 @@ class detector
 
     if (this.correct)
     {
-      fill(this.c);
+      fill(this.c, 70);
     }
     else
     {
@@ -1655,7 +1628,7 @@ class detector
     strokeWeight(4);
     if (this.correct)
     {
-      stroke(160 + sin(this.anim_cycle) * 40);
+      stroke(140 + sin(this.anim_cycle) * 30);
     } 
     else
     {
@@ -1915,10 +1888,19 @@ class light_source
 
   update_light_mask()
   {
+    // console.log(`viz polygons: ${this.viz_polygon}`);
+    // if (typeof this.viz_polygon === 'undefined') {
+    //   this.get_new_viz_poly();
+    // }
+    this.need_fresh_image = true;
     let cx = this.x * game.gridSize + game.gridSize / 2;
     let cy = this.y * game.gridSize + game.gridSize / 2;
     this.mask_image.clear();
     this.mask_image.fill('rgba(0, 0, 0, 1)');
+    if (this.viz_polygon.length === 0)
+    {
+      return;
+    }
     this.mask_image.beginShape();
     this.mask_image.vertex(cx, cy);
     for (let i = 0; i < this.viz_polygon.length; ++ i)
@@ -1927,7 +1909,7 @@ class light_source
     }
     this.mask_image.vertex(this.viz_polygon[0].x, this.viz_polygon[0].y);
     this.mask_image.endShape();
-    this.need_fresh_image = true;
+
     // this.mask_image_get = this.mask_image.get();
   }
 
@@ -2725,7 +2707,6 @@ function preload() {
   // This font is nice for gameplay stuff
 
   //spectro_font = loadFont('assets/LemonMilk.otf');
-  // spectro_font = loadFont('assets/AnakCute.ttf');
   spectro_font = loadFont('assets/ChildsHand.ttf');
   // load all of our sounds in preload since it might take a moment, and this
   // should (in theory) mitigate the errors (but it doesn't)
@@ -2939,6 +2920,7 @@ function do_setup_main_menu()
     }
     states.need_setup_main_menu = false;
   }
+  disable_menu(); // disable the top menu in case it is active
   enable_main_menu();
   game.have_saved_game = (getItem("savedgame") !== null);
   game.game_state = states.MAIN_MENU;
@@ -2960,6 +2942,8 @@ function do_main_menu()
   game.current_gamemode = undefined;
   fill(37);
   rect(0, 0, width, height);
+
+  draw_menu_background();
 
   // display menu options
   textSize(font_size * 2);
@@ -2992,6 +2976,11 @@ function do_main_menu()
     text(m, (game.gridWidth - 17) * game.gridSize, (i + 2) * game.gridSize * 2);
     ++i;
   }
+}
+
+function draw_menu_background()
+{
+
 }
 
 function enable_main_menu()
