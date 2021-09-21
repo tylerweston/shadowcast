@@ -22,6 +22,9 @@ Important:
       mobile mode vs PC mode
     - Maybe it just needs to be a better way to choose the lights, ie.
       if on mobile and a click is really close to a light, auto choose it?
+- difficulty level and score are reset when a game is continued
+
+
 
 Visual fixes:
 - get intro back into game
@@ -38,7 +41,6 @@ Visual fixes:
   the squares a bit larger since playing on a cellphone is awkward!
 
 Bugs:
-- issue with saving/loading games? <- FIX THIS
 - hi score board / leaderboard!
 - if you start a level with all detectors active, the next button won't work?
 - Window resizing is broken?
@@ -122,7 +124,7 @@ Editor stuff (Maybe eventually):
 const MAJOR_VERSION = 1;
 const MINOR_VERSION = 2;
 
-const USE_DEBUG_KEYS = false;
+const USE_DEBUG_KEYS = true;
 
 // font
 let spectro_font;
@@ -373,6 +375,8 @@ class game
   static editor_available = false;
   static show_intro = false;         // <--------------- intro flag
   static show_tutorial = false;
+
+  static need_load_menu_map = true;
 
   static intro_timer = 0;
   static next_button_bob_timer = 0;
@@ -1649,7 +1653,7 @@ class detector
 
     if (this.correct)
     {
-      stroke(120 + sin(this.anim_cycle) * 30);
+      stroke(80 + sin(this.anim_cycle / 2) * 20);
     } 
     else
     {
@@ -2143,8 +2147,8 @@ class floor_animation
     this.animation_frame = 0;
     this.animation_max_frames = 0;
     this.animation_array = [];
-    this.num_animations = 5;
-    this.animation_lengths = [12, 12, 12, 10, 16];
+    this.num_animations = 7;
+    this.animation_lengths = [12, 12, 12, 10, 16, 10, 12];
     this.animation_fading = false;
 
     this.x_target;
@@ -2184,9 +2188,7 @@ class floor_animation
     this.clear_animation_array();
     
     this.animation_type = Math.floor(Math.random() * this.num_animations);
-    
-    // this.animation_type = 4;
-    
+  
     // console.log(`new animation type ${this.animation_type}`);
     if (this.animation_type === 4)
     {
@@ -2379,6 +2381,7 @@ class floor_animation
             this.animation_array[x][y] = temp_var;
             break;
 
+          // circle in
           case 4:
             x_dist = this.x_target - x;
             y_dist = this.y_target - y;
@@ -2386,10 +2389,33 @@ class floor_animation
             y_sqr = y_dist * y_dist;
             let calculated_radius = Math.sqrt(x_sqr + y_sqr);
             let in_r = (calculated_radius < (half_grid_width / this.animation_frame) * 2) && 
-            !(calculated_radius < (half_grid_width / this.animation_frame));
-            //  || calculated_radius > half_grid_width;
+                      !(calculated_radius < (half_grid_width / this.animation_frame));
             this.animation_array[x][y] = in_r ? calculated_radius * 5 : 0;
-            // console.log(calculated_radius);
+            break;
+        
+          // zap
+          case 5:
+            temp_var = this.animation_array[x][y];
+            if (temp_var < 10 && this.animation_frame < 6 && Math.random() < 0.8)
+              temp_var = reverse_time * 8;
+            temp_var *= 0.9;
+            this.animation_array[x][y] = temp_var;
+            break;
+
+          case 6:
+            temp_var = this.animation_array[x][y];
+            if (this.animation_frame < 8)
+            {
+              if ((x + y) % 2 === 0 && Math.random() < 0.1)
+                temp_var = Math.floor(Math.random() * 127);
+              // if (temp_var < 20 && Math.random() < 0.05)
+              //   temp_var = Math.floor(Math.random() * 127);
+              if (x < this.xsize - 1 && Math.random() < 0.05)
+                this.animation_array[x + 1][y] = (this.animation_array[x + 1][y] + temp_var) / 2;
+              if (y < this.ysize - 1 && Math.random() < 0.05)
+                this.animation_array[x][y + 1] = (this.animation_array[x][y + 1] + temp_var) / 2;
+            }
+            this.animation_array[x][y] = temp_var * 0.92;
             break;
         }
       }
@@ -3193,10 +3219,14 @@ function do_setup_main_menu()
   // random_level();
   game.have_saved_game = (getItem("savedgame") !== null);
   
-  if (game.have_saved_game) {
-    try_load_level(getItem("savedgame"));
-  } else {
-    random_level(save=false);
+  if (game.need_load_menu_map)
+  {
+    if (game.have_saved_game) {
+      try_load_level(getItem("savedgame"));
+    } else {
+      random_level(save=false);
+    }
+    game.need_load_menu_map = false;
   }
 
   for (let d of game.detectors)
@@ -3563,6 +3593,7 @@ function top_menu_main_menu()
   }
   if (game.current_gamemode === game.GAMEMODE_RANDOM)
   {
+    game.current_level.save_level(game.lightsources, game.detectors, false);
     tear_down_random_game();
   }
   game.game_state = states.MAIN_MENU_SETUP;
@@ -5154,23 +5185,25 @@ function setup_random_game()
   next_region.enabled = false;
   game.global_mouse_handler.register_region("next_btn", next_region);
 
-  game.difficulty_level = 1;
-  game.new_scoring_system = 0;
-  init_light_sources();
+
+
   // check if we have a saved game
   let saved_g = getItem("savedgame");
   if (!saved_g)
   {
+    game.difficulty_level = 1;
+    game.new_scoring_system = 0;
+    init_light_sources();
     random_level();
   }
-  else
-  {
-    let loaded_success = try_load_level(saved_g);
-    if (!loaded_success)
-    {
-      random_level();
-    }
-  }
+  // else
+  // {
+  //   let loaded_success = try_load_level(saved_g);
+  //   if (!loaded_success)
+  //   {
+  //     random_level();
+  //   }
+  // }
   game.highest_score = getItem("high_random_score")
   if (game.highest_score == null)
     game.highest_score = 0;
