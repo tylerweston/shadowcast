@@ -10,6 +10,8 @@ space: go to next level (if available)
 TODO: Pressing r,g,b on main menu crashes!
 
 Important:
+- don't really need a save button anymore since your
+  game is just stored for you all the time.
 - making the top right menu seems to happen at a weird time
   in the flow of things, look into that.
 - when we return from a timed game to the main menu, we should
@@ -2675,7 +2677,7 @@ class particle
     this.sub_type = Math.floor(Math.random() * 6);
     // this.origin_x = x;
     // this.origin_y = y;
-    this.path_points = 8;
+    this.path_points = 7;
     this.path = [];
   }
 
@@ -2748,6 +2750,8 @@ class particle
     let target_y_grid = int(this.y / game.gridSize);
     target_y_grid = constrain(target_y_grid, 0, game.gridHeight - 1);
     // ricochet particles off existing walls
+    // We do this by bouncing off x and y separately to preserve momentum correctly
+    // then, if we are in a target, do some naive collision resolution
     if (target_y_grid < 0 ||
       target_y_grid > game.gridHeight ||
       (game.current_level.grid[cur_x_grid][target_y_grid] &&
@@ -4201,6 +4205,7 @@ function setup_game()
   particle_system.clear_particles();
   disable_menu();             // top menu starts disabled;
   undo.reset_undo_stacks();   // ensure we have a fresh redo stack to start
+  next_level_available = false; // clear next level flag
   if (game.current_gamemode === game.GAMEMODE_RANDOM)
     setup_random_game();
   if (game.current_gamemode === game.GAMEMODE_TIME)
