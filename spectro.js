@@ -122,7 +122,7 @@ Editor stuff (Maybe eventually):
 const MAJOR_VERSION = 1;
 const MINOR_VERSION = 1;
 
-const USE_DEBUG_KEYS = false;
+const USE_DEBUG_KEYS = true;
 
 // font
 let spectro_font;
@@ -2012,75 +2012,20 @@ class light_source
         this.cur_image_source.ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, small_circle_size, small_circle_size);
     
         if (this.need_fresh_image)
-        {
           this.cur_image_source_get = this.cur_image_source.get();
-        }
-        else
-        {
-          // this.image_xoffset = (this.x - this.half_total_width) * game.gridSize + game.GRID_HALF;
-          // this.image_yoffset = (this.y - this.half_total_width) * game.gridSize + game.GRID_HALF
-          // // this.cur_image_source_get = this.cur_image_source.get(
-          // //   this.image_xoffset, 
-          // //   this.image_yoffset , 
-          // //   this.total_width * game.gridSize, 
-          // //   this.total_width * game.gridSize);
-          // // this.cur_image_source_get.copy(
-          // //               this.cur_image_source,
-          // //               this.image_xoffset, 
-          // //               this.image_yoffset , 
-          // //               this.total_width * game.gridSize, 
-          // //               this.total_width * game.gridSize,
-          // //               this.image_xoffset, 
-          // //               this.image_yoffset , 
-          // //               this.total_width * game.gridSize, 
-          // //               this.total_width * game.gridSize
-          // //               );
-          // this.cur_image_source_get = this.cur_image_source.get(
-          //               this.image_xoffset, 
-          //               this.image_yoffset , 
-          //               this.total_width * game.gridSize, 
-          //               this.total_width * game.gridSize,
-          // )
-          // console.log("Get()ting image_source");
-          // this.cur_image_source_get = this.cur_image_source.get();
-        }
-        //this.cur_image_source.get()
-        // fill(255, 0, 0);
-        // rect((this.x - this.half_total_width) * game.gridSize + game.GRID_HALF, 
-        //   (this.y - this.half_total_width) * game.gridSize + game.GRID_HALF, 
-        //   this.total_width * game.gridSize, 
-        //   this.total_width * game.gridSize);
-        // TODO: This is the most expensive operation by far, figure out a way to cut
-        // down on the cost!
-        // (this.masked_light =  this.cur_image_source.get()).mask(this.mask_image);
+
         (this.masked_light = this.cur_image_source_get).mask(this.mask_image); 
       }
       this.anim_frame += deltaTime;
-      if (this.anim_frame > 200)
-      {
-        this.anim_frame = 0;
-      }
 
-      // // image(this.cur_image_source, 0, 0);
-      // if (this.need_fresh_image)
-      // {
-      //   image(this.masked_light, 0, 0);
-      // }
-      // else
-      // {
-      //   image(this.masked_light, this.image_xoffset, this.image_yoffset);
-      // }
+      if (this.anim_frame > 200)
+        this.anim_frame = 0;
+
       image(this.masked_light, 0, 0);
 
       if (this.need_fresh_image)
-      {
         this.need_fresh_image = false;
-      }
 
-
-      // image(this.masked_light_img, 0, 0);
-      // source_image.remove();
-      // masked_light = null;
       blendMode(BLEND);
     }
     strokeWeight(4);
@@ -3233,8 +3178,20 @@ function do_setup_main_menu()
   }
   disable_menu(); // disable the top menu in case it is active
   enable_main_menu();
-  random_level();
+  // random_level();
   game.have_saved_game = (getItem("savedgame") !== null);
+  
+  if (game.have_saved_game) {
+    try_load_level(getItem("savedgame"));
+  } else {
+    random_level(save=false);
+  }
+
+  for (let d of game.detectors)
+  {
+    d.check_color();
+  }
+  
   game.game_state = states.MAIN_MENU;
   game.floor_animation.start_animation();
 }
@@ -3297,6 +3254,8 @@ function draw_menu_background()
   game.floor_animation.update();
   draw_walls_and_floors();
   draw_detector_floors();
+  draw_light_sources(); 
+  draw_detectors(); 
   draw_floor_lines();
   draw_edges();
 }
@@ -3323,8 +3282,6 @@ function handle_main_menu_selection(menu_index)
   switch (menu_index)
   {
     case 0:
-      teardown_main_menu();
-      disable_menu();
       // confirm we want a new game
       storeItem("savedgame", null);
       game.current_gamemode = game.GAMEMODE_RANDOM;
@@ -3333,25 +3290,21 @@ function handle_main_menu_selection(menu_index)
     case 1:
       if (!game.have_saved_game)
         return;
-      teardown_main_menu();
-      disable_menu();
       game.current_gamemode = game.GAMEMODE_RANDOM;
       game.game_state = states.NEW_GAME;
       break; 
     case 2:
-      teardown_main_menu();
       game.current_gamemode = game.GAMEMODE_TIME;
       game.game_state = states.NEW_GAME;
       break;
     case 3:
       game.game_state = states.SETUP_OPTIONS;
-      teardown_main_menu();
       break;
     case 4:
       game.game_state = states.SETUP_ABOUT;
-      teardown_main_menu();
       break;
   }
+  teardown_main_menu();
 }
 
 //////// ABOUT SCREEN
@@ -3783,6 +3736,7 @@ function keyPressed() {
   } else if (key === 'q') {
     storeItem("high_random_score", null);
     storeItem("game.high_timer_score", null);
+    storeItem("savedgame", null);
   } else if (key === 'e') {
     let lvl_txt = get_level_and_load();
     try_load_level(lvl_txt);
@@ -4601,8 +4555,6 @@ function draw_edges()
     let curr_y = start_y;
     let next_x = curr_x;
     let next_y = curr_y;
-    // console.log("curr: " + curr_x + "," + curr_y);
-    // console.log("end:  " + end_x + "," + end_y);
     while (!(curr_x === end_x && curr_y === end_y))
     {
       if (curr_x < end_x)
@@ -4613,16 +4565,17 @@ function draw_edges()
       {
         next_y = curr_y + game.gridSize;
       }
-      // console.log("curr: " + curr_x + "," + curr_y);
-      // console.log("next: " + next_x + "," + next_y);
-      // TODO: Memoize this, it's pretty slow rn
-      let sx_index = jiggle.get_index(curr_x);//int(curr_x / game.gridSize);
-      let sy_index = jiggle.get_index(curr_y);//int(curr_y / game.gridSize);
-      let ex_index = jiggle.get_index(next_x);//int(next_x / game.gridSize);
-      let ey_index = jiggle.get_index(next_y);//int(next_y / game.gridSize);
+
+      let sx_index = jiggle.get_index(curr_x);
+      let sy_index = jiggle.get_index(curr_y);
+      let ex_index = jiggle.get_index(next_x);
+      let ey_index = jiggle.get_index(next_y);
+
       let [sx_off, sy_off] = game.jiggle.jiggle_grid[sx_index][sy_index];
       let [ex_off, ey_off] = game.jiggle.jiggle_grid[ex_index][ey_index];
+
       line(curr_x + sx_off, curr_y + sy_off, next_x + ex_off, next_y + ey_off);
+
       curr_x = next_x;
       curr_y = next_y;
     }
@@ -4675,11 +4628,11 @@ function try_load_level(level_string)
   try 
   {
     load_level(level_string);
+    return true;
   } catch (err) {
     storeItem("savedgame", null);
     return false;
   }
-  return true;
 }
 
 function load_level(level_string)
@@ -4702,7 +4655,6 @@ function load_level(level_string)
   new_lvl.initialize_grid();
   game.gridWidth = xsize;
   game.gridHeight = ysize;
-
   // read 1 char to switch random save vs editor save.
   let read_mode = level_string.charAt(level_string_index++);
   if (read_mode === "r")  // random mode
@@ -5203,7 +5155,9 @@ function setup_random_game()
   {
     let loaded_success = try_load_level(saved_g);
     if (!loaded_success)
+    {
       random_level();
+    }
   }
   game.highest_score = getItem("high_random_score")
   if (game.highest_score == null)
@@ -5273,14 +5227,17 @@ function random_game_ui()
   }
 }
 
-function random_level()
+function random_level(save=true)
 {
   let new_random_level = new level();
   new_random_level.xsize = game.gridWidth;
   new_random_level.ysize = game.gridHeight;
-  new_random_level.initialize_grid();
 
+  // TODO: Why calling new_random_level.initialize_grid() AND initializeGrid(new_random_level.grid);?
+  // doesn't make sense, use one or the other.
+  new_random_level.initialize_grid(); 
   initializeGrid(new_random_level.grid);
+
   game.current_level = new_random_level;
   // turn_lights_off();
   init_random_detectors(new_random_level, difficulty_to_detector_amount());
@@ -5288,7 +5245,9 @@ function random_level()
   shrink_lights();
 
   // save current level
-  game.current_level.save_level(game.lightsources, game.detectors);
+  if (save)
+    game.current_level.save_level(game.lightsources, game.detectors);
+  
   make_edges();
   update_all_light_viz_polys();
   // check if we're a high score, if we are, store us
