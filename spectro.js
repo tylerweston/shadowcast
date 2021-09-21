@@ -2343,7 +2343,7 @@ class floor_animation
 
     // TODO: Make this a variable somewhere to play around with different amount
     // of bg animation.
-    if (Math.random() < 0.005)  // 0.005
+    if (Math.random() < 0.002)  // 0.005
     {
       this.start_animation();
     }
@@ -3968,6 +3968,8 @@ function do_game()
   {
     if (game.next_level_available)
     {
+      // fire off a floor animation
+      game.floor_animation.start_animation();
       game.global_mouse_handler.enable_region("next_btn");
     }
     else
