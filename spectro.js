@@ -68,9 +68,7 @@ Visual fixes:
 
 Bugs:
 - hi score board / leaderboard!
-- problem with top right menu still! Conceptual problem?
-  or implementation problem? The whole shebang could be
-  nice to have an event system implemented in it
+- main menu can't approach timed game button from right for some reason?
 - Window resizing is broken?
 - don't allow holes to spawn on lights?
 - undo is a bit broken still, it automatically fires off
@@ -2212,6 +2210,7 @@ class floor_animation
     this.num_animations = 7;
     this.animation_lengths = [12, 12, 12, 10, 16, 10, 12];
     this.animation_fading = false;
+    this.bright_mode = false;
 
     this.x_target;
     this.y_target;
@@ -2248,7 +2247,8 @@ class floor_animation
     this.has_animation = true;
     this.animation_frame = 0;
     this.clear_animation_array();
-    
+    this.bright_mode = false;
+
     this.animation_type = Math.floor(Math.random() * this.num_animations);
   
     // console.log(`new animation type ${this.animation_type}`);
@@ -2256,8 +2256,8 @@ class floor_animation
     {
       if (Math.random() < 0.5)
       {
-        this.x_target = mouseX;
-        this.y_target = mouseY;
+        this.x_target = mouseX / game.gridSize;
+        this.y_target = mouseY / game.gridSize;
       }
       else
       {
@@ -2295,6 +2295,18 @@ class floor_animation
   get_color(x, y)
   {
     return color(this.jiggle_animation_color[x][y], 50);
+  }
+
+  do_floor_target_animation(x_target, y_target)
+  {
+    this.has_animation = true;
+    this.animation_frame = 0;
+    this.clear_animation_array();
+    this.bright_mode = true;
+    
+    this.animation_type = 4;
+    this.x_target = x_target;
+    this.y_target = y_target;
   }
 
   update()
@@ -2453,6 +2465,8 @@ class floor_animation
             let in_r = (calculated_radius < (half_grid_width / this.animation_frame) * 2) && 
                       !(calculated_radius < (half_grid_width / this.animation_frame));
             this.animation_array[x][y] = in_r ? calculated_radius * 5 : 0;
+            if (this.bright_mode)
+              this.animation_array[x][y] *= 4;
             break;
         
           // zap
@@ -5633,6 +5647,7 @@ function  make_tutorial_level()
     case 0:
       make_light(5, 5, 255, 0, 0);
       make_detector(game.gridWidth - 5, game.gridHeight - 5, 255, 0, 0);
+      game.floor_animation.do_floor_target_animation(5, 5);
       break;
     case 1:
       make_light(5, 5, 255, 0, 0);
@@ -5645,6 +5660,7 @@ function  make_tutorial_level()
       make_light(game.gridWidth - 2, center_grid, 0, 0, 255);
       make_detector(center_grid - 2, center_grid, 255, 0, 0);
       make_detector(center_grid + 2, center_grid, 0, 0, 255);
+      game.floor_animation.do_floor_target_animation(center_grid, center_grid);
       break;
     case 3:
       let center_grid2 = int(game.gridHeight / 2);
@@ -5666,7 +5682,16 @@ function do_tutorial_game_outro()
   fill(37);
   rect(0, 0, width, height);
   fill(255);
-  text("Click save on top menu\nto save progress.\nR,G,B keys switch lights\nSpace for next level\nCtrl-z undos last move\nHave fun!", game.gridSize, height / 2 - game.gridSize * 3);
+  text(
+        "Click save on top menu\n" +
+        "to save progress.\n" + 
+        "R,G,B keys switch lights\n" +
+        "Space for next level\n" + 
+        "Use menu to undo/redo\n" +
+        "Have fun!", 
+        game.gridSize, 
+        height / 2 - game.gridSize * 3
+      );
   if (game.tutorial_game_intro_timer > 7.5)
   {
     fill(map(game.tutorial_game_intro_timer, 7.5, 8.0, 37, 255));
