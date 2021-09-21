@@ -10,6 +10,7 @@ space: go to next level (if available)
 TODO: Pressing r,g,b on main menu crashes!
 
 Important:
+- Right click a solid tile to change it into colored glass?
 - Write a game solver that can generate solutions to valid games.
 - Seems like the best way to do this might be to run it backwards,
   - generate a level
@@ -28,6 +29,7 @@ Important:
   - Players can view solutions to levels
   - Generated random levels can be guaranteed to have solutions
   - THIS SEEMS LIKE A HARD PROBLEM.
+
 - don't really need a save button anymore since your
   game is just stored for you all the time.
 - making the top right menu seems to happen at a weird time
@@ -148,7 +150,7 @@ Editor stuff (Maybe eventually):
 
 // game version things
 const MAJOR_VERSION = 1;
-const MINOR_VERSION = 3;
+const MINOR_VERSION = 5;
 
 const USE_DEBUG_KEYS = false;
 
@@ -6086,6 +6088,7 @@ function resetStuff()
   // detectors and lights as well).
   // reset_grid_function
   // reset the grid (ie, all walls marked built (buildable + exist), will be changed to just buildable)
+  undo.reset_undo_stacks();
   reset_grid(game.current_level);
   game.points_for_current_grid = count_score();
   turn_lights_off();
