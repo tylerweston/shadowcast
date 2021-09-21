@@ -120,9 +120,9 @@ Editor stuff (Maybe eventually):
 
 // game version things
 const MAJOR_VERSION = 1;
-const MINOR_VERSION = 1;
+const MINOR_VERSION = 2;
 
-const USE_DEBUG_KEYS = true;
+const USE_DEBUG_KEYS = false;
 
 // font
 let spectro_font;
@@ -1626,18 +1626,30 @@ class detector
       0.8 * game.gridSize, 
       0.8 * game.gridSize);
 
-    if (this.correct)
-    {
-      fill(this.c, 70);
-    }
-    else
-    {
-      noFill();
-    }
+    // if (this.correct)
+    // {
+    //   fill(this.c, 10);
+    // }
+    // else
+    // {
+    //   noFill();
+    // }
+
+    noFill();
     strokeWeight(4);
     if (this.correct)
     {
-      stroke(140 + sin(this.anim_cycle) * 30);
+      stroke(this.c);
+      rect((this.x + 0.2) * game.gridSize, 
+      (this.y + 0.2) * game.gridSize, 
+      0.6 * game.gridSize, 
+      0.6 * game.gridSize);
+    }
+
+
+    if (this.correct)
+    {
+      stroke(120 + sin(this.anim_cycle) * 30);
     } 
     else
     {
@@ -5288,7 +5300,6 @@ function init_light_sources(start_active = false)
 function init_random_detectors(lvl, num_detectors)
 {
   // initialize a randomized array of detectors
-  //game.detectors = []
   game.detectors.splice(0, game.detectors.length);
 
   for (let i = 0 ; i < num_detectors; ++ i)
@@ -5344,10 +5355,6 @@ function init_random_detectors(lvl, num_detectors)
       if (gtype == tiles.FLOOR_EMPTY || gtype == tiles.FLOOR_BUILDABLE) // places we can build
         break;
     }
-
-    // let d = new detector(xp, yp, r, g, b);
-    // game.detectors.push(d);
-    // set_grid(lvl.grid, xp, yp, tiles.DETECTOR_TILE);
     make_detector(xp, yp, r, g, b);
   }
 }
