@@ -147,7 +147,6 @@ let show_menu = false;
 let top_menu_accept_input = false;
 let mouse_over_menu = false;
 let over_btn = false; // TODO: Roll into button class or something
-let next_level_available = false;
 let over_next_level = false;
 let over_play_again_btn = false;
 let over_main_menu_btn = false;
@@ -357,6 +356,8 @@ class game
   static difficulty_level = 1;
 
   static global_light_id = 0;
+
+  static next_level_available = false;
 
   // random game / score
   static have_saved_game;
@@ -3777,7 +3778,7 @@ function keyPressed() {
   {
     if ((game.current_gamemode === game.GAMEMODE_RANDOM ||
       game.current_gamemode === game.GAMEMODE_TUTORIAL) 
-      && next_level_available)
+      && game.next_level_available)
     {
       game.sound_handler.play_sound("next_level_clicked");
       game.game_state = game.game_state = states.LEVEL_TRANSITION_OUT;
@@ -3905,8 +3906,8 @@ function do_game()
     if(!d.correct)
       all_active = false;
   }
-  let old_next_level_available = next_level_available;
-  next_level_available = all_active;
+  let old_next_level_available = game.next_level_available;
+  game.next_level_available = all_active;
 
   // if we're in time attack, transition right away
   if (all_active && game.current_gamemode === game.GAMEMODE_TIME)
@@ -3915,9 +3916,9 @@ function do_game()
   }
 
   // change in status of ability to go to next level
-  if (old_next_level_available != next_level_available)
+  if (old_next_level_available != game.next_level_available)
   {
-    if (next_level_available)
+    if (game.next_level_available)
     {
       game.global_mouse_handler.enable_region("next_btn");
     }
@@ -4205,7 +4206,7 @@ function setup_game()
   particle_system.clear_particles();
   disable_menu();             // top menu starts disabled;
   undo.reset_undo_stacks();   // ensure we have a fresh redo stack to start
-  next_level_available = false; // clear next level flag
+  game.next_level_available = false; // clear next level flag
   if (game.current_gamemode === game.GAMEMODE_RANDOM)
     setup_random_game();
   if (game.current_gamemode === game.GAMEMODE_TIME)
@@ -5248,7 +5249,7 @@ function random_game_ui()
 {
   strokeWeight(3);
   stroke(0);
-  if (next_level_available)
+  if (game.next_level_available)
   {
     game.next_button_bob_timer += (deltaTime / 100);
     if (game.next_button_bob_timer > TWO_PI)
@@ -5654,7 +5655,7 @@ function tutorial_game_ui()
       break;
   }
   // draw all required tutorial game instructions, etc. here
-  if (next_level_available)
+  if (game.next_level_available)
   {
     game.next_button_bob_timer += (deltaTime / 100);
     if (game.next_button_bob_timer > TWO_PI)
