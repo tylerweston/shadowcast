@@ -10,6 +10,11 @@ space: go to next level (if available)
 TODO: Pressing r,g,b on main menu crashes!
 
 Important:
+- making the top right menu seems to happen at a weird time
+  in the flow of things, look into that.
+- when we return from a timed game to the main menu, we should
+  load a game since we don't want to keep playing the timed
+  game!
 - leaving top menu doesn't always deactivate it!
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
 - Sound juice. Finish this and add options.
@@ -160,8 +165,8 @@ class states
   static EDITOR = 7;  // done
   // static LOADLEVEL = 10; // unusued
   static NEW_GAME = 11; // done
-  static RANDOM_LEVEL_TRANSITION_OUT = 12;  // done
-  static RANDOM_LEVEL_TRANSITION_IN = 13;   // done
+  static LEVEL_TRANSITION_OUT = 12;  // done
+  static LEVEL_TRANSITION_IN = 13;   // done
   static PREPARE_TUTORIAL = 14; // done
   static TUTORIAL = 15; // done
   static TEARDOWN_TUTORIAL = 16;  // done
@@ -768,6 +773,7 @@ class level
 
   save_level(lights, detectors, use_juice=false)
   {
+
     let level_string = this.generate_save_string(lights, detectors);
     if (use_juice)
       game.save_fade = 1;
@@ -3302,9 +3308,15 @@ function draw_menu_background()
 {
   game.jiggle.update_jiggles();
   game.floor_animation.update();
+  for (let d of game.detectors)
+  {
+    d.check_color();
+  }
   draw_walls_and_floors();
   draw_detector_floors();
   draw_light_sources(); 
+  particle_system.update_particles();
+  particle_system.draw_particles();
   draw_detectors(); 
   draw_floor_lines();
   draw_edges();
@@ -3764,7 +3776,7 @@ function keyPressed() {
       && next_level_available)
     {
       game.sound_handler.play_sound("next_level_clicked");
-      game.game_state = game.game_state = states.RANDOM_LEVEL_TRANSITION_OUT;
+      game.game_state = game.game_state = states.LEVEL_TRANSITION_OUT;
     }
   }
 
@@ -3895,7 +3907,7 @@ function do_game()
   // if we're in time attack, transition right away
   if (all_active && game.current_gamemode === game.GAMEMODE_TIME)
   {
-    game.game_state = states.RANDOM_LEVEL_TRANSITION_OUT;
+    game.game_state = states.LEVEL_TRANSITION_OUT;
   }
 
   // change in status of ability to go to next level
@@ -4095,7 +4107,7 @@ function do_level_transition_out()
       }
       make_tutorial_level();
     }
-    game.game_state = states.RANDOM_LEVEL_TRANSITION_IN;
+    game.game_state = states.LEVEL_TRANSITION_IN;
   }
 }
 
@@ -4212,10 +4224,10 @@ function draw() {
   case states.GAME:
     do_game();
     break;
-  case states.RANDOM_LEVEL_TRANSITION_OUT:
+  case states.LEVEL_TRANSITION_OUT:
     do_level_transition_out();
     break;
-  case states.RANDOM_LEVEL_TRANSITION_IN:
+  case states.LEVEL_TRANSITION_IN:
     do_level_transition_in();
     break;
   case states.SETUP_EDITOR:
@@ -4995,7 +5007,7 @@ function setup_time_game()
   game.ghandler = new gameplay_handler();
   // next level button, will start hidden and disabled
   let next_region = new mouse_region((game.gridWidth - 3) * game.gridSize, (game.gridHeight - 1) * game.gridSize, game.gridWidth * game.gridSize, game.gridHeight * game.gridSize);
-  next_region.events[mouse_events.CLICK] = () => { game.game_state = states.RANDOM_LEVEL_TRANSITION_OUT; };
+  next_region.events[mouse_events.CLICK] = () => { game.game_state = states.LEVEL_TRANSITION_OUT; };
   next_region.events[mouse_events.ENTER_REGION] = () => { over_next_level = true; };
   next_region.events[mouse_events.EXIT_REGION] = () => { over_next_level = false; };
   next_region.enabled = false;
@@ -5016,29 +5028,26 @@ function setup_time_game()
 
 function time_level()
 {
-  // change how this level is made
+  // Create a new level for timer mode
   let new_random_level = new level();
   new_random_level.xsize = game.gridWidth;
   new_random_level.ysize = game.gridHeight;
   new_random_level.initialize_grid();
-
   initializeGrid(new_random_level.grid);
   game.current_level = new_random_level;
-  // turn_lights_off();
+
   init_random_detectors(new_random_level, difficulty_to_detector_amount());
   make_some_floor_unbuildable(new_random_level.grid, difficulty_to_shrink_amount());
   shrink_lights();
-
-  // save current level
   make_edges();
   update_all_light_viz_polys();
-
 }
 
 function tear_down_time_game()
 {
   // TODO: Clean up any other variables that are used here,
   // reset timers, etc.
+  game.need_load_menu_map = true;
   game.global_mouse_handler.disable_region("game.ghandler"); // remove entirely at some point!
 }
 
@@ -5112,6 +5121,7 @@ function play_again_from_time_results()
 function go_back_to_main_menu_from_time_results()
 {
   teardown_show_time_results();
+  game.need_load_menu_map = true;
   game.game_state = states.MAIN_MENU_SETUP;
 }
 
@@ -5186,7 +5196,7 @@ function setup_random_game()
   let next_region = new mouse_region((game.gridWidth - 3) * game.gridSize, (game.gridHeight - 1) * game.gridSize, game.gridWidth * game.gridSize, game.gridHeight * game.gridSize);
   next_region.events[mouse_events.CLICK] = () => { 
     game.sound_handler.play_sound("next_level_clicked");
-    game.game_state = states.RANDOM_LEVEL_TRANSITION_OUT; 
+    game.game_state = states.LEVEL_TRANSITION_OUT; 
   };
   next_region.events[mouse_events.ENTER_REGION] = () => { over_next_level = true; };
   next_region.events[mouse_events.EXIT_REGION] = () => { over_next_level = false; };
@@ -5523,7 +5533,7 @@ function setup_tutorial_game()
   let next_region = new mouse_region((game.gridWidth - 3) * game.gridSize, (game.gridHeight - 1) * game.gridSize, game.gridWidth * game.gridSize, game.gridHeight * game.gridSize);
   next_region.events[mouse_events.CLICK] = () => { 
     game.sound_handler.play_sound("next_level_clicked");
-    game.game_state = states.RANDOM_LEVEL_TRANSITION_OUT; 
+    game.game_state = states.LEVEL_TRANSITION_OUT; 
   };
   next_region.events[mouse_events.ENTER_REGION] = () => { over_next_level = true; };
   next_region.events[mouse_events.EXIT_REGION] = () => { over_next_level = false; };
