@@ -595,11 +595,14 @@ class mouse_handler
     // should we write this or just use register_region above?
   }
 
-  disable_region(region_name)
+  disable_region(region_name, run_exit_callbacks=true)
   {
+    // TODO: If we disable a region, do we ever want to run it's exit
+    // callbacks? Apparently I wrote this so it assumes it always wants
+    // to run this callback, but sometimes you don't??
     // IF we're in this region when we're disabled, send a mouseoff event
     // this is useful to clean up buttons, etc. that the mouse is over 
-    if (this.registered_regions[region_name].mouse_in(mouseX, mouseY))
+    if (run_exit_callbacks && this.registered_regions[region_name].mouse_in(mouseX, mouseY))
     {
       let mouse_exit_event = this.registered_regions[region_name].events[mouse_events.EXIT_REGION]
       if (mouse_exit_event)
@@ -3752,7 +3755,7 @@ function disable_menu()
 {
   top_menu_accept_input = false;
   game.global_mouse_handler.enable_region("top_menu");
-  game.global_mouse_handler.disable_region("opened_top_menu");
+  game.global_mouse_handler.disable_region("opened_top_menu", false);
   show_menu = false;
   for (let m of menus.top_menu_choices)
   {
