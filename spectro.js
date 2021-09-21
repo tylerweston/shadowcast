@@ -24,8 +24,6 @@ Important:
       if on mobile and a click is really close to a light, auto choose it?
 - difficulty level and score are reset when a game is continued
 
-
-
 Visual fixes:
 - get intro back into game
 - move up level and menu text in main game a little bit
@@ -124,7 +122,7 @@ Editor stuff (Maybe eventually):
 const MAJOR_VERSION = 1;
 const MINOR_VERSION = 2;
 
-const USE_DEBUG_KEYS = true;
+const USE_DEBUG_KEYS = false;
 
 // font
 let spectro_font;
@@ -3223,10 +3221,20 @@ function do_setup_main_menu()
   {
     if (game.have_saved_game) {
       try_load_level(getItem("savedgame"));
+      update_all_light_viz_polys();
     } else {
       random_level(save=false);
     }
     game.need_load_menu_map = false;
+  }
+
+  // various things that have to be done before
+  // a level can be properly displayed.
+  // Maybe roll this into level loading or something since
+  // it always has to be done when a level is loaded.
+  for (let l of game.lightsources)
+  {
+    l.update_light_mask();
   }
 
   for (let d of game.detectors)
