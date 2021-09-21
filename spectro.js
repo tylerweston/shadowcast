@@ -10,14 +10,29 @@ space: go to next level (if available)
 TODO: Pressing r,g,b on main menu crashes!
 
 Important:
+- Write a game solver that can generate solutions to valid games.
+- Seems like the best way to do this might be to run it backwards,
+  - generate a level
+  - place the lights in random places
+  - place as many walls as required
+  - then, place as many detectors as required
+    - Choose a random color, try to place it in a few
+      places, if you can, great go to next one, if not
+      choose a different color detector and repeat
+    - Ok, then you should have a solvable level!
+
+  - The problem with running it backwards is that we'd have to store
+  the solution with a saved 
+
+  - This way, player can get hints (Build a wall, move a light, etc.)
+  - Players can view solutions to levels
+  - Generated random levels can be guaranteed to have solutions
+  - THIS SEEMS LIKE A HARD PROBLEM.
 - don't really need a save button anymore since your
   game is just stored for you all the time.
 - making the top right menu seems to happen at a weird time
   in the flow of things, look into that.
-- when we return from a timed game to the main menu, we should
-  load a game since we don't want to keep playing the timed
-  game!
-- leaving top menu doesn't always deactivate it!
+
 - ARE YOU SURE? box that returns TRUE or FALSE for reset
 - Sound juice. Finish this and add options.
 - option screen
@@ -29,9 +44,13 @@ Important:
       mobile mode vs PC mode
     - Maybe it just needs to be a better way to choose the lights, ie.
       if on mobile and a click is really close to a light, auto choose it?
-- difficulty level and score are reset when a game is continued
 
 Visual fixes:
+- make the font printing a bit nicer, some sort of highlighting
+  or maybe little animated letters or something.
+  We could encapsulate this into a class that keeps track
+  of the string, location, size, etc, and then run little
+  offsets and color individual letters, etc.
 - get intro back into game
 - move up level and menu text in main game a little bit
 - add more floor patterns
@@ -47,7 +66,9 @@ Visual fixes:
 
 Bugs:
 - hi score board / leaderboard!
-- if you start a level with all detectors active, the next button won't work?
+- problem with top right menu still! Conceptual problem?
+  or implementation problem? The whole shebang could be
+  nice to have an event system implemented in it
 - Window resizing is broken?
 - don't allow holes to spawn on lights?
 - undo is a bit broken still, it automatically fires off
@@ -127,7 +148,7 @@ Editor stuff (Maybe eventually):
 
 // game version things
 const MAJOR_VERSION = 1;
-const MINOR_VERSION = 2;
+const MINOR_VERSION = 3;
 
 const USE_DEBUG_KEYS = false;
 
@@ -1621,17 +1642,32 @@ class detector
       }
     }
 
-    this.anim_cycle += this.anim_speed;
+    //let default_size = 0.7;
+    let default_size = (sin(this.anim_cycle) + 9) / 14;
+
+    this.anim_cycle += this.anim_speed / 2;
     if (this.anim_cycle > TWO_PI)
       this.anim_cycle = 0;
 
-    if (this.r == 0 & this.g == 0 & this.b == 0)
-      stroke(170);
-    else
-      stroke(4);    
-    strokeWeight(6);
-
     noFill();
+    if (this.correct)
+    {
+
+      strokeWeight(8);
+      stroke(17, 60);
+      ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
+
+      strokeWeight(6);
+      stroke(this.c);
+      ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
+    }
+
+    if (this.r == 0 & this.g == 0 & this.b == 0)
+      stroke(170, 100);
+    else
+      stroke(4, 100);    
+    strokeWeight(7);
+
     rect((this.x + 0.1) * game.gridSize, 
       (this.y + 0.1) * game.gridSize, 
       0.8 * game.gridSize, 
@@ -1646,21 +1682,20 @@ class detector
     //   noFill();
     // }
 
-    noFill();
     strokeWeight(4);
     if (this.correct)
     {
       stroke(this.c);
-      rect((this.x + 0.2) * game.gridSize, 
-      (this.y + 0.2) * game.gridSize, 
-      0.6 * game.gridSize, 
-      0.6 * game.gridSize);
+      rect((this.x + 0.15) * game.gridSize, 
+      (this.y + 0.15) * game.gridSize, 
+      0.7 * game.gridSize, 
+      0.7 * game.gridSize);
     }
 
 
     if (this.correct)
     {
-      stroke(80 + sin(this.anim_cycle / 2) * 20);
+      stroke(90 + sin(this.anim_cycle / 2) * 30);
     } 
     else
     {
@@ -1671,15 +1706,30 @@ class detector
       0.8 * game.gridSize, 
       0.8 * game.gridSize);
 
+    if (this.correct)
+    {
+      if (Math.random() < 0.02)
+      {
+        particle_system.particle_explosion
+        (
+          this.x * game.gridSize + game.GRID_HALF,
+          this.y * game.gridSize + game.GRID_HALF,
+          Math.floor(Math.random() * 6),
+          this.c,
+          250,
+          100,
+          9,
+          1
+        );
+      }
+    }
 
 
-
-    // let default_size = 0.8;
-    // default_size *= (sin(this.anim_cycle) + 9) / 10;
     // this.anim_cycle += this.anim_speed;
     // if (this.anim_cycle > TWO_PI)
     //   this.anim_cycle = 0;
-    // strokeWeight(game.GRID_QUARTER + 1);
+
+    // strokeWeight(4);
     // noFill();
     // if (this.r == 0 & this.g == 0 & this.b == 0)
     //   stroke(170);
@@ -1688,18 +1738,18 @@ class detector
     // ellipse(grid_center_x, grid_center_y, game.gridSize * default_size, game.gridSize * default_size);
     // // square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize * default_size, game.gridSize * default_size);
 
-    // strokeWeight(game.GRID_QUARTER - 3);
+    // strokeWeight(4);
     // stroke(this.c);
-    // if (this.correct)
-    // {
-    //   fill(this.c);
-    // }
-    // else
-    // {
-    //   noFill();
-    // }
+    // // if (this.correct)
+    // // {
+    // //   fill(this.c);
+    // // }
+    // // else
+    // // {
+    // //   noFill();
+    // // }
     // ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
-    // square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize, game.gridSize);
+    // // square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize, game.gridSize);
   }
 
   move(_x, _y)
@@ -2866,9 +2916,11 @@ class particle_system
   {
     for (let _ = 0; _ < amount; ++_)
     {
+      let xrand = Math.random() * game.gridSize - game.GRID_HALF;
+      let yrand = Math.random() * game.gridSize - game.GRID_HALF;
       let p = new particle(
-        x, 
-        y, 
+        x + xrand, 
+        y + yrand, 
         color, 
         (random() * (max_speed * 2) - max_speed) * 2, 
         (random() * (max_speed * 2) - max_speed) * 2, 
@@ -3699,20 +3751,13 @@ function enable_menu()
 function disable_menu()
 {
   top_menu_accept_input = false;
+  game.global_mouse_handler.enable_region("top_menu");
   game.global_mouse_handler.disable_region("opened_top_menu");
   show_menu = false;
   for (let m of menus.top_menu_choices)
   {
     game.global_mouse_handler.disable_region(m);
   }
-}
-
-function close_menu()
-{
-  // disable_menu();
-  // top_menu_accept_input = false;
-  game.global_mouse_handler.enable_region("top_menu");
-  show_menu = false;
 }
 
 function make_menu()
@@ -3728,7 +3773,7 @@ function make_menu()
   
   // initialize the menu handler and region stuff
   let open_menu_region = new mouse_region((game.gridWidth - 8) * game.gridSize, 0, game.gridWidth * game.gridSize, menus.top_menu_height * game.gridSize);
-  open_menu_region.events[mouse_events.EXIT_REGION] = () => {close_menu();};
+  open_menu_region.events[mouse_events.EXIT_REGION] = () => {disable_menu();};
   open_menu_region.events[mouse_events.UNCLICK] = () => {top_menu_accept_input = true;};
   game.global_mouse_handler.register_region("opened_top_menu", open_menu_region);
   
@@ -4428,7 +4473,10 @@ function draw_walls_and_floors()
           noStroke();
           if (game.use_animations)
           {
-            let black_shift = sin(millis() / 850 + (x + y)) * 4;
+            // TODO: Background floor animations are currently happening
+            // here, find a way to pull them out of here and put them 
+            // someewhere so they are easier to expand on and write more
+            let black_shift = sin(millis() / 2048 + (x + y)) * 4;
             fill(10 + black_shift);
           }
           else
