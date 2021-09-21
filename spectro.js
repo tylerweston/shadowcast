@@ -3265,7 +3265,7 @@ function do_setup_main_menu()
     let i = 0;
     for (let m of menus.main_menu_options)
     {
-      let reg = new mouse_region(0, (i + 1) * game.gridSize * 2, game.gridSize * game.gridWidth, (i + 2) * game.gridSize * 2);
+      let reg = new mouse_region(2 * game.gridSize, (i + 1) * game.gridSize * 2, (2 + m.length) * game.gridSize, (i + 2) * game.gridSize * 2);
       reg.events[mouse_events.CLICK] = () => {
         game.sound_handler.play_sound("menu_click");
         handle_main_menu_selection(int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1);
@@ -3274,7 +3274,9 @@ function do_setup_main_menu()
         menus.main_menu_selected = int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1;
         game.sound_handler.play_sound("menu_hover");
       };
-      // reg.events[mouse_events.EXIT_REGION] = () => {menus.main_menu_selected = undefined; };
+      reg.events[mouse_events.EXIT_REGION] = () => {
+          // menus.main_menu_selected = undefined; 
+      };
       game.global_mouse_handler.register_region(m + "main_menu", reg);
       ++i;
     }
@@ -3348,7 +3350,10 @@ function do_main_menu()
   text("spectro", (game.gridWidth - 17) * game.gridSize, game.gridSize * 2 + 5);
   blendMode(BLEND);
 
-  if ((mouseY <= game.gridSize * 2) || (mouseY >= game.gridSize * 2 * (menus.main_menu_options.length + 1)))
+  // if ((mouseY <= game.gridSize * 2) || (mouseY >= game.gridSize * 2 * (menus.main_menu_options.length + 1)))
+  //   menus.main_menu_selected = undefined;
+
+  if (mouseX >= game.gridSize * 10 || (mouseY >= game.gridSize * 2 * (menus.main_menu_options.length + 1)))
     menus.main_menu_selected = undefined;
 
   for (let m of menus.main_menu_options)
@@ -3465,8 +3470,8 @@ function do_about_menu()
 
   let s = "About\n" +
   "spectro v" + MAJOR_VERSION + "." + MINOR_VERSION + "\n" +
-   "Programming & Design: Tyler Weston\n" +
-   "Based on Javidx9's line of sight algorithm\n" +
+   "Programming, etc.: Tyler Weston\n" +
+   "Based on Javidx9's line of sight vid.\n" +
    "Thanks to Warren Sloper for testing\n" +
    "and Jane Haselgrove for all the pizza.\n";
 
