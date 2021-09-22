@@ -11,6 +11,8 @@ TODO: Pressing r,g,b on main menu crashes!
 
 Important:
 - Right click a solid tile to change it into colored glass?
+- mode where you can't see the color of a detector
+unless it is correct?
 - Write a game solver that can generate solutions to valid games.
 - Seems like the best way to do this might be to run it backwards,
   - generate a level
@@ -48,6 +50,8 @@ Important:
       if on mobile and a click is really close to a light, auto choose it?
 
 Visual fixes:
+- animation idea: add another offset to the jiggle
+  in the bg so we can do bigger jiggle offsets!
 - make the font printing a bit nicer, some sort of highlighting
   or maybe little animated letters or something.
   We could encapsulate this into a class that keeps track
@@ -1646,113 +1650,145 @@ class detector
     }
 
     //let default_size = 0.7;
-    let default_size = (sin(this.anim_cycle) + 9) / 14;
+    let default_size = (sin(this.anim_cycle) + 9) / 20;
 
-    this.anim_cycle += this.anim_speed / 2;
+    this.anim_cycle += this.anim_speed / 6;
     if (this.anim_cycle > TWO_PI)
       this.anim_cycle = 0;
 
-    noFill();
-    if (this.correct)
-    {
+    // noFill();
 
-      strokeWeight(8);
-      stroke(17, 60);
-      ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
+    // // if (this.correct)
+    // // {
 
-      strokeWeight(6);
-      stroke(this.c);
-      ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
-    }
+    // //   strokeWeight(11);
+    // //   stroke(this.c, 90);
+    // //   ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
 
-    if (this.r == 0 & this.g == 0 & this.b == 0)
-      stroke(170, 100);
-    else
-      stroke(4, 100);    
-    strokeWeight(7);
+    // //   strokeWeight(8);
+    // //   stroke(this.c);
+    // //   ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
+    // // }
 
-    rect((this.x + 0.1) * game.gridSize, 
-      (this.y + 0.1) * game.gridSize, 
-      0.8 * game.gridSize, 
-      0.8 * game.gridSize);
+    // if (!this.correct)
+    // {
+    //   strokeWeight(8);
+    //   if (this.r == 0 & this.g == 0 & this.b == 0)
+    //     stroke(170, 150);
+    //   else
+    //     stroke(4, 150);
+      
+    //   rect(
+    //         (this.x + 0.25) * game.gridSize, 
+    //         (this.y + 0.25) * game.gridSize, 
+    //         0.5 * game.gridSize, 
+    //         0.5 * game.gridSize
+    //   );
+    // }
+
+    // strokeWeight(4);
+    // if (this.correct)
+    // {
+    //   stroke(this.c);
+    //   // fill(this.c);
+    //   rect(
+    //     (this.x + 0.3) * game.gridSize, 
+    //     (this.y + 0.3) * game.gridSize, 
+    //     0.4 * game.gridSize, 
+    //     0.4 * game.gridSize
+    //   );
+    // }
+
 
     // if (this.correct)
     // {
-    //   fill(this.c, 10);
-    // }
+    //   stroke(130 + sin(this.anim_cycle) * 30, 90);
+    // } 
     // else
     // {
-    //   noFill();
+    //   stroke(this.c);
     // }
+    // // rect(
+    // //   (this.x + 0.1) * game.gridSize, 
+    // //   (this.y + 0.1) * game.gridSize, 
+    // //   0.8 * game.gridSize, 
+    // //   0.8 * game.gridSize
+    // // );
+    // beginShape();
+    // let gx = this.x * game.gridSize;
+    // let gy = this.y * game.gridSize;
+    // vertex(gx + game.GRID_HALF, gy + 2);
+    // vertex(gx + game.gridSize - 2, gy + game.GRID_HALF);
+    // vertex(gx + game.GRID_HALF, gy + game.gridSize - 2);
+    // vertex(gx + 2, gy + game.GRID_HALF);
+    // endShape(CLOSE);
+    noFill();
 
-    strokeWeight(4);
     if (this.correct)
     {
+      strokeWeight(11);
+      if (this.r == 255 & this.g == 255 & this.b == 255)
+        stroke(60 + sin(this.anim_cycle * 2) * 40, 120);
+      else
+        stroke(130 + sin(this.anim_cycle * 2) * 40, 90);
+      beginShape();
+      let gx = this.x * game.gridSize;
+      let gy = this.y * game.gridSize;
+      vertex(gx + game.GRID_HALF, gy + game.GRID_QUARTER);
+      vertex(gx + game.gridSize - game.GRID_QUARTER, gy + game.GRID_HALF);
+      vertex(gx + game.GRID_HALF, gy + game.gridSize - game.GRID_QUARTER);
+      vertex(gx + game.GRID_QUARTER, gy + game.GRID_HALF);
+      endShape(CLOSE);
+      
+      strokeWeight(5);
       stroke(this.c);
-      rect((this.x + 0.15) * game.gridSize, 
-      (this.y + 0.15) * game.gridSize, 
-      0.7 * game.gridSize, 
-      0.7 * game.gridSize);
+      beginShape();
+      vertex(gx + game.GRID_HALF, gy + game.GRID_QUARTER);
+      vertex(gx + game.gridSize - game.GRID_QUARTER, gy + game.GRID_HALF);
+      vertex(gx + game.GRID_HALF, gy + game.gridSize - game.GRID_QUARTER);
+      vertex(gx + game.GRID_QUARTER, gy + game.GRID_HALF);
+      endShape(CLOSE);
     }
-
-
-    if (this.correct)
-    {
-      stroke(90 + sin(this.anim_cycle / 2) * 30);
-    } 
     else
     {
+      strokeWeight(8);
+      if (this.r == 0 & this.g == 0 & this.b == 0)
+        stroke(170, 100);
+      else
+        stroke(4, 100);
+      
+      rect(
+            (this.x + 0.3) * game.gridSize, 
+            (this.y + 0.3) * game.gridSize, 
+            0.4 * game.gridSize, 
+            0.4 * game.gridSize
+      );
+
+      strokeWeight(4);
       stroke(this.c);
+      
+      rect(
+            (this.x + 0.3) * game.gridSize, 
+            (this.y + 0.3) * game.gridSize, 
+            0.4 * game.gridSize, 
+            0.4 * game.gridSize
+      );
     }
-    rect((this.x + 0.1) * game.gridSize, 
-      (this.y + 0.1) * game.gridSize, 
-      0.8 * game.gridSize, 
-      0.8 * game.gridSize);
 
-    if (this.correct)
+    if (this.correct && Math.random() < 0.015)
     {
-      if (Math.random() < 0.02)
-      {
-        particle_system.particle_explosion
-        (
-          this.x * game.gridSize + game.GRID_HALF,
-          this.y * game.gridSize + game.GRID_HALF,
-          Math.floor(Math.random() * 6),
-          this.c,
-          250,
-          100,
-          9,
-          1
-        );
-      }
+      particle_system.particle_explosion
+      (
+        this.x * game.gridSize + game.GRID_HALF,
+        this.y * game.gridSize + game.GRID_HALF,
+        Math.floor(Math.random() * 6),
+        this.c,
+        250,
+        100,
+        9,
+        1
+      );
     }
-
-
-    // this.anim_cycle += this.anim_speed;
-    // if (this.anim_cycle > TWO_PI)
-    //   this.anim_cycle = 0;
-
-    // strokeWeight(4);
-    // noFill();
-    // if (this.r == 0 & this.g == 0 & this.b == 0)
-    //   stroke(170);
-    // else
-    //   stroke(4);
-    // ellipse(grid_center_x, grid_center_y, game.gridSize * default_size, game.gridSize * default_size);
-    // // square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize * default_size, game.gridSize * default_size);
-
-    // strokeWeight(4);
-    // stroke(this.c);
-    // // if (this.correct)
-    // // {
-    // //   fill(this.c);
-    // // }
-    // // else
-    // // {
-    // //   noFill();
-    // // }
-    // ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
-    // // square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize, game.gridSize);
   }
 
   move(_x, _y)
@@ -2106,8 +2142,8 @@ class light_source
     }
     strokeWeight(4);
     fill(0);
-    stroke(0);
-    ellipse(this.x * game.gridSize + (game.gridSize / 2), this.y * game.gridSize + (game.gridSize / 2), game.gridSize * 0.85, game.gridSize * 0.85);
+    stroke(0, 70);
+    ellipse(this.x * game.gridSize + (game.gridSize / 2), this.y * game.gridSize + (game.gridSize / 2), game.gridSize * 0.7, game.gridSize * 0.7);
 
   
     strokeWeight(2);
@@ -2137,7 +2173,7 @@ class light_source
         fill(this.dark_inside);
       }
     }
-    ellipse(this.x * game.gridSize + (game.gridSize / 2), this.y * game.gridSize + (game.gridSize / 2), game.gridSize * 0.85, game.gridSize * 0.85);
+    ellipse(this.x * game.gridSize + (game.gridSize / 2), this.y * game.gridSize + (game.gridSize / 2), game.gridSize * 0.6, game.gridSize * 0.6);
   }
 
   end_light_mouse_handler()
