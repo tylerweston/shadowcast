@@ -1570,11 +1570,11 @@ class detector
     (
       this.x * game.gridSize + game.GRID_HALF,
       this.y * game.gridSize + game.GRID_HALF,
-      40,
+      32,
       this.c,
-      750,
+      800,
       250,
-      10,
+      12,
       1
     );
     // we also play a sound
@@ -1649,79 +1649,10 @@ class detector
       }
     }
 
-    //let default_size = 0.7;
-    let default_size = (sin(this.anim_cycle) + 9) / 20;
-
     this.anim_cycle += this.anim_speed / 6;
     if (this.anim_cycle > TWO_PI)
       this.anim_cycle = 0;
 
-    // noFill();
-
-    // // if (this.correct)
-    // // {
-
-    // //   strokeWeight(11);
-    // //   stroke(this.c, 90);
-    // //   ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
-
-    // //   strokeWeight(8);
-    // //   stroke(this.c);
-    // //   ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
-    // // }
-
-    // if (!this.correct)
-    // {
-    //   strokeWeight(8);
-    //   if (this.r == 0 & this.g == 0 & this.b == 0)
-    //     stroke(170, 150);
-    //   else
-    //     stroke(4, 150);
-      
-    //   rect(
-    //         (this.x + 0.25) * game.gridSize, 
-    //         (this.y + 0.25) * game.gridSize, 
-    //         0.5 * game.gridSize, 
-    //         0.5 * game.gridSize
-    //   );
-    // }
-
-    // strokeWeight(4);
-    // if (this.correct)
-    // {
-    //   stroke(this.c);
-    //   // fill(this.c);
-    //   rect(
-    //     (this.x + 0.3) * game.gridSize, 
-    //     (this.y + 0.3) * game.gridSize, 
-    //     0.4 * game.gridSize, 
-    //     0.4 * game.gridSize
-    //   );
-    // }
-
-
-    // if (this.correct)
-    // {
-    //   stroke(130 + sin(this.anim_cycle) * 30, 90);
-    // } 
-    // else
-    // {
-    //   stroke(this.c);
-    // }
-    // // rect(
-    // //   (this.x + 0.1) * game.gridSize, 
-    // //   (this.y + 0.1) * game.gridSize, 
-    // //   0.8 * game.gridSize, 
-    // //   0.8 * game.gridSize
-    // // );
-    // beginShape();
-    // let gx = this.x * game.gridSize;
-    // let gy = this.y * game.gridSize;
-    // vertex(gx + game.GRID_HALF, gy + 2);
-    // vertex(gx + game.gridSize - 2, gy + game.GRID_HALF);
-    // vertex(gx + game.GRID_HALF, gy + game.gridSize - 2);
-    // vertex(gx + 2, gy + game.GRID_HALF);
-    // endShape(CLOSE);
     noFill();
 
     if (this.correct)
@@ -1781,7 +1712,7 @@ class detector
       (
         this.x * game.gridSize + game.GRID_HALF,
         this.y * game.gridSize + game.GRID_HALF,
-        Math.floor(Math.random() * 6),
+        Math.floor(Math.random() * 8),
         this.c,
         250,
         100,
@@ -2783,7 +2714,7 @@ class particle
     this.sub_type = Math.floor(Math.random() * 6);
     // this.origin_x = x;
     // this.origin_y = y;
-    this.path_points = 7;
+    this.path_points = Math.floor(Math.random() * 6 + 5);
     this.path = [];
   }
 
