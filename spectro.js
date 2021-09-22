@@ -154,7 +154,7 @@ Editor stuff (Maybe eventually):
 const MAJOR_VERSION = 1;
 const MINOR_VERSION = 5;
 
-const USE_DEBUG_KEYS = false;
+const USE_DEBUG_KEYS = true;
 
 // font
 let spectro_font;
@@ -1438,6 +1438,14 @@ class detector
     this.flash_radius_max = game.FLASH_SIZE + random(game.gridSize);
   }
 
+  change_color(r, g, b)
+  {
+    this.c = color(r, g, b, 215);
+    this.r = r;
+    this.g = g;
+    this.b = b;
+  }
+
   check_color()
   {
     this.old_correct = this.correct;
@@ -1555,6 +1563,7 @@ class detector
     // if we used to be not active, and now we are, start a flash
     if (this.correct && !this.old_correct)
     {
+      // TODO: We don't always want to do this!
       this.activate_juice();
     }
 
@@ -5337,22 +5346,60 @@ function random_game_ui()
   }
 }
 
-function random_level(save=true)
+function solvable_random_level(save=true)
 {
+  console.log("Generating random solvable level");
   let new_random_level = new level();
   new_random_level.xsize = game.gridWidth;
   new_random_level.ysize = game.gridHeight;
 
-  // TODO: Why calling new_random_level.initialize_grid() AND initializeGrid(new_random_level.grid);?
-  // doesn't make sense, use one or the other.
   new_random_level.initialize_grid(); 
   initializeGrid(new_random_level.grid);
 
   game.current_level = new_random_level;
-  // turn_lights_off();
-  init_random_detectors(new_random_level, difficulty_to_detector_amount());
-  make_some_floor_unbuildable(new_random_level.grid, difficulty_to_shrink_amount());
-  shrink_lights();
+
+  let diff_level = difficulty_to_shrink_amount()
+  make_some_floor_unbuildable(game.current_level.grid, diff_level);
+  make_unbuildable_pattern(game.current_level.grid, diff_level);
+
+  make_some_built_floor(game.current_level.grid, diff_level);
+  make_edges()
+
+  // Now, we put the lights back somewhere they fit
+  place_lights_back_on_board();
+  // turn them all on? turn some on?
+  activate_lights();
+
+  // now place detectors in places that work, ie. they can be active
+  solvable_init_random_detectors(game.current_level, diff_level);
+
+  // ok, at this point we should save the current level since it is a
+  // valid solution
+
+  // then, clear all built walls
+
+  // then shuffle up the light position
+
+  // now we should have a valid solvable puzzle!
+}
+
+function random_level(save=true)
+{
+  solvable_random_level(save);
+  // let new_random_level = new level();
+  // new_random_level.xsize = game.gridWidth;
+  // new_random_level.ysize = game.gridHeight;
+
+  // // TODO: Why calling new_random_level.initialize_grid() AND initializeGrid(new_random_level.grid);?
+  // // doesn't make sense, use one or the other.
+  // new_random_level.initialize_grid(); 
+  // initializeGrid(new_random_level.grid);
+
+  // game.current_level = new_random_level;
+  // // turn_lights_off();
+  // init_random_detectors(new_random_level, difficulty_to_detector_amount());
+  // make_some_floor_unbuildable(new_random_level.grid, difficulty_to_shrink_amount());
+  // shrink_lights();
 
   // save current level
   if (save)
@@ -5457,6 +5504,83 @@ function init_random_detectors(lvl, num_detectors)
   }
 }
 
+function solvable_init_random_detectors(lvl, num_detectors)
+{
+  console.log("In solvable init random detectors");
+  let test_detector = new detector(0, 0, 0, 0, 0);
+  // initialize a randomized array of detectors
+  game.detectors.splice(0, game.detectors.length);
+
+  for (let i = 0 ; i < num_detectors; ++ i)
+  {
+    let col_val = [0, 255];
+    let r = random(col_val);
+    let g = random(col_val);
+    let b = random(col_val);
+    if (num_detectors == 1)
+    {
+      r = 255;
+      g = 255;
+      b = 255;
+    }
+
+    let xp;
+    let yp;
+    let gtype;
+
+    // only allow to pop-up on empty or buildable floor
+    while (true)
+    {
+
+      xp = int(random(2, lvl.xsize - 2));
+      yp = int(random(2, lvl.ysize - 2));
+      gtype = lvl.grid[xp][yp].grid_type;
+      // Don't let us pop-up on lightsources as well, since it is
+      // hard to notice
+      for (let l of game.lightsources)
+      {
+        if (l.x == xp && l.y == yp)
+        {
+          gtype = -1;
+          break;
+        }
+      }
+      // Don't pop up next to detectors that are already on the
+      // ground
+      for (let xoff = - 1; xoff <= 1; ++xoff)
+      {
+        for (let yoff = -1; yoff <= 1; ++yoff)
+        {
+          if (xoff === 0 && yoff === 0)
+            continue;
+          if (lvl.grid[xp + xoff][yp + yoff].grid_type == tiles.DETECTOR_TILE)
+          {
+            gtype = -1;
+            break;
+          }
+        }
+      }
+
+      if (gtype != tiles.FLOOR_EMPTY && gtype != tiles.FLOOR_BUILDABLE) // places we can build
+        continue;
+
+      // make sure this light can be activated here
+      console.log("Moving test detector");
+      test_detector.x = xp;
+      test_detector.y = yp;
+      test_detector.change_color(r, g, b);
+      console.log("Running detector test");
+      test_detector.check_color();
+      if (!test_detector.correct)
+        continue;
+      else
+        break;
+    }
+    make_detector(xp, yp, r, g, b);
+  }
+}
+
+
 function difficulty_to_detector_amount()
 {
   // map from a difficulty level to number of detectors
@@ -5504,6 +5628,38 @@ function shrink_lights()
   }
 }
 
+function activate_lights()
+{
+  for (let l of game.lightsources)
+  {
+    // Is this all we have to do here?
+    l.active = true;
+  }
+}
+
+
+function place_lights_back_on_board()
+{
+  for (let l of game.lightsources)
+  {
+    let has_valid_location = false;
+    let rx, ry;
+    do
+    {
+      rx = Math.floor(Math.random() * game.gridWidth);
+      ry = Math.floor(Math.random() * game.gridHeight);
+      if (game.current_level.grid[rx][ry].grid_type === tiles.FLOOR_BUILDABLE)
+        has_valid_location = true;
+    } while (!has_valid_location);
+    l.move(rx, ry);
+  }
+}
+
+function wander_lights(iterations)
+{
+
+}
+
 function make_some_floor_unbuildable(which_grid, shrink_amount)
 {
   // bring in some floor from the outside
@@ -5523,17 +5679,73 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
     {
       // TODO: Make sure this doesn't happen on one of the lights?
       // or say it's a feature, not a bug
+      let xpos, ypos;
       while(true)
       {
-        let xpos = int(random(1, game.gridWidth - 2));
-        let ypos = int(random(1, game.gridHeight - 2));
+        xpos = int(random(1, game.gridWidth - 2));
+        ypos = int(random(1, game.gridHeight - 2));
         //if xpos, ypos is not just a regular ol' floor
         if(which_grid[xpos][ypos].grid_type != tiles.FLOOR_BUILDABLE) 
           continue;
         break;
       }
-      set_grid(which_grid, int(random(1, game.gridWidth - 2)), int(random(1, game.gridHeight - 2)), tiles.FLOOR_EMPTY);
+      set_grid(which_grid, xpos, ypos, tiles.FLOOR_EMPTY);
     }
+  }
+}
+
+function make_unbuildable_pattern(which_grid, difficulty_amount)
+{
+  // Here, we make some patterns of unbuildable floor
+
+  // // bring in some floor from the outside
+  // for (let x = 1 ; x < game.gridWidth - 1; ++x)
+  // {
+  //   for (let y = 1; y < game.gridHeight - 1; ++y)
+  //   {
+  //     if (x < shrink_amount || game.gridWidth - 1 < x + shrink_amount || y < shrink_amount || game.gridHeight - 1 < y + shrink_amount)
+  //     {
+  //       set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
+  //     }
+  //   }
+  // }
+  // if (game.difficulty_level > 5)
+  // {
+  //   for (let i = 0; i < game.difficulty_level - 3; ++i)
+  //   {
+  //     // TODO: Make sure this doesn't happen on one of the lights?
+  //     // or say it's a feature, not a bug
+  //     while(true)
+  //     {
+  //       let xpos = int(random(1, game.gridWidth - 2));
+  //       let ypos = int(random(1, game.gridHeight - 2));
+  //       //if xpos, ypos is not just a regular ol' floor
+  //       if(which_grid[xpos][ypos].grid_type != tiles.FLOOR_BUILDABLE) 
+  //         continue;
+  //       break;
+  //     }
+  //     set_grid(which_grid, int(random(1, game.gridWidth - 2)), int(random(1, game.gridHeight - 2)), tiles.FLOOR_EMPTY);
+  //   }
+  // }
+}
+
+function make_some_built_floor(which_grid, difficulty_amount)
+{
+  for (let i = 0; i < difficulty_amount; ++i)
+  {
+    // TODO: Make sure this doesn't happen on one of the lights?
+    // or say it's a feature, not a bug
+    let xpos, ypos;
+    while(true)
+    {
+      xpos = int(random(1, game.gridWidth - 2));
+      ypos = int(random(1, game.gridHeight - 2));
+      //if xpos, ypos is not just a regular ol' floor
+      if(which_grid[xpos][ypos].grid_type != tiles.FLOOR_BUILDABLE) 
+        continue;
+      break;
+    }
+    set_grid(which_grid, xpos, ypos, tiles.FLOOR_BUILT);
   }
 }
 
