@@ -10,14 +10,13 @@ space: go to next level (if available)
 TODO: Pressing r,g,b on main menu crashes!
 
 Important:
-- Add a 'give up' button that ends game and shows solution
-  of current puzzle. Right now pressing 'l' in debug keys
-  will show stored solution.
 - Note that generated solutions are not guaranteed to be optimal.
 - Right click a solid tile to change it into colored glass?
 - mode where you can't see the color of a detector
 unless it is correct?
-- Random solvable level generator
+- Random solvable level generator will hang up on higher levels
+  since presumably there isn't a reasonable way to solve the puzzles.
+  What to do at this point?
 
 - don't really need a save button anymore since your
   game is just stored for you all the time.
@@ -1440,7 +1439,7 @@ class detector
     this.b = b;
   }
 
-  check_color()
+  check_color(use_juice=true)
   {
     this.old_correct = this.correct;
     let xp = this.x * game.gridSize + game.GRID_HALF;
@@ -1555,7 +1554,7 @@ class detector
     }
 
     // if we used to be not active, and now we are, start a flash
-    if (this.correct && !this.old_correct)
+    if (use_juice && this.correct && !this.old_correct)
     {
       // TODO: We don't always want to do this!
       this.activate_juice();
@@ -2860,7 +2859,7 @@ class particle
 class particle_system
 {
   static particles = [];
-  static MAX_PARTICLES = 2000;
+  static MAX_PARTICLES = 512;
 
   static update_particles()
   {
@@ -3278,7 +3277,8 @@ function do_setup_main_menu()
       try_load_level(getItem("savedgame"));
       update_all_light_viz_polys();
     } else {
-      random_level(save=false);
+      init_light_sources();
+      solvable_random_level(false, true);
     }
     game.need_load_menu_map = false;
   }
@@ -3665,7 +3665,16 @@ function top_menu_main_menu()
   }
   if (game.current_gamemode === game.GAMEMODE_RANDOM)
   {
-    game.current_level.save_level(game.lightsources, game.detectors, false);
+    if (game.given_up)
+    {
+      storeItem("savedgame", null);
+      storeItem("savedsolution", null);
+      game.need_load_menu_map = false;
+    }
+    else
+    {
+      game.current_level.save_level(game.lightsources, game.detectors, false);
+    }
     tear_down_random_game();
   }
   game.game_state = states.MAIN_MENU_SETUP;
@@ -3677,6 +3686,8 @@ function top_menu_save_level()
 }
 
 function top_menu_give_up() {
+  // TODO: Will we need to store if a level has been given up on
+  // in the level string?
   game.given_up = true;
 
   load_solution();
@@ -4739,7 +4750,7 @@ function draw_light_sources()
 //////// LEVEL SAVE / LOAD
 function load_solution()
 {
-  load_level(getItem("savedsolution"));
+  load_level(getItem("savedsolution"), /*keep_bg=*/true);
 }
 
 
@@ -4757,8 +4768,11 @@ function try_load_level(level_string)
   }
 }
 
-function load_level(level_string)
+function load_level(level_string, keep_bg=false)
 {
+  let stored_bg;
+  if (keep_bg)
+    stored_bg = [...game.current_level.odd_grid];
   // create a new level
   var level_string_index = 4;
   let new_lvl = new level();
@@ -4852,6 +4866,9 @@ function load_level(level_string)
   game.detectors = loaded_detectors;
   game.lightsources = loaded_lights;
   game.current_level = new_lvl;
+
+  if (keep_bg)
+    game.current_level.odd_grid = stored_bg;
 
   // if this is a random game, calculate the new board score
   game.points_for_current_grid = count_score();
@@ -5349,7 +5366,7 @@ function random_game_ui()
   }
 }
 
-function solvable_random_level(save=true)
+function solvable_random_level(save=true, showcase=false)
 {
   // TODO: At some point, this freezes since it cannot generate a valid level
   // figure out someway to deal with this!
@@ -5363,9 +5380,14 @@ function solvable_random_level(save=true)
 
   game.current_level = new_random_level;
 
-  let diff_level = difficulty_to_shrink_amount()
+  let diff_level = difficulty_to_shrink_amount();
+  if (showcase)
+    diff_level = 4;
   make_some_floor_unbuildable(game.current_level.grid, diff_level);
-  make_unbuildable_pattern(game.current_level.grid, diff_level);
+
+
+  for (let i = 0 ; i <= Math.floor(diff_level / 4); ++i)
+    make_unbuildable_pattern(game.current_level.grid, diff_level);
 
   make_some_built_floor(game.current_level.grid, diff_level);
   make_edges();
@@ -5379,15 +5401,16 @@ function solvable_random_level(save=true)
   // TODO: This is problematic for now, we need to keep track
   // of what possible color combinations we can have when we
   // deactivate certain lights, and then only use those.
-  // for (let l of game.lightsources)
-  // {
-  //   // Is this all we have to do here?
-  //   if (Math.random() < 0.2)
-  //     l.active = false;
-  // }
+  for (let l of game.lightsources)
+  {
+    // Is this all we have to do here?
+    if (Math.random() < 0.1)
+      l.active = false;
+  }
 
   // now place detectors in places that work, ie. they can be active
-  solvable_init_random_detectors(game.current_level, diff_level);
+  let d_amount = showcase ? 7 : difficulty_to_detector_amount();
+  solvable_init_random_detectors(game.current_level, d_amount);
   // init_random_detectors(game.current_level, diff_level);
 
   // now we can remove any unused walls
@@ -5397,6 +5420,8 @@ function solvable_random_level(save=true)
   // valid solution
   game.current_level.save_solution(game.lightsources, game.detectors);
 
+  if (showcase)
+    return;
   // SO, we want to generate the level code for our current level
   // and save it to the current solution slot.
 
@@ -5415,7 +5440,7 @@ function solvable_random_level(save=true)
 
 function random_level(save=true)
 {
-  solvable_random_level(save);
+  solvable_random_level(save, false);
   // let new_random_level = new level();
   // new_random_level.xsize = game.gridWidth;
   // new_random_level.ysize = game.gridHeight;
@@ -5536,26 +5561,20 @@ function init_random_detectors(lvl, num_detectors)
 
 function solvable_init_random_detectors(lvl, num_detectors)
 {
+  console.log("Placing solvable detectors");
   let test_detector = new detector(0, 0, 0, 0, 0);
   // initialize a randomized array of detectors
   game.detectors.splice(0, game.detectors.length);
 
   let num_placed_detectors = 0;
 
+
   //for (let i = 0 ; i < num_detectors; ++ i)
+  let col_val = [0, 255];
+  let last_r = 127, last_g = 127, last_b = 127;
   do
   {
-    let col_val = [0, 255];
-    let r = random(col_val);
-    let g = random(col_val);
-    let b = random(col_val);
-    if (num_detectors == 1)
-    {
-      r = 255;
-      g = 255;
-      b = 255;
-    }
-
+    let r,g,b;
     let xp;
     let yp;
     let gtype;
@@ -5565,8 +5584,19 @@ function solvable_init_random_detectors(lvl, num_detectors)
     let got_valid_location = false;
     while (true)
     {
+      r = random(col_val);
+      g = random(col_val);
+      b = random(col_val);
+
+      if (r === last_r && g === last_g && b === last_b)
+      {
+        // TODO: Sometimes, this gets stuck in an infinite loop of
+        // generating repeat colors?!
+        // console.log(`Got repeat color ${r} ${g} ${b}`);
+        break;
+      }
       ++attempts;
-      if (attempts > 100 )
+      if (attempts > 100)
         break;
 
       xp = int(random(2, lvl.xsize - 2));
@@ -5598,7 +5628,7 @@ function solvable_init_random_detectors(lvl, num_detectors)
         }
       }
 
-      if (gtype != tiles.FLOOR_BUILDABLE) // places we can build
+      if (gtype != tiles.FLOOR_BUILDABLE || gtype === -1) // places we can build
         continue;
 
       // make sure this light can be activated here
@@ -5607,7 +5637,7 @@ function solvable_init_random_detectors(lvl, num_detectors)
       test_detector.y = yp;
       test_detector.change_color(r, g, b);
       // console.log("Running detector test");
-      test_detector.check_color();
+      test_detector.check_color(/*use_juice=*/false);
       if (test_detector.correct)
       {
         got_valid_location = true;
@@ -5618,37 +5648,37 @@ function solvable_init_random_detectors(lvl, num_detectors)
     {
       ++num_placed_detectors;
       make_detector(xp, yp, r, g, b);
+      last_r = r;
+      last_g = g;
+      last_b = b;
     }
   } while (num_placed_detectors < num_detectors);
 }
-
 
 function difficulty_to_detector_amount()
 {
   // map from a difficulty level to number of detectors
   // on the field
-  if (game.difficulty_level <= 3)
+  if (game.difficulty_level <= 5)
     return game.difficulty_level;
-  if (game.difficulty_level <= 6)
-    return game.difficulty_level - 1;
-  if (game.difficulty_level <= 9)
-    return game.difficulty_level - 3;
-  return int(2 + game.difficulty_level / 2);
+  if (game.difficulty_level <= 10)
+    return int(game.difficulty_level / 3) + 2;
+  if (game.difficulty_level <= 20)
+    return int(game.difficulty_level / 5) + 3;
+  return int(4 + game.difficulty_level / 4);
 }
 
 function difficulty_to_shrink_amount()
 {
-  if (game.difficulty_level <= 4)
+  // if (game.difficulty_level <= 5)
+  //   return 0;
+  if (game.difficulty_level < 10)
     return 1;
-  if (game.difficulty_level <= 8)
+  if (game.difficulty_level < 20)
     return 2;
-  if (game.difficulty_level <= 15)
+  if (game.difficulty_level < 30)
     return 3;
-  if (game.difficulty_level <= 25)
-    return 4;
-  if (game.difficulty_level <= 40)
-    return 5;
-  return 6;
+  return 4;
 }
 
 function shrink_lights()
@@ -5679,9 +5709,9 @@ function activate_lights()
   }
 }
 
-
 function place_lights_back_on_board()
 {
+  console.log("Placing lights on board");
   for (let l of game.lightsources)
   {
     let has_valid_location = false;
@@ -5716,18 +5746,25 @@ function wander_lights(iterations)
         ++attempts;
         if (attempts > 20)
           break;
+
         // check either x-dir or y-dir
         let offset = valid_offsets[Math.floor(Math.random() * 2)];
         rx = l.x;
         ry = l.y;
+
         if (Math.random() < 0.5)
           rx += offset;
         else
           ry += offset;
-        if (game.current_level.grid[rx][ry].grid_type === tiles.FLOOR_BUILDABLE &&
-          !is_target_a_light(rx, ry))
-          has_valid_location = true;
+
+        if (game.current_level.grid[rx][ry].grid_type === tiles.FLOOR_BUILDABLE 
+            && !is_target_a_light(rx, ry))
+          {
+            has_valid_location = true;
+          }
+
       } while (!has_valid_location);
+
       if (has_valid_location)
         l.move(rx, ry);
     }
@@ -5770,9 +5807,10 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
 
 function make_unbuildable_pattern(which_grid, difficulty_amount)
 {
-  let num_random_unbuildable_patterns = 4;
+  let num_random_unbuildable_patterns = 6;
   let unbuildable_pattern = Math.floor(Math.random() * num_random_unbuildable_patterns);
   let unbuildable_sub_type = Math.floor(Math.random() * 10);
+  let half_grid_width = game.gridWidth / 2;
   console.log(`Unbuildable pattern ${unbuildable_pattern}`);
   for (let x = 1 ; x < game.gridWidth - 1; ++x)
   {
@@ -5791,13 +5829,37 @@ function make_unbuildable_pattern(which_grid, difficulty_amount)
             set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
           break;
         case 2:
-          if (abs(sin(x)) < 1 / unbuildable_sub_type)
+          {
+          let tmp = map(unbuildable_sub_type, 0, 10, 2, 3);
+          if (abs(sin(x)) < 1 / tmp)
             set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
           break;
+          }
         case 3:
+          {
+          let tmp = map(unbuildable_sub_type, 0, 10, 2, 3);
+          if (abs(sin(y)) < 1 / tmp)
+            set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
+          break;
+          }
+        case 4:
           if (x === unbuildable_sub_type + 4 || y === unbuildable_sub_type + 4)
             set_grid(which_grid, x, y, tiles.FLOOR_EMPTY)
           break;
+        case 5:
+          {
+            let x_dist = half_grid_width - x;
+            let y_dist = half_grid_width - y;
+            let x_sqr = x_dist * x_dist;
+            let y_sqr = y_dist * y_dist;
+            let calculated_radius = Math.sqrt(x_sqr + y_sqr);
+            let empty_floor = (calculated_radius < (half_grid_width / unbuildable_sub_type) * 2) && 
+            !(calculated_radius < (half_grid_width / unbuildable_sub_type)) ||
+              calculated_radius > half_grid_width;
+            if (empty_floor)
+              set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
+            break;
+          }
       }
 
     }
@@ -5806,6 +5868,7 @@ function make_unbuildable_pattern(which_grid, difficulty_amount)
 
 function make_some_built_floor(which_grid, difficulty_amount)
 {
+  console.log("Building some floor");
   for (let i = 0; i < difficulty_amount * 2; ++i)
   {
     // TODO: Make sure this doesn't happen on one of the lights?
@@ -5839,7 +5902,7 @@ function remove_unneeded_walls(which_grid)
         make_edges();
         for (let d of game.detectors)
         {
-          d.check_color();
+          d.check_color(/*use_juice=*/false);
           if (!d.correct)
           {
             needed_wall = true;
@@ -5911,7 +5974,7 @@ function setup_tutorial_game()
   game.game_state = states.GAME;
 }
 
-function  make_tutorial_level()
+function make_tutorial_level()
 {
   // start with an empty level
   let new_tutorial_level = new level();
@@ -6087,6 +6150,7 @@ function scale_all_edges(new_scale)
 
 function make_edges()
 {
+  console.log("Making edges");
   // Constants to help with edge detection
   let NORTH = 0;
   let SOUTH = 1;
