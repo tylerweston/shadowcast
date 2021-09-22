@@ -3086,6 +3086,7 @@ function preload() {
 }
 
 function setup() {
+  console.log("In setup");
   if (getItem("played_before") === null)
   {
     storeItem("played_before", true);
@@ -5561,7 +5562,7 @@ function solvable_init_random_detectors(lvl, num_detectors)
         }
       }
 
-      if (gtype != tiles.FLOOR_EMPTY && gtype != tiles.FLOOR_BUILDABLE) // places we can build
+      if (gtype != tiles.FLOOR_BUILDABLE) // places we can build
         continue;
 
       // make sure this light can be activated here
