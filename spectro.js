@@ -3335,6 +3335,15 @@ function do_setup_main_menu()
       game.global_mouse_handler.register_region(m + "main_menu", reg);
       ++i;
     }
+
+    let easter_egg_region = new mouse_region(game.gridSize * 2, game.gridSize, game.gridSize * 7, game.gridSize * 3);
+    easter_egg_region.events[mouse_events.CLICK] = () => {
+      if (getItem("savedgame") === null)
+        solvable_random_level(/*save=*/false, 
+                              /*showcase=*/true);
+    };
+    game.global_mouse_handler.register_region("eegg", easter_egg_region);
+
     states.need_setup_main_menu = false;
   }
   disable_menu(); // disable the top menu in case it is active
@@ -3349,7 +3358,8 @@ function do_setup_main_menu()
       update_all_light_viz_polys();
     } else {
       init_light_sources();
-      solvable_random_level(false, true);
+      solvable_random_level(/*save=*/false, 
+                            /*showcase=*/true);
     }
     game.need_load_menu_map = false;
   }
@@ -3451,6 +3461,7 @@ function enable_main_menu()
   {
     game.global_mouse_handler.enable_region(m + "main_menu");
   }
+  game.global_mouse_handler.enable_region("eegg");
 }
 
 function teardown_main_menu()
@@ -3460,6 +3471,7 @@ function teardown_main_menu()
   {
     game.global_mouse_handler.disable_region(m + "main_menu");
   }
+  game.global_mouse_handler.disable_region("eegg");
 }
 
 function handle_main_menu_selection(menu_index)
