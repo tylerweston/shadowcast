@@ -13,6 +13,8 @@ TODO:
 - Break up big functions
   - Basically any function that is taking in a boolean flag that
     changes its 'mode' can be refactored into something simpler.
+- Rewrite 2d grid creation as
+var grid = [...Array(xsize)].map(e => Array(ysize).fill(val));
 
 Important:
 - remove tutorial from top menu.
@@ -20,9 +22,7 @@ Important:
 - Right click a solid tile to change it into colored glass?
 - mode where you can't see the color of a detector
 unless it is correct?
-- Random solvable level generator will hang up on higher levels
-  since presumably there isn't a reasonable way to solve the puzzles?
-  What to do at this point?
+- 
 - 
 
 - don't really need a save button anymore since your
@@ -65,23 +65,17 @@ Visual fixes:
 
 Bugs:
 - hi score board / leaderboard!
-- main menu can't approach timed game button from right for some reason?
 - Window resizing is broken?
-- don't allow holes to spawn on lights?
-- undo is a bit broken still, it automatically fires off
-  since the undo button is over the menu button. Problem
-  with how state is being translated.
 - something broken with just setting is_dragging false to eat mouse input
   between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
   - in a timed game, when we automatically transition to the next level
     we want to change the mouse state so that we aren't in drawing mode
     anymore!
+- There is some issue with dragging mouse off the screen and then back on
 - When we "shrink" lights onto the board, they may get placed on top of a
   detector, which makes them unmovable! make sure this doesn't happen!
 - Reposition OK button in About menu
-- Make sure all particles are cleared at the start of the game, sometimes
-  there are leftover particles
 
 QOL improvements:
 - make it so all text is aligned the same way (ie, all using baseline or
@@ -2194,32 +2188,25 @@ class floor_animation
     // TODO: What is the difference between anim_timer and
     // animation frame? Do they need to be different things?
     this.anim_timer = 0;
-    this.jiggle_animation_color = [];
-    this.base_floor_animation = 0;
+    this.jiggle_animation_color = [...Array(this.xsize)].map(e => Array(this.ysize).fill(48));
+    this.jiggle_animation_buffer = [...Array(this.xsize)].map(e => Array(this.ysize).fill(0));
+
+    this.base_floor_animation = Math.floor(Math.random() * 2);
     this.update_count = 0;
 
     this.has_animation = false;
     this.animation_type;
     this.animation_frame = 0;
     this.animation_max_frames = 0;
-    this.animation_array = [];
-    this.num_animations = 7;
-    this.animation_lengths = [12, 12, 12, 10, 16, 10, 12];
+    this.animation_array = [...Array(this.xsize)].map(e => Array(this.ysize).fill(0));
+    this.num_animations = 8;
+    this.animation_lengths = [12, 12, 12, 10, 12, 10, 12, 10];
     this.animation_fading = false;
     this.bright_mode = false;
 
     this.x_target;
     this.y_target;
-    for (let x = 0; x < this.xsize; ++x)
-    {
-      this.jiggle_animation_color[x] = [];
-      this.animation_array[x] = [];
-      for (let y = 0; y < this.ysize; ++y)
-      {
-        this.jiggle_animation_color[x][y] = 48;
-        this.animation_array[x][y] = 0;
-      }
-    }
+    
     this.update();
   }
 
@@ -2247,18 +2234,23 @@ class floor_animation
 
     this.animation_type = Math.floor(Math.random() * this.num_animations);
   
+    // this.animation_type = 7;
     // console.log(`new animation type ${this.animation_type}`);
     if (this.animation_type === 4)
     {
-      if (Math.random() < 0.5)
+      this.x_target = mouseX / game.gridSize;
+      this.y_target = mouseY / game.gridSize;
+    }
+
+    if (this.animation_type === 7)
+    {    
+      let rand_col = [0, 75];
+      for (let x = 0; x < this.xsize; ++x)
       {
-        this.x_target = mouseX / game.gridSize;
-        this.y_target = mouseY / game.gridSize;
-      }
-      else
-      {
-        this.x_target = Math.floor(Math.random() * game.gridWidth);
-        this.y_target = Math.floor(Math.random() * game.gridHeight);
+        for (let y = 0; y < this.ysize; ++y)
+        {
+          this.animation_array[x][y] = random(rand_col);
+        }
       }
     }
   }
@@ -2274,7 +2266,7 @@ class floor_animation
       {
         if (Math.floor(this.animation_array[x][y]) > 0)
         {
-          this.animation_array[x][y] /= 2;
+          this.animation_array[x][y] *= 0.9;
           did_update = true;
         }
       }
@@ -2311,7 +2303,7 @@ class floor_animation
     // TODO: Case this out to have various floor idle animations
     this.anim_timer += deltaTime / 256;
     this.update_count += deltaTime;
-    if (this.update_count < 50)
+    if (this.update_count < 75)
       return;
 
     this.update_count = 0;
@@ -2328,7 +2320,7 @@ class floor_animation
             break;
           case 1:
             target_col = 64 + (abs((sin(y + (x * 2) + this.anim_timer / 4) + 0.5)  
-            + noise(x * 0.01, y * 0.01) / 32) * 32);
+                          + noise(x * 0.01, y * 0.01) / 32) * 32);
             break;
         }
         // target_col = 64 + (abs((sin(y + (x * 2) + this.anim_timer / 4) + 0.5)  
@@ -2489,8 +2481,61 @@ class floor_animation
             }
             this.animation_array[x][y] = temp_var * 0.92;
             break;
+
+          case 7:
+            // game of life
+            let cell_count = 0;
+            let xa, ya;
+            for (let xoff = -1; xoff <= 1; ++xoff)
+            {
+              for (let yoff = -1; yoff <= 1; ++yoff)
+              {
+                if (xoff === 0 && yoff === 0)
+                  continue;
+
+                xa = x + xoff;
+                ya = y + yoff;
+                if (xa < 0 || xa > this.xsize - 1 ||
+                    ya < 0 || ya > this.ysize - 1)
+                    continue;
+
+                cell_count += (this.animation_array[xa][ya] > 0 ? 1 : 0);
+              }
+            }
+            // console.log(`cell_count ${cell_count}`);
+            if (this.animation_array[x][y] === 0)
+            {
+              if (cell_count === 3)
+              {
+                this.jiggle_animation_buffer[x][y] = Math.floor(Math.random() * 40 + 40);
+              }
+            }
+            else /* if (this.animation_array[x][y] === 90) */
+            {
+              if (cell_count < 2)
+              {
+                this.jiggle_animation_buffer[x][y] = 0;
+                // console.log("cell dies of loneliness");
+              }
+              if (cell_count > 3)
+              {
+                this.jiggle_animation_buffer[x][y] = 0;
+                // console.log("cell dies of overcrowding");
+              }
+            }
+            break;
         }
       }
+    }
+
+    // after all individual animations, any frames can happen here
+    if (this.animation_type === 7)
+    {
+      // this.animation_array = this.jiggle_animation_buffer;
+      // console.log("updating animation buffer");
+      this.animation_array = this.jiggle_animation_buffer.map((arr) => {
+        return arr.slice()
+      });
     }
   }
 
@@ -4443,6 +4488,7 @@ function draw_glass()
 function draw_floor_lines()
 {
   let lvl = game.current_level;
+
   strokeWeight(2);
   blendMode(ADD);
   //stroke(0, 30);
@@ -5440,11 +5486,11 @@ function solvable_random_level(save=true, showcase=false)
   if (showcase)
   {
     shrink_level = 4;
-    diff_level = 15;
+    diff_level = 20;
   }
   make_some_floor_unbuildable(game.current_level.grid, shrink_level);
 
-  let target_patterns = min(4, Math.floor(diff_level / 15));
+  let target_patterns = min(4, Math.floor(diff_level / 7));
   if (showcase)
     target_patterns = 2;
   for (let i = 0 ; i < target_patterns; ++i)
