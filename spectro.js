@@ -5558,6 +5558,14 @@ function solvable_random_level(save=true, showcase=false)
   // FOR NOW don't scramble the puzzle
   // return;
   activate_lights();
+  for (let l of game.lightsources)
+  {
+    // Is this all we have to do here?
+    if (Math.random() < 0.3)
+    {
+      l.active = false;
+    }
+  }
 
   // then, clear all built walls
   reset_grid(game.current_level);
