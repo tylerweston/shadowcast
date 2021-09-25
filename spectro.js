@@ -25,8 +25,6 @@ unless it is correct?
 - 
 - 
 
-- don't really need a save button anymore since your
-  game is just stored for you all the time.
 - making the top right menu seems to happen at a weird time
   in the flow of things, look into that.
 
@@ -1446,14 +1444,19 @@ class detector
     this.old_correct = this.correct;
     let xp = this.x * game.gridSize + game.GRID_HALF;
     let yp = this.y * game.gridSize + game.GRID_HALF;
-    let HALF_HALF = game.GRID_HALF / 2;
 
     // Check Detectors
     // Uses Boyer-Moore vote algorithm to determine the majority
     // of checked points that are receiving light
     // at least 3 of the internal points need to be covered in the correct
     // light color!
-    let locs = [[xp - HALF_HALF, yp], [xp + HALF_HALF, yp], [xp, yp - HALF_HALF], [xp, yp + HALF_HALF], [xp, yp]];
+    let locs = [
+      [xp - game.GRID_QUARTER, yp - game.GRID_QUARTER], 
+      [xp + game.GRID_QUARTER, yp - game.GRID_QUARTER], 
+      [xp - game.GRID_QUARTER, yp + game.GRID_QUARTER], 
+      [xp + game.GRID_QUARTER, yp + game.GRID_QUARTER], 
+      [xp, yp]]
+      ;
     let majority_color = undefined;
     let majority_count = 0;
     let found_colors = [];
@@ -1545,10 +1548,11 @@ class detector
           count += 1;
         }
       }
-      if (count > 3)
-        this.correct = true;
-      else 
-        this.correct = false;
+      this.correct = (count > 3);
+      // if (count > 3)
+      //   this.correct = true;
+      // else 
+      //   this.correct = false;
     }
     else
     {
@@ -5500,13 +5504,18 @@ function solvable_random_level(save=true, showcase=false)
     shrink_level = 4;
     diff_level = 20;
   }
+
   make_some_floor_unbuildable(game.current_level.grid, shrink_level);
+  make_some_floor_buildable(game.current_level.grid, diff_level);
 
   let target_patterns = min(4, Math.floor(diff_level / 7));
   if (showcase)
-    target_patterns = 2;
+    target_patterns = 3;
   for (let i = 0 ; i < target_patterns; ++i)
     make_unbuildable_pattern(game.current_level.grid, diff_level);
+
+  
+
 
   make_some_built_floor(game.current_level.grid, diff_level);
   make_edges();
@@ -5516,10 +5525,7 @@ function solvable_random_level(save=true, showcase=false)
   // turn them all on? turn some on?
   activate_lights();
 
-  // // // randomly deactivate light source
-  // TODO: This is problematic for now, we need to keep track
-  // of what possible color combinations we can have when we
-  // deactivate certain lights, and then only use those.
+  // randomly deactivate light source
   if (diff_level < 20)
   {
     for (let l of game.lightsources)
@@ -5538,7 +5544,6 @@ function solvable_random_level(save=true, showcase=false)
   let d_amount = showcase ? 7 : difficulty_to_detector_amount();
 
   solvable_init_random_detectors(game.current_level, d_amount);
-  // init_random_detectors(game.current_level, diff_level);
 
   // now we can remove any unused walls
   remove_unneeded_walls(game.current_level.grid);
@@ -5551,12 +5556,6 @@ function solvable_random_level(save=true, showcase=false)
   // valid solution
   game.current_level.save_solution(game.lightsources, game.detectors);
 
-
-  // SO, we want to generate the level code for our current level
-  // and save it to the current solution slot.
-
-  // FOR NOW don't scramble the puzzle
-  // return;
   activate_lights();
   for (let l of game.lightsources)
   {
@@ -5925,14 +5924,44 @@ function wander_lights(iterations)
 }
 }
 
-function make_some_floor_unbuildable(which_grid, shrink_amount)
+function make_some_floor_buildable(which_grid, diff_amount)
 {
-  // bring in some floor from the outside
+  let scale = Math.random() * 0.4;
   for (let x = 1 ; x < game.gridWidth - 1; ++x)
   {
     for (let y = 1; y < game.gridHeight - 1; ++y)
     {
-      if (x < shrink_amount || game.gridWidth - 1 < x + shrink_amount || y < shrink_amount || game.gridHeight - 1 < y + shrink_amount)
+      if (noise(x * millis(), y * millis()) < scale)
+      {
+        set_grid(which_grid, x, y, tiles.FLOOR_BUILDABLE);
+      }
+    }
+  }
+}
+
+function make_some_floor_unbuildable(which_grid, shrink_amount)
+{
+  // bring in some floor from the outside
+  let left_offset = random([-1, 0, 1]);
+  let right_offset = random([-1, 0, 1]);
+  let top_offset = random([-1, 0, 1]);
+  let bottom_offset = random([-1, 0, 1]);
+  if (Math.random() < 0.2)
+  {
+    left_offset *= 2;
+    right_offset *= 2;
+  }
+  if (Math.random() < 0.2)
+  {
+    top_offset *= 2;
+    bottom_offset *= 2;
+  }
+
+  for (let x = 1 ; x < game.gridWidth - 1; ++x)
+  {
+    for (let y = 1; y < game.gridHeight - 1; ++y)
+    {
+      if (x + left_offset < shrink_amount || game.gridWidth - 1 + right_offset < x + shrink_amount || y + bottom_offset < shrink_amount || game.gridHeight - 1 + top_offset < y + shrink_amount)
       {
         set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
       }
@@ -5961,7 +5990,7 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
 
 function make_unbuildable_pattern(which_grid, difficulty_amount)
 {
-  let num_random_unbuildable_patterns = 6;
+  let num_random_unbuildable_patterns = 7;
   let unbuildable_pattern = Math.floor(Math.random() * num_random_unbuildable_patterns);
   let unbuildable_sub_type = Math.floor(Math.random() * 10);
   let half_grid_width = game.gridWidth / 2;
@@ -6012,6 +6041,11 @@ function make_unbuildable_pattern(which_grid, difficulty_amount)
             if (empty_floor)
               set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
             break;
+          }
+        case 6:
+          {
+            if (x + y <= unbuildable_sub_type / 2 + 4 || (game.gridWidth - x) + (game.gridHeight - y) < game.gridWidth - (unbuildable_sub_type / 2 + 4))
+              set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
           }
       }
 
