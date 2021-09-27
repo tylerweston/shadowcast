@@ -139,7 +139,7 @@ Editor stuff (Maybe eventually):
 const MAJOR_VERSION = 1;
 const MINOR_VERSION = 6;
 
-const USE_DEBUG_KEYS = false;
+const USE_DEBUG_KEYS = true;
 
 // font
 let spectro_font;
@@ -2506,7 +2506,6 @@ class floor_animation
                 cell_count += (this.animation_array[xa][ya] > 0 ? 1 : 0);
               }
             }
-            // console.log(`cell_count ${cell_count}`);
             if (this.animation_array[x][y] === 0)
             {
               if (cell_count === 3)
@@ -2519,12 +2518,10 @@ class floor_animation
               if (cell_count < 2)
               {
                 this.jiggle_animation_buffer[x][y] = 0;
-                // console.log("cell dies of loneliness");
               }
               if (cell_count > 3)
               {
                 this.jiggle_animation_buffer[x][y] = 0;
-                // console.log("cell dies of overcrowding");
               }
             }
             break;
@@ -2536,7 +2533,6 @@ class floor_animation
     if (this.animation_type === 7)
     {
       // this.animation_array = this.jiggle_animation_buffer;
-      // console.log("updating animation buffer");
       this.animation_array = this.jiggle_animation_buffer.map((arr) => {
         return arr.slice()
       });
@@ -5961,12 +5957,17 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
   {
     for (let y = 1; y < game.gridHeight - 1; ++y)
     {
-      if (x + left_offset < shrink_amount || game.gridWidth - 1 + right_offset < x + shrink_amount || y + bottom_offset < shrink_amount || game.gridHeight - 1 + top_offset < y + shrink_amount)
+      if (x  + left_offset < shrink_amount  
+        || x - right_offset > game.gridWidth - 1 - shrink_amount 
+        || y + top_offset < shrink_amount 
+        || y - bottom_offset > game.gridHeight - 1 - shrink_amount
+        )
       {
         set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
       }
     }
   }
+
   if (game.difficulty_level > 10)
   {
     for (let i = 0; i < min(int(game.difficulty_level / 4), 20); ++i)
@@ -5988,67 +5989,67 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
   }
 }
 
+/////////////////////// Unbuildable floor pattern functions
+
+const unbuildable_pattern_functions = {
+  0: (x, y, st) => 
+  { 
+    return (x + y) % (st + 6) === 0;
+  },
+  1: (x, y, st) => 
+  {
+    return noise((x + millis()) / 4, (y + millis()) / 4) < 0.35;
+  },
+  2: (x, y, st) => 
+  {
+    let tmp = map(st, 0, 10, 2, 3);
+    return abs(sin(x)) < 1 / tmp;
+  },
+  3: (x, y, st) =>
+  {
+    let tmp = map(st, 0, 10, 2, 3);
+    return abs(sin(y)) < 1 / tmp;
+  },
+  4: (x, y, st) => 
+  {
+    return x === st + 4 || y === st + 4;
+  },
+  5: (x, y, st) =>
+  {
+    let half_grid_width = game.gridWidth / 2;
+    let x_dist = half_grid_width - x;
+    let y_dist = half_grid_width - y;
+    let x_sqr = x_dist * x_dist;
+    let y_sqr = y_dist * y_dist;
+    let calculated_radius = Math.sqrt(x_sqr + y_sqr);
+    let empty_floor = (calculated_radius < (half_grid_width / st) * 2) && 
+    !(calculated_radius < (half_grid_width / st)) ||
+      calculated_radius > half_grid_width;
+    return empty_floor;
+  },
+  6: (x, y, st) =>
+  {
+    return (x + y <= st / 2 + 4 || (game.gridWidth - x) + (game.gridHeight - y) < game.gridWidth - (st / 2 + 4));
+
+  }
+}
+
 function make_unbuildable_pattern(which_grid, difficulty_amount)
 {
-  let num_random_unbuildable_patterns = 7;
-  let unbuildable_pattern = Math.floor(Math.random() * num_random_unbuildable_patterns);
+  // Unbuildable pattern functions is an object that maps from
+  // integers to a floor empty function . The floor empty function
+  // takes in an x position, a y position, and a random sub type.
+  // It returns a boolean value that indicates true if the floor
+  // at this position should be turned empty.
+  let unbuildable_pattern = Math.floor(Math.random() * Object.keys(unbuildable_pattern_functions).length);
   let unbuildable_sub_type = Math.floor(Math.random() * 10);
-  let half_grid_width = game.gridWidth / 2;
   for (let x = 1 ; x < game.gridWidth - 1; ++x)
   {
     for (let y = 1; y < game.gridHeight - 1; ++y)
     {
-      switch (unbuildable_pattern)
-      {
-        case 0:
-          if ((x + y) % (unbuildable_sub_type + 6) === 0)
-          {
-            set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
-          }
-          break;
-        case 1:
-          if (noise((x + millis()) / 4, (y + millis()) / 4) < 0.35)
-            set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
-          break;
-        case 2:
-          {
-          let tmp = map(unbuildable_sub_type, 0, 10, 2, 3);
-          if (abs(sin(x)) < 1 / tmp)
-            set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
-          break;
-          }
-        case 3:
-          {
-          let tmp = map(unbuildable_sub_type, 0, 10, 2, 3);
-          if (abs(sin(y)) < 1 / tmp)
-            set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
-          break;
-          }
-        case 4:
-          if (x === unbuildable_sub_type + 4 || y === unbuildable_sub_type + 4)
-            set_grid(which_grid, x, y, tiles.FLOOR_EMPTY)
-          break;
-        case 5:
-          {
-            let x_dist = half_grid_width - x;
-            let y_dist = half_grid_width - y;
-            let x_sqr = x_dist * x_dist;
-            let y_sqr = y_dist * y_dist;
-            let calculated_radius = Math.sqrt(x_sqr + y_sqr);
-            let empty_floor = (calculated_radius < (half_grid_width / unbuildable_sub_type) * 2) && 
-            !(calculated_radius < (half_grid_width / unbuildable_sub_type)) ||
-              calculated_radius > half_grid_width;
-            if (empty_floor)
-              set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
-            break;
-          }
-        case 6:
-          {
-            if (x + y <= unbuildable_sub_type / 2 + 4 || (game.gridWidth - x) + (game.gridHeight - y) < game.gridWidth - (unbuildable_sub_type / 2 + 4))
-              set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
-          }
-      }
-
+      const floor_empty = unbuildable_pattern_functions[unbuildable_pattern](x, y, unbuildable_sub_type);
+      if (floor_empty)
+        set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
     }
   }
 }
