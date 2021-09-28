@@ -1,3 +1,5 @@
+/*jshint esversion: 6 */
+/*jshint node: true */
 "use strict";
 
 /*
@@ -22,9 +24,6 @@ Important:
 - Right click a solid tile to change it into colored glass?
 - mode where you can't see the color of a detector
 unless it is correct?
-- 
-- 
-
 - making the top right menu seems to happen at a weird time
   in the flow of things, look into that.
 
@@ -120,9 +119,9 @@ Maybe eventually:
   - just need some bits to resize themselves automatically
 - Encode levels a bit better than just text strings?
 - we could make filters for different colored lights by having
-  r,g, and b edges, run the detection thing three times, 
+  r,g, and b edges, run the detection thing three times,
   solid walls would just exist in all three color planes?
-- Handle loading gameboards of different size? or just keep everything 
+- Handle loading gameboards of different size? or just keep everything
   one size?
 - Maybe try removing the lightsources from the grid and see if it's fun like that?
   - the extra constraints might be necessary though?
@@ -212,12 +211,12 @@ class menus
   static top_menu_callbacks = [
     () => undo.undo_last_move(),
     () => undo.redo_last_move(),
-    () => top_menu_reset_stuff(), 
-    () => top_menu_save_level(), 
+    () => top_menu_reset_stuff(),
+    () => top_menu_save_level(),
     () => top_menu_give_up(),
-    () => top_menu_main_menu(), 
-    () => top_menu_reset_game(), 
-    () => top_menu_tutorial(), 
+    () => top_menu_main_menu(),
+    () => top_menu_reset_game(),
+    () => top_menu_tutorial()
   ];
   static top_menu_selected = undefined;
   static top_menu_height = menus.top_menu_choices.length + 1;
@@ -240,7 +239,7 @@ class undo_actions
   static MOVE_LIGHT = 4;
 }
 
-class undo
+class undo 
 {
   static undo_last_move()
   {
@@ -254,7 +253,9 @@ class undo
     // it
     let undo_frame = undo.undo_stack.pop();
     if (!undo_frame)
+    {
       return;
+    }
     // Iterate over the undo frame in reverse since it is a stack we push
     // moves to, so we want to undo the last added moves first
     for (let i = undo_frame.length - 1; i >= 0; i--) {
@@ -266,7 +267,7 @@ class undo
     if (game.current_gamemode === game.GAMEMODE_RANDOM)
       game.points_for_current_grid = count_score();
   }
-  
+
   static redo_last_move()
   {
     // To REDO A MOVE
@@ -285,7 +286,7 @@ class undo
     if (game.current_gamemode === game.GAMEMODE_RANDOM)
       game.points_for_current_grid = count_score();
   }
-  
+
   static reset_undo_stacks()
   {
     // clear out undo stacks
@@ -293,12 +294,12 @@ class undo
     undo.redo_stack.splice(0, undo.redo_stack.length);
     undo.current_undo_frame.splice(0, undo.current_undo_frame.length);
   }
-  
+
   static start_new_undo_frame()
   {
     // undo.current_undo_frame.splice(0, undo.current_undo_frame.length);
   }
-  
+
   static end_undo_frame()
   {
     if (!undo.current_undo_frame || undo.current_undo_frame.length === 0)
@@ -306,7 +307,7 @@ class undo
     undo.undo_stack.push(Array.from(undo.current_undo_frame));
     undo.current_undo_frame.splice(0, undo.current_undo_frame.length);
   }
-  
+
   static add_move_to_undo(move)
   {
     // add a single move object to the current move frame
@@ -352,7 +353,7 @@ class game
   static JIGGLE_CONSTRAINT = 2;
 
   static current_gamemode = undefined;
-  
+
   static game_state = states.SETUP;
 
   static global_fade = 0;
@@ -1471,8 +1472,6 @@ class detector
 
       for (let l of game.lightsources)
       {
-
-    
         if (!l.active)
           continue;
         let xtarget = l.x  * game.gridSize + (game.GRID_HALF);
@@ -5510,9 +5509,6 @@ function solvable_random_level(save=true, showcase=false)
   for (let i = 0 ; i < target_patterns; ++i)
     make_unbuildable_pattern(game.current_level.grid, diff_level);
 
-  
-
-
   make_some_built_floor(game.current_level.grid, diff_level);
   make_edges();
 
@@ -5537,7 +5533,7 @@ function solvable_random_level(save=true, showcase=false)
   }
 
   // now place detectors in places that work, ie. they can be active
-  let d_amount = showcase ? 7 : difficulty_to_detector_amount();
+  let d_amount = showcase ? 9 : difficulty_to_detector_amount();
 
   solvable_init_random_detectors(game.current_level, d_amount);
 
@@ -5917,12 +5913,12 @@ function wander_lights(iterations)
       if (has_valid_location)
         l.move(rx, ry);
     }
-}
+  }
 }
 
 function make_some_floor_buildable(which_grid, diff_amount)
 {
-  let scale = Math.random() * 0.4;
+  let scale = Math.random() * 0.45;
   for (let x = 1 ; x < game.gridWidth - 1; ++x)
   {
     for (let y = 1; y < game.gridHeight - 1; ++y)
@@ -5992,13 +5988,15 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
 /////////////////////// Unbuildable floor pattern functions
 
 const unbuildable_pattern_functions = {
+  // take in an x position, y position, and sub_type (will be same for each
+  // x and y pos). Return true if the floor should be made empty, false otherwise.
   0: (x, y, st) => 
   { 
     return (x + y) % (st + 6) === 0;
   },
   1: (x, y, st) => 
   {
-    return noise((x + millis()) / 4, (y + millis()) / 4) < 0.35;
+    return noise((x + millis()) / 4, (y + millis()) / 4) < 0.35 + (st / 50);
   },
   2: (x, y, st) => 
   {
@@ -6030,6 +6028,12 @@ const unbuildable_pattern_functions = {
   6: (x, y, st) =>
   {
     return (x + y <= st / 2 + 4 || (game.gridWidth - x) + (game.gridHeight - y) < game.gridWidth - (st / 2 + 4));
+  },
+  7: (x, y, st) => {
+    let st_ranged = map(st, 0, 9, 0.3, 0.6);
+    return cos(x) + sin(y) > st_ranged;
+  },
+  8: (x, y, st) => {
 
   }
 }
