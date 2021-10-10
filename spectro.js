@@ -1,7 +1,4 @@
-/*jshint esversion: 6 */
-/*jshint node: true */
 "use strict";
-
 /*
 spectro
 tyler weston, 2021
@@ -61,6 +58,7 @@ Visual fixes:
   the squares a bit larger since playing on a cellphone is awkward!
 
 Bugs:
+- light detection seems to be a bit wonky still
 - hi score board / leaderboard!
 - Window resizing is broken?
 - something broken with just setting is_dragging false to eat mouse input
@@ -132,6 +130,8 @@ Editor stuff (Maybe eventually):
   unused branch and remove from main?
 */
 
+
+
 // global variables
 
 // game version things
@@ -165,29 +165,29 @@ let over_about_ok_btn = false;
 // main game states
 class states
 {
-  static SETUP = 0; // done
-  static INTRO = 1; // done
-  static MAIN_MENU_SETUP = 2; // done
-  static MAIN_MENU = 3; // done
-  static MAIN_MENU_TEARDOWN = 4;  // done
-  static GAME = 5;  // done
-  static SETUP_EDITOR = 6;  // done
-  static EDITOR = 7;  // done
+  static SETUP = 0;
+  static INTRO = 1;
+  static MAIN_MENU_SETUP = 2;
+  static MAIN_MENU = 3;
+  static MAIN_MENU_TEARDOWN = 4; 
+  static GAME = 5; 
+  static SETUP_EDITOR = 6; 
+  static EDITOR = 7; 
   // static LOADLEVEL = 10; // unusued
-  static NEW_GAME = 11; // done
-  static LEVEL_TRANSITION_OUT = 12;  // done
-  static LEVEL_TRANSITION_IN = 13;   // done
-  static PREPARE_TUTORIAL = 14; // done
-  static TUTORIAL = 15; // done
-  static TEARDOWN_TUTORIAL = 16;  // done
-  static SETUP_SHOW_TIME_RESULTS = 17;  // done
-  static SHOW_TIME_RESULTS = 18;  // done
-  static SETUP_OPTIONS = 19;  // done
-  static OPTIONS = 8; // done
-  static TEARDOWN_OPTIONS = 20; // done
-  static SETUP_ABOUT = 21;  // done
-  static ABOUT = 9; // done
-  static TEARDOWN_ABOUT = 22; // done
+  static NEW_GAME = 11;
+  static LEVEL_TRANSITION_OUT = 12; 
+  static LEVEL_TRANSITION_IN = 13;  
+  static PREPARE_TUTORIAL = 14;
+  static TUTORIAL = 15;
+  static TEARDOWN_TUTORIAL = 16; 
+  static SETUP_SHOW_TIME_RESULTS = 17; 
+  static SHOW_TIME_RESULTS = 18; 
+  static SETUP_OPTIONS = 19; 
+  static OPTIONS = 8;
+  static TEARDOWN_OPTIONS = 20;
+  static SETUP_ABOUT = 21; 
+  static ABOUT = 9;
+  static TEARDOWN_ABOUT = 22;
 
   // The tutorial game that will happen on the first time
   // a user tries to play the game.
@@ -315,9 +315,9 @@ class undo
   }
 
   // TODO: Refactor undo system here
-  static undo_stack = []; //done
-  static redo_stack = []; // done
-  static current_undo_frame = []; //done
+  static undo_stack = [];
+  static redo_stack = [];
+  static current_undo_frame = [];
 }
 
 // data classes, mostly holding vars, enums, etc.
@@ -431,16 +431,16 @@ class tiles
 // color for walls (maybe make this a class?)
 class palette
 {
-  static solid_wall_outline;  // done
-  static solid_wall_fill; // done
-  static solid_wall_permenant_fill; // done
-  static buildable_outline; // done
-  static buildable_fill;  // done
-  static buildable_2_fill;  // done
-  static empty_outline; // done
-  static empty_fill;  // done
-  static edge_color;  // done
-  static edge_circle_color; // done
+  static solid_wall_outline;
+  static solid_wall_fill;
+  static solid_wall_permenant_fill;
+  static buildable_outline;
+  static buildable_fill;
+  static buildable_2_fill;
+  static empty_outline;
+  static empty_fill;
+  static edge_color;
+  static edge_circle_color;
   static font_color;
   static bright_font_color;
 
@@ -2148,10 +2148,10 @@ class edge
     this.ex = ex;
     this.ey = ey;
 
-    this.sx_grid = jiggle.get_index(sx); //int(sx / game.gridSize);
-    this.sy_grid = jiggle.get_index(sy); //int(sy / game.gridSize);
-    this.ex_grid = jiggle.get_index(ex); //int(ex / game.gridSize);
-    this.ey_grid = jiggle.get_index(ey); //int(ey / game.gridSize);
+    this.sx_grid = jiggle.get_index(sx);
+    this.sy_grid = jiggle.get_index(sy);
+    this.ex_grid = jiggle.get_index(ex);
+    this.ey_grid = jiggle.get_index(ey);
   }
 
   scale_edge(new_scale)
@@ -3064,36 +3064,6 @@ p5.Graphics.prototype.remove = function() {
     this.elt.removeEventListener(elt_ev, this._events[elt_ev]);
   }
 };
-
-// p5.Graphics.prototype.mask = function(inputMask) {
-  
-//   if (inputMask === undefined) {
-//     inputMask = this;
-//   }
-//   const currBlend = this.drawingContext.globalCompositeOperation;
-
-//   let scaleFactor = 1;
-//   if (inputMask instanceof p5.Renderer) {
-//     scaleFactor = inputMask._pInst._pixelDensity;
-//   }
-
-//   const copyArgs = [
-//     inputMask,
-//     0,
-//     0,
-//     scaleFactor * inputMask.width,
-//     scaleFactor * inputMask.height,
-//     0,
-//     0,
-//     this.width,
-//     this.height
-//   ];
-
-//   this.drawingContext.globalCompositeOperation = 'destination-in';
-//   p5.Renderer2D.prototype.copy.apply(this, copyArgs);
-//   this.drawingContext.globalCompositeOperation = currBlend;
-
-// }
 
 function mousePressed() {
   // TODO: Only do this once
@@ -6034,7 +6004,11 @@ const unbuildable_pattern_functions = {
     return cos(x) + sin(y) > st_ranged;
   },
   8: (x, y, st) => {
-
+    let width = map(st, 0, 9, 1, 3);
+    let off = st - 5;
+    let xp = map(x, 0, game.gridWidth, 0, width * TWO_PI);
+    let yp = map(y, 0, game.gridHeight, -1, 1);
+    return abs(sin(xp + off) / (st / 2) - yp) < 0.2;
   }
 }
 
