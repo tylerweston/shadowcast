@@ -16,6 +16,7 @@ var grid = [...Array(xsize)].map(e => Array(ysize).fill(val));
 - Make floor pattern functions like the unbuildable floor functions (or maybe
   putting the functions in an array would be smarter than putting them in a
   dictionary??)
+- Try to reduce the amount of times stroke size is changed
 
 Important:
 - remove tutorial from top menu.
@@ -697,18 +698,21 @@ class level
   {
     // initialize an array of grid here
     this.grid = [];
+    this.odd_grid = [];
     for (let x = 0; x < this.xsize; ++x)
     {
       this.grid[x] = [];
+      this.odd_grid[x] = [];
       for (let y = 0; y < this.ysize; ++y)
       {
         this.grid[x][y] = new grid_obj();
+        this.odd_grid[x][y] = false;
       }
     }
 
     // TODO: Why doesn't this work? How can we fill it with unique objects?
     // this.grid = [...Array(this.xsize)].map(e => Array(this.ysize).fill(new grid_obj()));
-    this.odd_grid = [...Array(this.xsize)].map(e => Array(this.ysize).fill(false));
+    // this.odd_grid = [...Array(this.xsize)].map(e => Array(this.ysize).fill(false));
 
     this.make_floor_pattern();
   }
@@ -1995,21 +1999,10 @@ class light_source
     // this.mask_image_get = this.mask_image.get();
   }
 
-  get_light_mask()
-  {
-      // // light mask
-      // let mask_image = createGraphics(game.gameWidth, game.gameHeight);
-      // mask_image.fill('rgba(0, 0, 0, 1)');
-      // mask_image.beginShape();
-      // mask_image.vertex(cx, cy);
-      // for (let i = 0; i < this.viz_polygon.length; ++ i)
-      // {
-      //   mask_image.vertex(this.viz_polygon[i].x, this.viz_polygon[i].y);
-      // }
-      // mask_image.vertex(this.viz_polygon[0].x, this.viz_polygon[0].y);
-      // mask_image.endShape();
-      return this.mask_image;
-  }
+  // get_light_mask()
+  // {
+  //     return this.mask_image;
+  // }
 
   draw_this()
   {
@@ -3323,9 +3316,11 @@ function do_setup_main_menu()
   if (game.need_load_menu_map)
   {
     if (game.have_saved_game) {
+      console.log("have saved game, trying to load");
       try_load_level(getItem("savedgame"));
       update_all_light_viz_polys();
     } else {
+      console.log("init new game");
       init_light_sources();
       solvable_random_level(/*save=*/false, 
                             /*showcase=*/true);
@@ -3384,9 +3379,6 @@ function do_main_menu()
   fill(0, 0, 255);
   text("spectro", (game.gridWidth - 17) * game.gridSize, game.gridSize * 2 + 5);
   blendMode(BLEND);
-
-  // if ((mouseY <= game.gridSize * 2) || (mouseY >= game.gridSize * 2 * (menus.main_menu_options.length + 1)))
-  //   menus.main_menu_selected = undefined;
 
   if (mouseX >= game.gridSize * 12 || (mouseY >= game.gridSize * 2 * (menus.main_menu_options.length + 1)))
     menus.main_menu_selected = undefined;
@@ -4528,10 +4520,15 @@ function draw_walls_and_floors()
 {
   let lvl = game.current_level;
 
+  let cur_fill = null;
+  let cur_stroke = null;
+
+  let target_fill = null;
+  let target_stroke = null;
+
   strokeWeight(1);
   for (let x = 0 ; x < lvl.xsize; ++x)
   {
-
     for (let y = 0; y < lvl.ysize; ++y)
     {
 
@@ -4563,13 +4560,17 @@ function draw_walls_and_floors()
             // here, find a way to pull them out of here and put them 
             // someewhere so they are easier to expand on and write more
             let black_shift = sin(millis() / 2048 + (x + y)) * 3;
-            fill(4 + black_shift);
-            stroke(4 + black_shift);
+            // fill(4 + black_shift);
+            // stroke(4 + black_shift);
+            target_fill = 4 + black_shift;
+            target_stroke = 4 + black_shift;
           }
           else
           {
-            stroke(0);
-            fill(palette.empty_fill);
+            // stroke(0);
+            // fill(palette.empty_fill);
+            target_fill = palette.empty_fill;
+            target_stroke = 0;
           }
           // square(x * game.gridSize, y * game.gridSize, game.gridSize);
           do_draw = true;
@@ -4586,17 +4587,23 @@ function draw_walls_and_floors()
 
           if (game.use_animations)
           {
-            stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
-            // lerp between the empty fill color and the color of whatever
-            // solid thing will be there
-            fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
-                            permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
-                            lvl.grid[x][y].fade));
+            // stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
+            // // lerp between the empty fill color and the color of whatever
+            // // solid thing will be there
+            // fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
+            //                 permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
+            //                 lvl.grid[x][y].fade));
+            target_stroke = lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade);
+            target_fill = lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
+                                    permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
+                                    lvl.grid[x][y].fade);
           }
           else
           {
-            stroke(palette.buildable_outline);
-            fill(odd ? palette.buildable_fill : palette.buildable_2_fill);
+            // stroke(palette.buildable_outline);
+            // fill(odd ? palette.buildable_fill : palette.buildable_2_fill);
+            target_stroke = palette.buildable_outline;
+            target_fill = odd ? palette.buildable_fill : palette.buildable_2_fill;
           }
 
           // square(x * game.gridSize, y * game.gridSize, game.gridSize);
@@ -4620,19 +4627,33 @@ function draw_walls_and_floors()
           noStroke();
         } else {
           if (game.use_animations)
-            stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
+          {            
+            target_stroke = lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade);
+            // stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
+          }          
           else
-            stroke(palette.solid_wall_outline);
+          {
+            // stroke(palette.solid_wall_outline);
+            target_stroke = palette.solid_wall_outline;
+          }
         }
         
         // exact same thing as above!
         
         if (game.use_animations)
-          fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
-                          permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
-                          lvl.grid[x][y].fade));
+        {
+          target_fill = lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
+                                  permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
+                                  lvl.grid[x][y].fade);
+          // fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
+          //                 permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
+          //                 lvl.grid[x][y].fade));
+        }
         else
-            fill(permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill);
+        {
+          target_fill = permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill;
+            // fill(permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill);
+        }
         
 
         if (lvl.grid[x][y].permenant)
@@ -4691,6 +4712,16 @@ function draw_walls_and_floors()
           top_right_offset = [0, 0];
           bottom_left_offset = [0, 0];
           bottom_right_offset = [0, 0];
+        }
+        if (target_stroke != cur_stroke)
+        {
+          cur_stroke = target_stroke;
+          stroke(target_stroke);
+        }
+        if (target_fill != cur_fill)
+        {
+          cur_fill = target_fill;
+          fill(cur_fill);
         }
         beginShape();
         vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
@@ -4841,6 +4872,8 @@ function try_load_level(level_string)
     load_level(level_string);
     return true;
   } catch (err) {
+    console.log("Error loading saved game!");
+    console.log(err);
     storeItem("savedgame", null);
     return false;
   }
