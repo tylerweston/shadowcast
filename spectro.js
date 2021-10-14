@@ -141,7 +141,7 @@ Editor stuff (Maybe eventually):
 const MAJOR_VERSION = 1;
 const MINOR_VERSION = 6;
 
-const USE_DEBUG_KEYS = true;
+const USE_DEBUG_KEYS = false;
 
 // font
 let spectro_font;
@@ -1587,8 +1587,8 @@ class detector
       this.y * game.gridSize + game.GRID_HALF,
       32,
       this.c,
-      800,
-      250,
+      600,
+      150,
       12,
       1
     );
@@ -4518,6 +4518,11 @@ function draw_walls_and_floors()
 {
   let lvl = game.current_level;
 
+  strokeWeight(3);
+  noFill();
+  stroke(palette.solid_wall_fill);
+  rect(0, 0, game.gameWidth, game.gameHeight);
+
   let cur_fill = null;
   let cur_stroke = null;
 
@@ -4550,7 +4555,7 @@ function draw_walls_and_floors()
       {
         if (lvl.grid[x][y].grid_type == tiles.FLOOR_EMPTY)
         {
-          strokeWeight(1);
+          // strokeWeight(1);
 
           if (game.use_animations)
           {
@@ -4608,7 +4613,8 @@ function draw_walls_and_floors()
 
         if (lvl.grid[x][y].permenant)
         {
-          noStroke();
+          // noStroke();
+          target_stroke = palette.solid_wall_fill;
         } else {
           if (game.use_animations)
           {            
