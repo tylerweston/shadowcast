@@ -3316,11 +3316,9 @@ function do_setup_main_menu()
   if (game.need_load_menu_map)
   {
     if (game.have_saved_game) {
-      console.log("have saved game, trying to load");
       try_load_level(getItem("savedgame"));
       update_all_light_viz_polys();
     } else {
-      console.log("init new game");
       init_light_sources();
       solvable_random_level(/*save=*/false, 
                             /*showcase=*/true);
@@ -4560,19 +4558,14 @@ function draw_walls_and_floors()
             // here, find a way to pull them out of here and put them 
             // someewhere so they are easier to expand on and write more
             let black_shift = sin(millis() / 2048 + (x + y)) * 3;
-            // fill(4 + black_shift);
-            // stroke(4 + black_shift);
             target_fill = 4 + black_shift;
             target_stroke = 4 + black_shift;
           }
           else
           {
-            // stroke(0);
-            // fill(palette.empty_fill);
             target_fill = palette.empty_fill;
             target_stroke = 0;
           }
-          // square(x * game.gridSize, y * game.gridSize, game.gridSize);
           do_draw = true;
           top_left_point = [x * game.gridSize, y * game.gridSize];
           top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
@@ -4587,12 +4580,6 @@ function draw_walls_and_floors()
 
           if (game.use_animations)
           {
-            // stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
-            // // lerp between the empty fill color and the color of whatever
-            // // solid thing will be there
-            // fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
-            //                 permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
-            //                 lvl.grid[x][y].fade));
             target_stroke = lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade);
             target_fill = lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
                                     permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
@@ -4600,13 +4587,10 @@ function draw_walls_and_floors()
           }
           else
           {
-            // stroke(palette.buildable_outline);
-            // fill(odd ? palette.buildable_fill : palette.buildable_2_fill);
             target_stroke = palette.buildable_outline;
             target_fill = odd ? palette.buildable_fill : palette.buildable_2_fill;
           }
 
-          // square(x * game.gridSize, y * game.gridSize, game.gridSize);
           do_draw = true;
           top_left_point = [x * game.gridSize, y * game.gridSize];
           top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
@@ -4629,11 +4613,9 @@ function draw_walls_and_floors()
           if (game.use_animations)
           {            
             target_stroke = lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade);
-            // stroke(lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade));
           }          
           else
           {
-            // stroke(palette.solid_wall_outline);
             target_stroke = palette.solid_wall_outline;
           }
         }
@@ -4645,20 +4627,15 @@ function draw_walls_and_floors()
           target_fill = lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
                                   permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
                                   lvl.grid[x][y].fade);
-          // fill(lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
-          //                 permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
-          //                 lvl.grid[x][y].fade));
         }
         else
         {
           target_fill = permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill;
-            // fill(permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill);
         }
         
 
         if (lvl.grid[x][y].permenant)
         {
-          // square(x * game.gridSize , y * game.gridSize, game.gridSize);
           do_draw = true;
           top_left_point = [x * game.gridSize, y * game.gridSize];
           top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
@@ -4667,7 +4644,6 @@ function draw_walls_and_floors()
         }
         else
         {
-          // rect(x * game.gridSize, y * game.gridSize, game.gridSize, lvl.grid[x][y].fade * game.gridSize);
           do_draw = true;
           top_left_point = [x * game.gridSize, y * game.gridSize];
           top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
@@ -4862,7 +4838,6 @@ function load_solution()
   load_level(getItem("savedsolution"), /*keep_bg=*/true);
 }
 
-
 function try_load_level(level_string)
 {
   // this should be a failsafe in case I accidentally corrupt
@@ -4872,8 +4847,6 @@ function try_load_level(level_string)
     load_level(level_string);
     return true;
   } catch (err) {
-    console.log("Error loading saved game!");
-    console.log(err);
     storeItem("savedgame", null);
     return false;
   }
