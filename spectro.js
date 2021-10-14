@@ -6,7 +6,6 @@ tyler weston, 2021
 Controls:
 r, g, b: switch corresponding light (This currently doesn't work during tutorial!)
 space: go to next level (if available)
-TODO: Pressing r,g,b on main menu crashes!
 
 TODO:
 - Break up big functions
@@ -14,6 +13,9 @@ TODO:
     changes its 'mode' can be refactored into something simpler.
 - Rewrite 2d grid creation as
 var grid = [...Array(xsize)].map(e => Array(ysize).fill(val));
+- Make floor pattern functions like the unbuildable floor functions (or maybe
+  putting the functions in an array would be smarter than putting them in a
+  dictionary??)
 
 Important:
 - remove tutorial from top menu.
@@ -695,17 +697,19 @@ class level
   {
     // initialize an array of grid here
     this.grid = [];
-    this.odd_grid = [];
     for (let x = 0; x < this.xsize; ++x)
     {
       this.grid[x] = [];
-      this.odd_grid[x] = [];
       for (let y = 0; y < this.ysize; ++y)
       {
         this.grid[x][y] = new grid_obj();
-        this.odd_grid[x][y] = false;
       }
     }
+
+    // TODO: Why doesn't this work? How can we fill it with unique objects?
+    // this.grid = [...Array(this.xsize)].map(e => Array(this.ysize).fill(new grid_obj()));
+    this.odd_grid = [...Array(this.xsize)].map(e => Array(this.ysize).fill(false));
+
     this.make_floor_pattern();
   }
 
@@ -716,11 +720,11 @@ class level
     let floor_type = Math.floor(Math.random() * number_of_floor_types);
     let random_floor_modifier = Math.floor(Math.random() * 4) + 2; 
     let half_grid_width = game.gridWidth / 2;
+    let odd;
     for (let x = 0; x < this.xsize; ++x)
     {
       for (let y = 0; y < this.ysize; ++y)
       {
-        let odd;
         switch (floor_type)
         {
           case 0:
@@ -823,7 +827,7 @@ class level
     level_string += ysize_str;
 
     // mode: assume random for now
-    // TODO: Figure out where this information comes from, if we're in the editor or single level <--------------------
+    // TODO: Figure out where this information comes from, if we're in the editor or single level
     // mode, then this will be different!!
     level_string += "r";
     level_string += (game.difficulty_level < 10 ? "0": "") + String(game.difficulty_level);
@@ -2326,9 +2330,6 @@ class floor_animation
                           + noise(x * 0.01, y * 0.01) / 32) * 32);
             break;
         }
-        // target_col = 64 + (abs((sin(y + (x * 2) + this.anim_timer / 4) + 0.5)  
-        // + noise(x * 0.01, y * 0.01) / 32) * 32);
-        //  target_col = 32 + sin(x + y + this.anim_timer / 2) * 16;
         this.jiggle_animation_color[x][y] = target_col;
       }
     }
@@ -2469,14 +2470,13 @@ class floor_animation
             this.animation_array[x][y] = temp_var;
             break;
 
+          // diagonal drops
           case 6:
             temp_var = this.animation_array[x][y];
             if (this.animation_frame < 8)
             {
               if ((x + y) % 2 === 0 && Math.random() < 0.1)
                 temp_var = Math.floor(Math.random() * 127);
-              // if (temp_var < 20 && Math.random() < 0.05)
-              //   temp_var = Math.floor(Math.random() * 127);
               if (x < this.xsize - 1 && Math.random() < 0.05)
                 this.animation_array[x + 1][y] = (this.animation_array[x + 1][y] + temp_var) / 2;
               if (y < this.ysize - 1 && Math.random() < 0.05)
@@ -2485,6 +2485,7 @@ class floor_animation
             this.animation_array[x][y] = temp_var * 0.92;
             break;
 
+          // game of life
           case 7:
             // game of life
             let cell_count = 0;
@@ -2531,7 +2532,6 @@ class floor_animation
     // after all individual animations, any frames can happen here
     if (this.animation_type === 7)
     {
-      // this.animation_array = this.jiggle_animation_buffer;
       this.animation_array = this.jiggle_animation_buffer.map((arr) => {
         return arr.slice()
       });
@@ -5905,9 +5905,9 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
 {
   // bring in some floor from the outside
   let left_offset = random([-1, 0, 1]);
-  let right_offset = random([-1, 0, 1]);
+  let right_offset = left_offset; // keep it symmetric
   let top_offset = random([-1, 0, 1]);
-  let bottom_offset = random([-1, 0, 1]);
+  let bottom_offset = top_offset; // keep it symmetric
   if (Math.random() < 0.2)
   {
     left_offset *= 2;
@@ -5931,26 +5931,6 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
       {
         set_grid(which_grid, x, y, tiles.FLOOR_EMPTY);
       }
-    }
-  }
-
-  if (game.difficulty_level > 10)
-  {
-    for (let i = 0; i < min(int(game.difficulty_level / 4), 20); ++i)
-    {
-      // TODO: Make sure this doesn't happen on one of the lights?
-      // or say it's a feature, not a bug
-      let xpos, ypos;
-      while(true)
-      {
-        xpos = int(random(1, game.gridWidth - 2));
-        ypos = int(random(1, game.gridHeight - 2));
-        //if xpos, ypos is not just a regular ol' floor
-        if(which_grid[xpos][ypos].grid_type != tiles.FLOOR_BUILDABLE) 
-          continue;
-        break;
-      }
-      set_grid(which_grid, xpos, ypos, tiles.FLOOR_EMPTY);
     }
   }
 }
