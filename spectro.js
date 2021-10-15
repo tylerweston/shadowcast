@@ -177,6 +177,9 @@ class states
   static SETUP_EDITOR = 6; 
   static EDITOR = 7; 
   // static LOADLEVEL = 10; // unusued
+  static SETUP_CONFIRM_NEW_GAME = 26;
+  static CONFIRM_NEW_GAME = 27;
+
   static NEW_GAME = 11;
   static LEVEL_TRANSITION_OUT = 12; 
   static LEVEL_TRANSITION_IN = 13;  
@@ -205,6 +208,7 @@ class states
   static need_setup_about = true;
   static need_setup_options = true;
   static need_setup_show_time_results = true;
+  static need_setup_confirm = true;
 }
 
 class menus
@@ -230,6 +234,10 @@ class menus
   static option_options = ["animations", "sounds", "reset data", "back"]
   static option_menu_selected = undefined;
   static option_menu_height = menus.option_options.length + 1;
+
+  static confirm_options = ["yes", "no"];
+  static confirm_selected = undefined;
+  static confirm_options_height = menus.confirm_options.length + 1;
 }
 
 class undo_actions
@@ -1974,10 +1982,6 @@ class light_source
 
   update_light_mask()
   {
-    // console.log(`viz polygons: ${this.viz_polygon}`);
-    // if (typeof this.viz_polygon === 'undefined') {
-    //   this.get_new_viz_poly();
-    // }
     this.need_fresh_image = true;
     let cx = this.x * game.gridSize + game.gridSize / 2;
     let cy = this.y * game.gridSize + game.gridSize / 2;
@@ -1995,14 +1999,7 @@ class light_source
     }
     this.mask_image.vertex(this.viz_polygon[0].x, this.viz_polygon[0].y);
     this.mask_image.endShape();
-
-    // this.mask_image_get = this.mask_image.get();
   }
-
-  // get_light_mask()
-  // {
-  //     return this.mask_image;
-  // }
 
   draw_this()
   {
@@ -3364,6 +3361,7 @@ function do_main_menu()
   draw_menu_background();
 
   // display menu options
+  // textAlign(LEFT, BOTTOM);
   textSize(font_size * 2);
   var i = 0;
   stroke(0);
@@ -3378,7 +3376,9 @@ function do_main_menu()
   text("spectro", (game.gridWidth - 17) * game.gridSize, game.gridSize * 2 + 5);
   blendMode(BLEND);
 
-  if (mouseX >= game.gridSize * 12 || (mouseY >= game.gridSize * 2 * (menus.main_menu_options.length + 1)))
+  if (mouseX >= game.gridSize * 12 || 
+    (mouseY >= game.gridSize * 2 * (menus.main_menu_options.length + 1)) ||
+    mouseY <= game.gridSize * 2)
     menus.main_menu_selected = undefined;
 
   for (let m of menus.main_menu_options)
@@ -3438,10 +3438,20 @@ function handle_main_menu_selection(menu_index)
   switch (menu_index)
   {
     case 0:
-      // confirm we want a new game
-      storeItem("savedgame", null);
-      game.current_gamemode = game.GAMEMODE_RANDOM;
-      game.game_state = states.NEW_GAME;
+      // if we don't have a saved game, simply start a new one
+      if (getItem("savedgame") === null)
+      {
+        game.current_gamemode = game.GAMEMODE_RANDOM;
+        game.game_state = states.NEW_GAME;
+      }
+      else
+      {
+        game.game_state = states.SETUP_CONFIRM_NEW_GAME;
+      }
+      // // confirm we want a new game
+      // storeItem("savedgame", null);
+      // game.current_gamemode = game.GAMEMODE_RANDOM;
+      // game.game_state = states.NEW_GAME;
       break;
     case 1:
       if (!game.have_saved_game)
@@ -3560,23 +3570,23 @@ function do_setup_options()
 {
   if (states.need_setup_options)
   {
-        // it will be a region that will contain sub-regions for each menu option?
-        let i = 0;
-        for (let m of menus.option_options)
-        {
-          let reg = new mouse_region(0, (i + 1) * game.gridSize * 2, game.gridSize * game.gridWidth, (i + 2) * game.gridSize * 2);
-          reg.events[mouse_events.CLICK] = () => {
-            game.sound_handler.play_sound("menu_click");
-            handle_option_menu_selection(int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1);
-          }
-          reg.events[mouse_events.ENTER_REGION] = () => {
-            menus.option_menu_selected = int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1;
-            game.sound_handler.play_sound("menu_hover");
-          };
-          // reg.events[mouse_events.EXIT_REGION] = () => {menus.main_menu_selected = undefined; };
-          game.global_mouse_handler.register_region(m + "option_menu", reg);
-          ++i;
-        }
+    // it will be a region that will contain sub-regions for each menu option?
+    let i = 0;
+    for (let m of menus.option_options)
+    {
+      let reg = new mouse_region(0, (i + 1) * game.gridSize * 2, game.gridSize * game.gridWidth, (i + 2) * game.gridSize * 2);
+      reg.events[mouse_events.CLICK] = () => {
+        game.sound_handler.play_sound("menu_click");
+        handle_option_menu_selection(int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1);
+      }
+      reg.events[mouse_events.ENTER_REGION] = () => {
+        menus.option_menu_selected = int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1;
+        game.sound_handler.play_sound("menu_hover");
+      };
+      // reg.events[mouse_events.EXIT_REGION] = () => {menus.main_menu_selected = undefined; };
+      game.global_mouse_handler.register_region(m + "option_menu", reg);
+      ++i;
+    }
     states.need_setup_options = false;
   }
   else
@@ -3845,6 +3855,93 @@ function make_menu()
     game.global_mouse_handler.register_region(m, reg);
     ++i;
   }
+}
+
+
+function do_setup_confirm_game()
+{
+  if (states.need_setup_confirm)
+  {
+    let confirm_yes_region = new mouse_region(0, game.gridSize * 5, 5 * game.gridSize, game.gridSize * 7);
+    confirm_yes_region.events[mouse_events.CLICK] = () => {
+      game.sound_handler.play_sound("menu_click");
+      handle_confirm_yes_click();
+    }
+    confirm_yes_region.events[mouse_events.ENTER_REGION] = () => {
+      game.sound_handler.play_sound("menu_hover");
+      menus.confirm_selected = 0;
+    }
+    game.global_mouse_handler.register_region("confirm_yes", confirm_yes_region);
+
+    let confirm_no_region = new mouse_region(0, game.gridSize * 7, 5 * game.gridSize, game.gridSize * 9);
+    confirm_no_region.events[mouse_events.CLICK] = () => {
+      game.sound_handler.play_sound("menu_click");
+      handle_confirm_no_click();
+    }
+    confirm_no_region.events[mouse_events.ENTER_REGION] = () => {
+      game.sound_handler.play_sound("menu_hover");
+      menus.confirm_selected = 1;
+    }
+    game.global_mouse_handler.register_region("confirm_no", confirm_no_region);
+
+    states.need_setup_confirm = false;
+  }
+  else
+  {
+    game.global_mouse_handler.enable_region("confirm_yes");
+    game.global_mouse_handler.enable_region("confirm_no");
+
+  }
+  game.game_state = states.CONFIRM_NEW_GAME;
+}
+
+function teardown_confirm_menu()
+{
+  game.global_mouse_handler.disable_region("confirm_yes");
+  game.global_mouse_handler.disable_region("confirm_no");
+}
+
+function handle_confirm_yes_click()
+{
+  teardown_confirm_menu();
+  storeItem("savedgame", null);
+  game.current_gamemode = game.GAMEMODE_RANDOM;
+  game.game_state = states.NEW_GAME;
+}
+
+function handle_confirm_no_click()
+{
+  teardown_confirm_menu();
+  menus.main_menu_selected = undefined;
+  game.current_gamemode = undefined;
+  game.game_state = states.MAIN_MENU_SETUP;
+}
+
+function do_confirm_game()
+{
+  // textAlign(LEFT, TOP);
+  draw_menu_background();
+  // display confirm screen
+  fill(palette.font_color);
+  textSize(font_size * 2);
+  stroke(0);
+  strokeWeight(2);
+  text("This will erase saved game, \n are you sure?", game.gridSize, game.gridSize * 2 + 5);
+  if (menus.confirm_selected === 0)
+    fill(253);
+  else
+    fill(157);
+  text("yes", game.gridSize * 2, game.gridSize * 6);
+
+  if (menus.confirm_selected === 1)
+    fill(253);
+  else
+    fill(157);
+  text("no", game.gridSize * 2, game.gridSize * 8);
+
+  if (mouseY >= game.gridSize * 9 || mouseY <= game.gridSize * 4 ||
+    mouseX >= game.gridSize * 5)
+    menus.confirm_selected = undefined;
 }
 
 // keyboard input
@@ -4336,6 +4433,12 @@ function draw() {
   {
   case states.NEW_GAME:
     setup_game();
+    break;
+  case states.SETUP_CONFIRM_NEW_GAME:
+    do_setup_confirm_game();
+    break;
+  case states.CONFIRM_NEW_GAME:
+    do_confirm_game();
     break;
   case states.INTRO:  
     do_intro();
