@@ -11,12 +11,9 @@ TODO:
 - Break up big functions
   - Basically any function that is taking in a boolean flag that
     changes its 'mode' can be refactored into something simpler.
-- Rewrite 2d grid creation as
-var grid = [...Array(xsize)].map(e => Array(ysize).fill(val));
 - Make floor pattern functions like the unbuildable floor functions (or maybe
   putting the functions in an array would be smarter than putting them in a
   dictionary??)
-- Try to reduce the amount of times stroke size is changed
 
 Important:
 - remove tutorial from top menu.
@@ -27,11 +24,7 @@ unless it is correct?
 - making the top right menu seems to happen at a weird time
   in the flow of things, look into that.
 
-- ARE YOU SURE? box that returns TRUE or FALSE for reset
 - Sound juice. Finish this and add options.
-- option screen
-  - make button class? or checkbox class?
-  - sound options in options menu
 - Detect if the user is on mobile and make the grid smaller so it
   is easier to choose/move lights, etc. ??
     - This now requires a few more fixes! Work on this, ie.
@@ -48,12 +41,9 @@ Visual fixes:
   of the string, location, size, etc, and then run little
   offsets and color individual letters, etc.
 - get intro back into game
-- move up level and menu text in main game a little bit
 - add more floor patterns
 - fix / add more default floor animations
 - add more bonus floor animations
-- floor animations should start when all detectors are activated
-  - maybe some special ones that only happen then?
 - line up all font on the bottom better, ie, intro spectro is a bit wonky
 - Main menu should be better lined up... looks OK with new font
 - Font size may be strange on different size devices? Yes, this needs
@@ -63,7 +53,7 @@ Visual fixes:
 Bugs:
 - light detection seems to be a bit wonky still
 - hi score board / leaderboard!
-- Window resizing is broken?
+- Window resizing is broken?!
 - something broken with just setting is_dragging false to eat mouse input
   between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
@@ -71,8 +61,6 @@ Bugs:
     we want to change the mouse state so that we aren't in drawing mode
     anymore!
 - There is some issue with dragging mouse off the screen and then back on
-- When we "shrink" lights onto the board, they may get placed on top of a
-  detector, which makes them unmovable! make sure this doesn't happen!
 - Reposition OK button in About menu
 
 QOL improvements:
@@ -139,7 +127,7 @@ Editor stuff (Maybe eventually):
 
 // game version things
 const MAJOR_VERSION = 1;
-const MINOR_VERSION = 6;
+const MINOR_VERSION = 7;
 
 const USE_DEBUG_KEYS = false;
 
@@ -214,7 +202,7 @@ class states
 class menus
 {
 // menu options
-  static top_menu_choices = ["undo", "redo", "reset grid", "save", "give up", "main menu", "reset game", "tutorial"];
+  static top_menu_choices = ["undo", "redo", "reset grid", "save", "give up", "main menu", "reset game", "help"];
   static top_menu_callbacks = [
     () => undo.undo_last_move(),
     () => undo.redo_last_move(),
@@ -1468,10 +1456,10 @@ class detector
     // at least 3 of the internal points need to be covered in the correct
     // light color!
     let locs = [
-      [xp - game.GRID_QUARTER, yp - game.GRID_QUARTER], 
-      [xp + game.GRID_QUARTER, yp - game.GRID_QUARTER], 
-      [xp - game.GRID_QUARTER, yp + game.GRID_QUARTER], 
-      [xp + game.GRID_QUARTER, yp + game.GRID_QUARTER], 
+      [xp - game.GRID_QUARTER, yp], 
+      [xp + game.GRID_QUARTER, yp], 
+      [xp, yp + game.GRID_QUARTER], 
+      [xp, yp + game.GRID_QUARTER], 
       [xp, yp]]
       ;
     let majority_color = undefined;
@@ -2142,6 +2130,11 @@ class edge
     this.ex = ex;
     this.ey = ey;
 
+    // this.osx = sx;
+    // this.oys = sy;
+    // this.oex = ex;
+    // this.oey = ey;
+
     this.sx_grid = jiggle.get_index(sx);
     this.sy_grid = jiggle.get_index(sy);
     this.ex_grid = jiggle.get_index(ex);
@@ -2552,6 +2545,7 @@ class jiggle
     this.xsize = xsize;
     this.ysize = ysize;
     this.jiggle_grid = [];
+    this.curr_scale = 1;
     for (let x = 0; x < this.xsize; ++x)
     {
       this.jiggle_grid[x] = [];
@@ -2567,6 +2561,7 @@ class jiggle
   // convert to jiggle_index
   static get_index(num)
   {
+    // num /= this.curr_scale;
     if (this.index_memo[num] === undefined)
     {
       this.index_memo[num] = int(num / game.gridSize);
@@ -2605,6 +2600,11 @@ class jiggle
         this.jiggle_grid[x][y] = [jiggle_x, jiggle_y];
       }
     }
+  }
+
+  scale_jiggles(new_scale)
+  {
+    this.curr_scale = new_scale;
   }
 
   // jiggle_wave()
@@ -3219,6 +3219,8 @@ function windowResized()
   scale_all_edges(new_scale);
   game.current_dim = largest_dim;
 
+  // game.jiggle.scale_jiggles(new_scale);
+
   // if we are currently in a game, update game specific info.
   if (game.current_gamemode !== undefined)
   {
@@ -3603,9 +3605,9 @@ function handle_option_menu_selection(option_index)
 {
   switch (option_index)
   {
-    // game.use_animations
-    // game.sounds_enabled
     case 0:
+      // if we have particles hiding somewhere, get rid of them
+      particle_system.clear_particles();
       game.use_animations = !game.use_animations;
       storeItem("use_animations", game.use_animations);
       break;
@@ -3686,7 +3688,6 @@ function do_options_menu()
     text(m, (game.gridWidth - 17) * game.gridSize, (i + 2) * game.gridSize * 2);
     ++i;
   }
-  //game.game_state = states.TEARDOWN_OPTIONS;
 }
 
 function do_teardown_options()
@@ -3700,12 +3701,6 @@ function do_teardown_options()
 }
 
 //////// TOP MENU
-function change_top_menu_entry(index, new_name, new_func)
-{
-  // unused?
-  menus.top_menu_choices[index] = new_name;
-  menus.top_menu_callbacks[index] = () => new_func;
-}
 
 function top_menu_main_menu() 
 {
@@ -3778,11 +3773,11 @@ function top_menu_tutorial()
   game.game_state = states.PREPARE_TUTORIAL;
 }
 
-function top_menu_options() 
-{
-  // TODO: No options available for now, so just ignore
-  // game.game_state = states.SETUP_OPTIONS;
-}
+// function top_menu_options() 
+// {
+//   // TODO: No options available for now, so just ignore
+//   // game.game_state = states.SETUP_OPTIONS;
+// }
 
 function top_menu_about() 
 {
@@ -3807,8 +3802,6 @@ function launch_menu()
 function enable_menu()
 {
   game.global_mouse_handler.enable_region("opened_top_menu");
-  // show_menu = true;
-  //top_menu_accept_input = true;
   menus.top_menu_selected = 0;
   for (let m of menus.top_menu_choices)
   {
@@ -3856,7 +3849,6 @@ function make_menu()
     ++i;
   }
 }
-
 
 function do_setup_confirm_game()
 {
@@ -4376,7 +4368,7 @@ function tutorial()
   fill(72);
   rect(game.gridSize * 3, game.gridSize * 3, width - game.gridSize * 6, height - game.gridSize * 6);
 
-  let s = "Tutorial\n" +
+  let s = "help\n" +
    "Use left click to draw or erase walls.\n" +
    "Click once on lights to activate / deactivate,\n" +
    "or drag them to move them.\n" +
@@ -4823,45 +4815,32 @@ function draw_edges()
 {
   if (!game.use_animations)
   {
-    blendMode(DARKEST);
-    strokeWeight(1);
-    stroke(palette.edge_color);
-    fill(palette.edge_circle_color)
-    for (let e of game.edges)
-    {
-      ellipse(e.sx, e.sy, 5, 5);
-      ellipse(e.ex, e.ey, 5, 5);
-    }
     strokeWeight(5);
     stroke(palette.edge_color);
     for (let e of game.edges)
     {
       line(e.sx, e.sy, e.ex, e.ey);
     }
-    blendMode(BLEND);
     return;
   }
-  // else, we are using animation:
-  // strokeWeight(2);
-  // stroke(palette.edge_circle_color);
-  // fill(palette.edge_circle_color);
-  blendMode(DARKEST);
-  strokeWeight(1);
-  stroke(palette.edge_color);
-  fill(palette.edge_circle_color)
-  for (let e of game.edges)
-  {
-    let sx_index = jiggle.get_index(e.sx);//int(curr_x / game.gridSize);
-    let sy_index = jiggle.get_index(e.sy);//int(curr_y / game.gridSize);
-    let ex_index = jiggle.get_index(e.ex);//int(next_x / game.gridSize);
-    let ey_index = jiggle.get_index(e.ey);//int(next_y / game.gridSize);
-    let [sx, sy] = game.jiggle.jiggle_grid[sx_index][sy_index];
-    let [ex, ey] = game.jiggle.jiggle_grid[ex_index][ey_index];
-    ellipse(e.sx + sx, e.sy + sy, 5, 5);
-    ellipse(e.ex + ex, e.ey + ey, 5, 5);
-  }
 
-  strokeWeight(5);
+  // blendMode(BLEND);
+  // strokeWeight(1);
+  // stroke(palette.edge_color);
+  // fill(palette.edge_circle_color)
+  // for (let e of game.edges)
+  // {
+  //   let sx_index = jiggle.get_index(e.sx);
+  //   let sy_index = jiggle.get_index(e.sy);
+  //   let ex_index = jiggle.get_index(e.ex);
+  //   let ey_index = jiggle.get_index(e.ey);
+  //   let [sx, sy] = game.jiggle.jiggle_grid[sx_index][sy_index];
+  //   let [ex, ey] = game.jiggle.jiggle_grid[ex_index][ey_index];
+  //   ellipse(e.sx + sx, e.sy + sy, 5, 5);
+  //   ellipse(e.ex + ex, e.ey + ey, 5, 5);
+  // }
+
+  strokeWeight(4);
   stroke(palette.edge_color);
 
   for (let e of game.edges)
@@ -4900,14 +4879,8 @@ function draw_edges()
       curr_x = next_x;
       curr_y = next_y;
     }
-
-
-    // stroke(palette.edge_color);
-    // let [sx_off, sy_off] = game.jiggle.jiggle_grid[e.sx_grid][e.sy_grid];
-    // let [ex_off, ey_off] = game.jiggle.jiggle_grid[e.ex_grid][e.ey_grid];
-    // line(e.sx + sx_off, e.sy + sy_off, e.ex + ex_off, e.ey + ey_off);
   }
-  blendMode(BLEND);
+  // blendMode(BLEND);
 }
 
 function draw_detector_floors()
@@ -6684,33 +6657,6 @@ function remove_saved_data()
   clearStorage();
 }
 
-function two_option_dialog(dialog_text, option1_text, option2_text)
-{
-  // display an option in the middle of the screen and give
-  // two options, return either a 0 for option 1 if clicked
-  // or a 1 for option 2 if clicked
-  // TODO: We can't really "return" something here since we don't
-  // know where we're returning to, store the result in some variable 
-  // somewhere instead!
-  noStroke();
-  fill (0, 70);
-  rect(game.gridSize * 2 + game.GRID_HALF, game.gridSize * 2 + game.GRID_HALF, width - game.gridSize * 4, height - game.gridSize * 4);
-
-  stroke(190, 190, 190);
-  fill (35);
-  strokeWeight(4);
-  rect(game.gridSize * 2, game.gridSize * 2, width - game.gridSize * 4, height - game.gridSize * 4);
-  fill(72);
-  rect(game.gridSize * 3, game.gridSize * 3, width - game.gridSize * 6, height - game.gridSize * 6);
-
-  strokeWeight(1);
-  fill(180);
-  stroke(130);
-  textSize(28);
-  textAlign(TOP, TOP);
-  text(dialog_text, game.gridSize * 3, game.gridSize * 3, width - game.gridSize * 6, height - game.gridSize * 6);
-}
-
 function get_selected_detector(xpos, ypos)
 {
   // return index of the light that the cursor is over
@@ -6857,11 +6803,3 @@ window.mobileCheck = function() {
   (function(a){if(/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino/i.test(a)||/1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0,4))) check = true;})(navigator.userAgent||navigator.vendor||window.opera);
   return check;
 };
-
-// document.addEventListener('keydown', function(event) {
-//   if (event.ctrlKey && event.key === 's') {
-//     game.current_level.save_level(game.lightsources, detectors);
-//   }
-// });
-
-// from: https://stackoverflow.com/questions/49859246/objects-generated-with-creategraphics-using-p5-js-are-not-being-garbage-collec
