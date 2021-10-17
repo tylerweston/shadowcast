@@ -14,6 +14,8 @@ TODO:
 - Make floor pattern functions like the unbuildable floor functions (or maybe
   putting the functions in an array would be smarter than putting them in a
   dictionary??)
+- If you give up, then reload the game, the saved game that you
+  gave up is still saved
 
 Important:
 - remove tutorial from top menu.
@@ -1456,16 +1458,18 @@ class detector
     // at least 3 of the internal points need to be covered in the correct
     // light color!
     let locs = [
-      [xp - game.GRID_QUARTER, yp], 
-      [xp + game.GRID_QUARTER, yp], 
-      [xp, yp + game.GRID_QUARTER], 
-      [xp, yp + game.GRID_QUARTER], 
-      [xp, yp]]
-      ;
-    let majority_color = undefined;
-    let majority_count = 0;
-    let found_colors = [];
+      // [xp - game.GRID_QUARTER, yp], 
+      // [xp + game.GRID_QUARTER, yp], 
+      // [xp, yp + game.GRID_QUARTER], 
+      // [xp, yp + game.GRID_QUARTER], 
+      [xp, yp]
+    ];
+    // let majority_color = undefined;
+    // let majority_count = 0;
+    // let found_colors = [];
 
+    // TODO: This can be reduced a bit further if we are only checking a
+    // single position, no need for the outer for loop!
     for (let [xpos, ypos] of locs)
     {
       // if we can, add their light values onto ours, then check if 
@@ -1476,10 +1480,17 @@ class detector
 
       for (let l of game.lightsources)
       {
+        // obviously don't bother checking nonactive lights
         if (!l.active)
           continue;
+
         let xtarget = l.x  * game.gridSize + (game.GRID_HALF);
-        let ytarget = l.y * game.gridSize + (game.GRID_HALF)
+        let ytarget = l.y * game.gridSize + (game.GRID_HALF);
+
+        // DEBUG LINE DETECTOR TO LIGHT
+        // strokeWeight(1);
+        // stroke(0, 0, 255);
+        // line(xpos, ypos, xtarget, ytarget);
 
         // line segment1 is xtarget,ytarget to xpos, ypos
         // line segment2 e2.sx, e2.sy to e2.ex, e2.ey
@@ -1504,63 +1515,67 @@ class detector
             min_px = xtarget + (t * s1_x);
             min_py = ytarget + (t * s1_y);
             has_intersection = true;
+            // DEBUG LINE INTERSECTION
+            // strokeWeight(2);
+            // stroke(255, 0, 0);
+            // line(min_px, min_py, xtarget, ytarget);
             break;
           }
         }
         if (!has_intersection)
         {
-          r += l.r; r = r <= 255 ? r : 255;
-          g += l.g; g = g <= 255 ? g : 255;
-          b += l.b; b = b <= 255 ? b : 255;
+          r = min(r + l.r, 255);
+          g = min(g + l.g, 255);
+          b = min(b + l.b, 255);
         }
       }
-      // once we get here, we have r, g, and b values of a single
-      // lightsource hitting this light
-
-      // add our found color to the color list
-      let fc = color(r, g, b);
-      found_colors.push(fc);
-
-      // Boyer-Moore vote algorithm.
-      if (majority_color === undefined || majority_count === 0)
-      {
-        majority_color = fc;
-        majority_count = 1;
-      }
-      else if (majority_color == fc)
-      {
-        majority_count += 1;
-      }
-      else
-      {
-        majority_count -= 1;
-      }
+      this.correct = (r === this.r && g === this.g && b === this.b);
     }
 
-    // TODO: Write a color equality function!
-    if (red(majority_color) == this.r &&
-        green(majority_color) == this.g &&
-        blue(majority_color) == this.b)
-    {
-      // make sure it's actually a majority
-      let count = 0;
-      for (let col of found_colors)
-      {
-        if (red(col) === red(majority_color) && green(col) === green(majority_color) && blue(col) === blue(majority_color))
-        {
-          count += 1;
-        }
-      }
-      this.correct = (count > 3);
-      // if (count > 3)
-      //   this.correct = true;
-      // else 
-      //   this.correct = false;
-    }
-    else
-    {
-      this.correct = false;
-    }
+    //   // once we get here, we have r, g, and b values of a single
+    //   // lightsource hitting this light
+
+    //   // add our found color to the color list
+    //   let fc = color(r, g, b);
+    //   found_colors.push(fc);
+
+    //   // Boyer-Moore vote algorithm.
+    //   if (majority_color === undefined || majority_count === 0)
+    //   {
+    //     majority_color = fc;
+    //     majority_count = 1;
+    //   }
+    //   else if (majority_color == fc)
+    //   {
+    //     majority_count += 1;
+    //   }
+    //   else
+    //   {
+    //     majority_count -= 1;
+    //   }
+    // }
+
+    // // TODO: Write a color equality function!
+    // if (red(majority_color) == this.r &&
+    //     green(majority_color) == this.g &&
+    //     blue(majority_color) == this.b)
+    // {
+    //   // make sure it's actually a majority
+    //   let count = 0;
+    //   for (let col of found_colors)
+    //   {
+    //     if (red(col) === red(majority_color) && green(col) === green(majority_color) && blue(col) === blue(majority_color))
+    //     {
+    //       count += 1;
+    //     }
+    //   }
+    //   // this.correct = (count > 2);
+    //   this.correct = (count == 1);
+    // }
+    // else
+    // {
+    //   this.correct = false;
+    // }
 
     // if we used to be not active, and now we are, start a flash
     if (use_juice && this.correct && !this.old_correct)
