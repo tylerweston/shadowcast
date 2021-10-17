@@ -8,6 +8,7 @@ r, g, b: switch corresponding light (This currently doesn't work during tutorial
 space: go to next level (if available)
 
 TODO:
+
 - Break up big functions
   - Basically any function that is taking in a boolean flag that
     changes its 'mode' can be refactored into something simpler.
@@ -16,6 +17,8 @@ TODO:
   dictionary??)
 - If you give up, then reload the game, the saved game that you
   gave up is still saved
+- Give up option in top menu during timed game is glitchy, should
+  just exit to main menu?
 
 Important:
 - remove tutorial from top menu.
@@ -23,8 +26,6 @@ Important:
 - Right click a solid tile to change it into colored glass?
 - mode where you can't see the color of a detector
 unless it is correct?
-- making the top right menu seems to happen at a weird time
-  in the flow of things, look into that.
 
 - Sound juice. Finish this and add options.
 - Detect if the user is on mobile and make the grid smaller so it
@@ -55,7 +56,6 @@ Visual fixes:
 Bugs:
 - light detection seems to be a bit wonky still
 - hi score board / leaderboard!
-- Window resizing is broken?!
 - something broken with just setting is_dragging false to eat mouse input
   between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
@@ -2067,7 +2067,8 @@ class light_source
         for (let ring = this.num_rings; ring > 0; --ring)
         {
           let r_size = ring * game.gridSize * 2;
-          this.cur_image_source.fill(this.dark_light, 100 - ring * this.ring_ratio);
+          // this.cur_image_source.fill(this.dark_light, 100 - ring * this.ring_ratio);
+          this.cur_image_source.fill(this.dark_light, map(ring, this.num_rings, 0, 150, 10));
           this.cur_image_source.ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, large_circle_size + r_size , large_circle_size + r_size);
   
         }
@@ -3184,7 +3185,7 @@ function setup() {
 
   // setup is called once at the start of the game
   cnv = createCanvas(game.gameWidth, game.gameHeight);
-  // frameRate(120);
+  frameRate(60);
   centerCanvas();
   initialize_colors();  // Can't happen until a canvas has been created!
   game.current_dim = largest_dim;
@@ -4655,6 +4656,7 @@ function draw_walls_and_floors()
       let bottom_left_point;
       let bottom_right_point;
 
+      let cur_fade = lvl.grid[x][y].fade;
       let odd = lvl.odd_grid[x][y];
       let permenant = lvl.grid[x][y].permenant; // This should be programmed into the level
 
@@ -4689,15 +4691,33 @@ function draw_walls_and_floors()
 
         else if (lvl.grid[x][y].grid_type == tiles.FLOOR_BUILDABLE)
         {
-          if (lvl.grid[x][y].fade > 0)
+          if (cur_fade > 0)
+          {
             lvl.grid[x][y].fade -= deltaTime / 250;
+            if (lvl.grid[x][y].fade < 0.01)
+              lvl.grid[x][y].fade = 0;
+            cur_fade = lvl.grid[x][y].fade;
+          }
 
           if (game.use_animations)
           {
-            target_stroke = lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade);
+            if (cur_fade === 0)
+            {
+              target_stroke = palette.buildable_outline;
+              target_fill = odd ? palette.buildable_fill : palette.buildable_2_fill;
+            }
+            else if (cur_fade === 1)
+            {
+              target_stroke = palette.solid_wall_outline;
+              target_fill = permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill;
+            }
+            else
+            {
+            target_stroke = lerpColor(palette.buildable_outline, palette.solid_wall_outline, cur_fade);
             target_fill = lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
                                     permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
-                                    lvl.grid[x][y].fade);
+                                    cur_fade);
+            }
           }
           else
           {
@@ -4717,8 +4737,13 @@ function draw_walls_and_floors()
       else if (lvl.grid[x][y].exist)  // SOLID WALLS
       {
 
-        if (lvl.grid[x][y].fade < 1)
+        if (cur_fade < 1)
+        {
           lvl.grid[x][y].fade += deltaTime / 250;
+          if (lvl.grid[x][y].fade > 1)
+            lvl.grid[x][y].fade = 1;
+          cur_fade = lvl.grid[x][y].fade;
+        }
 
         if (lvl.grid[x][y].permenant)
         {
@@ -4727,7 +4752,18 @@ function draw_walls_and_floors()
         } else {
           if (game.use_animations)
           {            
-            target_stroke = lerpColor(palette.buildable_outline, palette.solid_wall_outline, lvl.grid[x][y].fade);
+            if (cur_fade === 0)
+            {
+              target_stroke = palette.buildable_outline;
+            }
+            else if (cur_fade === 1)
+            {
+              target_stroke = palette.solid_wall_outline;
+            }
+            else
+            {
+              target_stroke = lerpColor(palette.buildable_outline, palette.solid_wall_outline, cur_fade);
+            }
           }          
           else
           {
@@ -4739,9 +4775,20 @@ function draw_walls_and_floors()
         
         if (game.use_animations)
         {
-          target_fill = lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
-                                  permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
-                                  lvl.grid[x][y].fade);
+          if (cur_fade === 0)
+          {
+            target_fill = odd ? palette.buildable_fill : palette.buildable_2_fill;
+          }
+          else if (cur_fade === 1)
+          {
+            target_fill = permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill;
+          }
+          else
+          {
+            target_fill = lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
+                                    permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
+                                    cur_fade);
+          }
         }
         else
         {
