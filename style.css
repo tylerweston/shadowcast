@@ -1,27 +1,6 @@
-/* html, body {
-  margin: 0;
-  padding: 0;
-  background-color: #575757;
-}
-
-canvas {
-  position: absolute; 
-  width: 100%;
-  top: 0px; 
-  left: 0px; 
-  right: 0px; 
-  bottom: 0px; 
-  margin: auto; 
-  border:5px solid black
-}
-
-h1 {
-  text-align: center;
-} */
-
 html, body {
   height: 100%;
-  background-color: #575757;
+  background-color: #373737;
 }
 
 body {
@@ -32,21 +11,3 @@ body {
   -ms-user-select: none;
   user-select: none;
 }
-
-/* body {
-  margin: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-} */
-
-/* canvas {
-  position: absolute; 
-  width: 100%;
-  top: 0px; 
-  left: 0px; 
-  right: 0px; 
-  bottom: 0px; 
-  margin: auto;
-  border:5px solid black
-} */

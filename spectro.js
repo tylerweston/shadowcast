@@ -2145,11 +2145,6 @@ class edge
     this.ex = ex;
     this.ey = ey;
 
-    // this.osx = sx;
-    // this.oys = sy;
-    // this.oex = ex;
-    // this.oey = ey;
-
     this.sx_grid = jiggle.get_index(sx);
     this.sy_grid = jiggle.get_index(sy);
     this.ex_grid = jiggle.get_index(ex);
@@ -2555,12 +2550,13 @@ class jiggle
 
   // memoize grid divisions
   static index_memo = {};
+  static curr_scale = 1;
   constructor(xsize, ysize)
   {
     this.xsize = xsize;
     this.ysize = ysize;
     this.jiggle_grid = [];
-    this.curr_scale = 1;
+    // this.curr_scale = 1;
     for (let x = 0; x < this.xsize; ++x)
     {
       this.jiggle_grid[x] = [];
@@ -2576,7 +2572,7 @@ class jiggle
   // convert to jiggle_index
   static get_index(num)
   {
-    // num /= this.curr_scale;
+    num = int(num * jiggle.curr_scale);
     if (this.index_memo[num] === undefined)
     {
       this.index_memo[num] = int(num / game.gridSize);
@@ -2619,7 +2615,8 @@ class jiggle
 
   scale_jiggles(new_scale)
   {
-    this.curr_scale = new_scale;
+    jiggle.index_memo = {};
+    jiggle.curr_scale *= new_scale;
   }
 
   // jiggle_wave()
@@ -3225,28 +3222,31 @@ function windowResized()
   game.FLASH_SIZE = game.gridSize * 8;
   font_size = game.gridSize * 0.8;
 
-  resizeCanvas(game.gameWidth, game.gameHeight);
-  centerCanvas();
+  // resizeCanvas(game.gameWidth, game.gameHeight);
+  // centerCanvas();
 
   // reposition_all_buttons();  // THIS is going to require some rewrites
   let new_scale = largest_dim / game.current_dim;
   game.global_mouse_handler.scale_regions(new_scale);
+  game.jiggle.scale_jiggles(new_scale);
   scale_all_edges(new_scale);
   game.current_dim = largest_dim;
 
-  // game.jiggle.scale_jiggles(new_scale);
+  update_all_light_viz_polys();
 
   // if we are currently in a game, update game specific info.
   if (game.current_gamemode !== undefined)
   {
-    update_all_light_viz_polys();
     do_game();
   }
+
+  resizeCanvas(game.gameWidth, game.gameHeight);
+  centerCanvas();
 }
 
 function initialize_colors() {
   palette.solid_wall_fill = color(155, 155, 170);
-  palette.solid_wall_permenant_fill = color(160, 160, 170);
+  palette.solid_wall_permenant_fill = color(150, 150, 160);
   palette.solid_wall_outline = color(120, 120, 120);
 
   palette.buildable_fill = color(37, 37, 41);
@@ -3256,10 +3256,10 @@ function initialize_colors() {
   palette.empty_outline = color(2, 2, 2);
   palette.empty_fill = color(13, 13, 13);
 
-  palette.edge_color = color(70, 70, 80);
+  palette.edge_color = color(60, 60, 70);
   palette.edge_circle_color = color(60, 60, 70);
 
-  palette.font_color = color(215, 215, 215);
+  palette.font_color = color(200, 200, 215);
   palette.bright_font_color = color(157, 157, 157);
 
   // ------+--------+----
@@ -3351,7 +3351,7 @@ function do_setup_main_menu()
 
   for (let d of game.detectors)
   {
-    d.check_color();
+    d.check_color(/*use_juice=*/false);
   }
   
   game.game_state = states.MAIN_MENU;
@@ -3378,7 +3378,6 @@ function do_main_menu()
   draw_menu_background();
 
   // display menu options
-  // textAlign(LEFT, BOTTOM);
   textSize(font_size * 2);
   var i = 0;
   stroke(0);
@@ -3419,7 +3418,7 @@ function draw_menu_background()
   game.floor_animation.update();
   for (let d of game.detectors)
   {
-    d.check_color();
+    d.check_color(/*use_juice=*/false);
   }
   draw_walls_and_floors();
   draw_detector_floors();
@@ -4830,7 +4829,7 @@ function draw_edges()
 {
   if (!game.use_animations)
   {
-    strokeWeight(5);
+    strokeWeight(4);
     stroke(palette.edge_color);
     for (let e of game.edges)
     {
@@ -4872,13 +4871,14 @@ function draw_edges()
     let next_y = curr_y;
     while (!(curr_x === end_x && curr_y === end_y))
     {
+      // use min to ensure we don't overshoot endpoints
       if (curr_x < end_x)
       {
-        next_x = curr_x + game.gridSize;
+        next_x = min(end_x, curr_x + game.gridSize);
       }
       if (curr_y < end_y)
       {
-        next_y = curr_y + game.gridSize;
+        next_y = min(end_y, curr_y + game.gridSize);
       }
 
       let sx_index = jiggle.get_index(curr_x);
@@ -4895,7 +4895,6 @@ function draw_edges()
       curr_y = next_y;
     }
   }
-  // blendMode(BLEND);
 }
 
 function draw_detector_floors()
@@ -6660,6 +6659,7 @@ function update_all_light_viz_polys()
   {
     l.get_new_viz_poly();
     l.update_light_mask();
+    l.force_update = true;
   }
 }
 
