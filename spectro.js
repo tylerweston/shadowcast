@@ -123,8 +123,6 @@ Editor stuff (Maybe eventually):
   unused branch and remove from main?
 */
 
-
-
 // global variables
 
 // game version things
@@ -132,11 +130,6 @@ const MAJOR_VERSION = 1;
 const MINOR_VERSION = 7;
 
 const USE_DEBUG_KEYS = false;
-
-
-
-// canvas
-let cnv;
 
 // TODO: Bunch of little bits of state to clean up
 // TODO: The rest of this stuff will be taken care of via some sort of
@@ -322,6 +315,9 @@ class undo
 // data classes, mostly holding vars, enums, etc.
 class game
 {
+  // canvas
+  static cnv;
+
   // make the playing field a different size depending if we're on mobile
   static PLAYFIELD_DIM;
   static PC_PLAYFIELD_DIM = 19;
@@ -3083,7 +3079,7 @@ function mousePressed() {
 function centerCanvas() {
   let x = (windowWidth - width) / 2;
   let y = (windowHeight - height) / 2;
-  cnv.position(x, y);
+  game.cnv.position(x, y);
 }
 
 //////// UNDO STUFF
@@ -3186,7 +3182,7 @@ function setup() {
   game.font_size = int(game.gridSize * 0.8);
 
   // setup is called once at the start of the game
-  cnv = createCanvas(game.gameWidth, game.gameHeight);
+  game.cnv = createCanvas(game.gameWidth, game.gameHeight);
   frameRate(60);
   centerCanvas();
   initialize_colors();  // Can't happen until a canvas has been created!
