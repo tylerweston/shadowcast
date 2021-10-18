@@ -133,9 +133,7 @@ const MINOR_VERSION = 7;
 
 const USE_DEBUG_KEYS = false;
 
-// font
-let spectro_font;
-let font_size;
+
 
 // canvas
 let cnv;
@@ -415,6 +413,10 @@ class game
   // visual options
   // static animated_background = true;
   static use_animations = true;
+
+  // font
+  static spectro_font;
+  static font_size;
 }
 
 // List of tile types
@@ -3093,7 +3095,7 @@ function preload() {
   // This font is nice for gameplay stuff
 
   //spectro_font = loadFont('assets/LemonMilk.otf');
-  spectro_font = loadFont('assets/ChildsHand.ttf');
+  game.spectro_font = loadFont('assets/ChildsHand.ttf');
   // load all of our sounds in preload since it might take a moment, and this
   // should (in theory) mitigate the errors (but it doesn't)
   game.sound_handler = new sound();
@@ -3181,7 +3183,7 @@ function setup() {
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
   game.FLASH_SIZE = game.gridSize * 8;
 
-  font_size = int(game.gridSize * 0.8);
+  game.font_size = int(game.gridSize * 0.8);
 
   // setup is called once at the start of the game
   cnv = createCanvas(game.gameWidth, game.gameHeight);
@@ -3190,7 +3192,7 @@ function setup() {
   initialize_colors();  // Can't happen until a canvas has been created!
   game.current_dim = largest_dim;
 
-  textFont(spectro_font);
+  textFont(game.spectro_font);
 
   game.global_mouse_handler = new mouse_handler();
 
@@ -3221,7 +3223,7 @@ function windowResized()
   game.GRID_HALF = int(game.gridSize / 2);
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
   game.FLASH_SIZE = game.gridSize * 8;
-  font_size = game.gridSize * 0.8;
+  game.font_size = game.gridSize * 0.8;
 
   // resizeCanvas(game.gameWidth, game.gameHeight);
   // centerCanvas();
@@ -3379,7 +3381,7 @@ function do_main_menu()
   draw_menu_background();
 
   // display menu options
-  textSize(font_size * 2);
+  textSize(game.font_size * 2);
   var i = 0;
   stroke(0);
   strokeWeight(2);
@@ -3530,7 +3532,7 @@ function do_about_menu()
    "and Jane Haselgrove for all the pizza.\n";
 
   //stroke(130);
-  textSize(font_size);
+  textSize(game.font_size);
   textAlign(TOP, TOP);
   noStroke();
   blendMode(ADD);
@@ -3568,7 +3570,7 @@ function do_about_menu()
   }
   stroke(130);
   strokeWeight(2);
-  textSize(font_size);
+  textSize(game.font_size);
   textAlign(CENTER, BASELINE);
   text("OK", (width / 2), height - 4 * game.gridSize);
 
@@ -3646,7 +3648,7 @@ function do_options_menu()
   rect(0, 0, width, height);
 
   // display menu options
-  textSize(font_size * 2);
+  textSize(game.font_size * 2);
   var i = 0;
   stroke(0);
   strokeWeight(2);
@@ -3930,7 +3932,7 @@ function do_confirm_game()
   draw_menu_background();
   // display confirm screen
   fill(palette.font_color);
-  textSize(font_size * 2);
+  textSize(game.font_size * 2);
   stroke(0);
   strokeWeight(2);
   text("This will erase saved game, \n are you sure?", game.gridSize, game.gridSize * 2 + 5);
@@ -4158,7 +4160,7 @@ function do_game()
   // Render any text that we have to
   stroke(0);
   strokeWeight(3);
-  textSize(font_size);
+  textSize(game.font_size);
   fill(palette.font_color);
   text("level: " + game.difficulty_level, 0 + game.GRID_HALF, game.gridSize - 8);
 
@@ -4225,7 +4227,7 @@ function do_intro()
   if (game.intro_timer === 0)
   {
     game.intro_timer += deltaTime;
-    textSize(font_size * 3);
+    textSize(game.font_size * 3);
 
     // if we can figure out a way to play an intro sound, do it here
   }
@@ -4245,7 +4247,7 @@ function do_intro()
     // line (xrand, yrand, xrand + random(10) - 5, yrand + random(200) + 80);
     noStroke();
     fill(random(random_cols), random(50));
-    textSize(font_size * 3);
+    textSize(game.font_size * 3);
     text("a tw game", 0, 0, width, height + (game.intro_timer * random(1, 13) % 900) - 450);
     strokeWeight(2);
     blendMode(MULTIPLY);
@@ -4253,12 +4255,12 @@ function do_intro()
     fill(240);
     if (game.intro_timer < 1750)
     {
-      textSize(font_size * 3);
+      textSize(game.font_size * 3);
       text("a tw game", 0, 0, width, height);
     }
     else
     {
-      textSize(font_size * 4);
+      textSize(game.font_size * 4);
       text("spectro", 0, 0, width, height);
     }
   }
@@ -4266,7 +4268,7 @@ function do_intro()
   {
     blendMode(BLEND);
     textAlign(LEFT, BASELINE);
-    textSize(font_size);
+    textSize(game.font_size);
     game.game_state = states.MAIN_MENU_SETUP;
   }
 }
@@ -4394,7 +4396,7 @@ function tutorial()
   strokeWeight(1);
   fill(180);
   stroke(130);
-  textSize(font_size / 2);
+  textSize(game.font_size / 2);
   textAlign(CENTER, TOP);
   text(s, game.gameWidth / 2, game.gridSize * 4);
 
@@ -5443,7 +5445,7 @@ function do_show_time_results()
   rect(game.gridSize * 3, game.gridSize * 3, width - game.gridSize * 6, height - game.gridSize * 6);
   strokeWeight(2);
   stroke(0);
-  textSize(font_size);
+  textSize(game.font_size);
   fill (palette.bright_font_color);
   textAlign(CENTER);
   text("Total time played: " + game.total_time_played, width / 2, game.gridSize * 7);
@@ -6236,7 +6238,7 @@ function reset_grid(lvl)
 function do_tutorial_game_intro()
 {
   game.tutorial_game_intro_timer += deltaTime / 1000;
-  textSize(font_size);
+  textSize(game.font_size);
   fill(37);
   rect(0, 0, width, height);
   fill(255);
@@ -6325,7 +6327,7 @@ function make_tutorial_level()
 function do_tutorial_game_outro()
 {
   game.tutorial_game_intro_timer += deltaTime / 1000;
-  textSize(font_size);
+  textSize(game.font_size);
   fill(37);
   rect(0, 0, width, height);
   fill(255);
