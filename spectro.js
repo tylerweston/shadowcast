@@ -345,7 +345,7 @@ class game
   static gridHeight;
 
   static FLASH_SIZE;
-  static JIGGLE_CONSTRAINT = 2;
+  static JIGGLE_CONSTRAINT = 1.5;
 
   static current_gamemode = undefined;
 
@@ -1826,7 +1826,7 @@ class light_source
     // This might not be the best way to do this but it could work for now?!
     // move this stuff to some color data structure
     this.c = color(r, g, b);
-    this.shadow_color = color(r, g, b, 255 / 3);
+    this.shadow_color = color(r, g, b, 80);
 
     this.dark_light = color(r / 6, g / 6, b / 6, 60);
     this.med_light = color(r / 4, g / 4, b / 4, 70);
@@ -1958,6 +1958,7 @@ class light_source
 
   draw_light()
   {
+    // return;
     if (this.active && this.viz_polygon.length > 0)
     {
       blendMode(ADD);
@@ -2038,6 +2039,8 @@ class light_source
       
       if (this.animate_light_off)
       {
+        this.animate_light_off_timer = 0;
+
         this.need_fresh_image = true;
         large_circle_size *= this.animate_light_off_timer;
         small_circle_size *= this.animate_light_off_timer;
@@ -2077,7 +2080,9 @@ class light_source
         this.cur_image_source.ellipse(this.x * game.gridSize + game.GRID_HALF, this.y * game.gridSize + game.GRID_HALF, small_circle_size, small_circle_size);
     
         if (this.need_fresh_image)
+        {
           this.cur_image_source_get = this.cur_image_source.get();
+        }
 
         (this.masked_light = this.cur_image_source_get).mask(this.mask_image); 
       }
@@ -3183,6 +3188,8 @@ function setup() {
 
   // setup is called once at the start of the game
   game.cnv = createCanvas(game.gameWidth, game.gameHeight);
+
+
   frameRate(60);
   centerCanvas();
   initialize_colors();  // Can't happen until a canvas has been created!
@@ -3284,6 +3291,15 @@ function initialize_colors() {
     color(255, 255, 0), 
     color(255, 255, 255)
   ];
+}
+
+function randomize_floor_colors() {
+  let tint1 = Math.floor(Math.random() * 20 + 25);
+  palette.buildable_fill = color(tint1, tint1, tint1 + Math.random() * 7 + 3);
+  let tint2 = Math.floor(Math.random() * 30 + 35);
+  palette.buildable_2_fill = color(tint2, tint2, tint2 + Math.random() * 10 + 3);
+  let tint3 = Math.floor(Math.random() * 10 + 10);
+  palette.buildable_outline = color(tint3, tint3, tint3 + Math.random() * 5 + 2);
 }
 
 //////// MAIN MENU
@@ -4286,6 +4302,7 @@ function do_level_transition_out()
 
   if (game.global_fade >= 1)
   {
+
     // this is what is going to change around depending on what
     // game mode we are in.
     if (game.current_gamemode === game.GAMEMODE_RANDOM)
@@ -4332,6 +4349,7 @@ function do_level_transition_out()
 
 function do_level_transition_in()
 {
+
   game.global_fade -= deltaTime / 250;
   do_game();
   fill(17, 255);
@@ -4568,7 +4586,7 @@ function draw_floor_lines()
 {
   let lvl = game.current_level;
 
-  strokeWeight(2);
+  strokeWeight(3);
   blendMode(ADD);
   //stroke(0, 30);
   //stroke(255, 0, 0);
@@ -4817,7 +4835,7 @@ function draw_walls_and_floors()
           }
         }
       }
-
+      
       // if (lvl.grid[x][y].grid_type == tiles.GLASS_WALL_TOGGLABLE || lvl.grid[x][y] == tiles.GLASS_WALL)
       // // TODO: This is unused! Don't worry about it for now
       // {
@@ -4899,7 +4917,8 @@ function draw_edges()
   //   ellipse(e.ex + ex, e.ey + ey, 5, 5);
   // }
 
-  strokeWeight(4);
+  strokeWeight(3);
+  noFill();
   stroke(palette.edge_color);
 
   for (let e of game.edges)
@@ -5687,6 +5706,8 @@ function solvable_random_level(save=true, showcase=false)
 
 function random_level(save=true)
 {
+  // TODO: This shouldn't happen here, this is just a test
+  randomize_floor_colors();
   solvable_random_level(save, false);
   // let new_random_level = new level();
   // new_random_level.xsize = game.gridWidth;
