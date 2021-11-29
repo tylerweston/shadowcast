@@ -62,7 +62,9 @@ Bugs:
   - in a timed game, when we automatically transition to the next level
     we want to change the mouse state so that we aren't in drawing mode
     anymore!
-- There is some issue with dragging mouse off the screen and then back on
+- There is some issue with dragging mouse off the screen and then back on?
+  - Can't seem to replicate this, but if it remains an issue, you can attach
+    a mouse off listener like: cnv.mouseOut(callback)
 - Reposition OK button in About menu
 
 QOL improvements:
@@ -387,7 +389,7 @@ class game
   static has_new_timer_high_score = false;
 
   static editor_available = false;
-  static show_intro = false;         // <--------------- intro flag
+  static show_intro = true;         // <--------------- intro flag
   static show_tutorial = false;
 
   static need_load_menu_map = true;
@@ -4231,52 +4233,49 @@ function do_game()
 
 function do_intro()
 {
-  // TODO: Fix intro! Broken!
+  // TODO: Finish this new intro
   blendMode(ADD);
   let random_cols = [color(255, 0, 0), color(0, 255, 0), color(0, 0, 255)];
-  // textAlign(CENTER, CENTER);
-  textAlign(CENTER, TOP);
   if (game.intro_timer === 0)
   {
     game.intro_timer += deltaTime;
+    textAlign(CENTER, TOP);
     textSize(game.font_size * 3);
-
-    // if we can figure out a way to play an intro sound, do it here
+    strokeWeight(2);
   }
   else if (game.intro_timer < 3500)
   {
     game.intro_timer += deltaTime;
+    game.intro_timer += deltaTime;
     if (game.intro_timer < 2500)
+    {
       fill(0);
+    }
     else
     {
       fill(255);
     }
     rect(0, 0, width, height);
-    stroke(255, random(80));
-    let xrand = random(width);
-    let yrand = random(height - 100);
-    // line (xrand, yrand, xrand + random(10) - 5, yrand + random(200) + 80);
-    noStroke();
-    fill(random(random_cols), random(50));
-    textSize(game.font_size * 3);
-    text("a tw game", 0, 0, width, height + (game.intro_timer * random(1, 13) % 900) - 450);
-    strokeWeight(2);
-    blendMode(MULTIPLY);
-    stroke(0);
-    fill(240);
-    if (game.intro_timer < 1750)
+    if (game.intro_timer < 2500)
     {
-      textSize(game.font_size * 3);
-      text("a tw game", 0, 0, width, height);
+      stroke(0);
+      fill(random(random_cols));
+      text("a tw game", width / 2, random(height - game.font_size * 3));
+      // fill(0);
+      // rect(0, 0, width, height);
     }
     else
     {
-      textSize(game.font_size * 4);
-      text("spectro", 0, 0, width, height);
+      fill(0);
+      // rect(0, 0, width, height);
+      blendMode(MULTIPLY);
+      stroke(0);
+      text("spectro", width / 2, (height - game.font_size * 3 )/ 2);
+      blendMode(ADD);
     }
+
   }
-  else
+  else if (game.intro_timer >= 3500)
   {
     blendMode(BLEND);
     textAlign(LEFT, BASELINE);
