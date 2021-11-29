@@ -3254,7 +3254,7 @@ function windowResized()
 
 function initialize_colors() {
   palette.solid_wall_fill = color(155, 155, 170);
-  palette.solid_wall_permenant_fill = color(150, 150, 160);
+  palette.solid_wall_permenant_fill = color(140, 140, 150);
   palette.solid_wall_outline = color(120, 120, 120);
 
   palette.buildable_fill = color(37, 37, 41);
@@ -3298,8 +3298,13 @@ function initialize_colors() {
 function randomize_floor_colors() {
   let tint1 = Math.floor(Math.random() * 20 + 25);
   palette.buildable_fill = color(tint1, tint1, tint1 + Math.random() * 7 + 3);
-  let tint2 = Math.floor(Math.random() * 30 + 35);
+  
+  let tint2;
+  do {
+    tint2 = Math.floor(Math.random() * 30 + 35);
+  } while (abs(tint2 - tint1) < 15);  // make sure floor colors aren't too similar
   palette.buildable_2_fill = color(tint2, tint2, tint2 + Math.random() * 10 + 3);
+  
   let tint3 = Math.floor(Math.random() * 10 + 10);
   palette.buildable_outline = color(tint3, tint3, tint3 + Math.random() * 5 + 2);
 }
@@ -4585,7 +4590,7 @@ function draw_floor_lines()
 {
   let lvl = game.current_level;
 
-  strokeWeight(3);
+  strokeWeight(2);
   blendMode(ADD);
   //stroke(0, 30);
   //stroke(255, 0, 0);
@@ -4601,7 +4606,6 @@ function draw_floor_lines()
 
       if (game.current_level.grid[x][y].grid_type == tiles.FLOOR_EMPTY 
           || game.current_level.grid[x][y].exist)
-
         continue;
       // TODO: Refactor this, new class?
       let top_left_offset = game.jiggle.jiggle_grid[x][y];
