@@ -420,7 +420,7 @@ class game
   static has_new_timer_high_score = false;
 
   static editor_available = false;
-  static show_intro = false;         // <--------------- intro flag
+  static show_intro = true;         // <--------------- intro flag
   static show_tutorial = false;
 
   static need_load_menu_map = true;
@@ -1702,7 +1702,11 @@ class detector
     let grid_center_x = this.x * game.gridSize + game.GRID_HALF;
     let grid_center_y = this.y * game.gridSize + game.GRID_HALF;
 
+
+
     noStroke();
+    fill(this.r, this.g, this.b, 60);
+    ellipse(grid_center_x, grid_center_y, game.GRID_QUARTER, game.GRID_QUARTER);
 
     // draw flash juice
     if (this.flashing && game.use_animations)
@@ -1772,7 +1776,7 @@ class detector
     if (this.correct)
     {
       // // We are correct! All of the colors are right!
-      strokeWeight(5);
+      strokeWeight(6);
       if (this.r == 255 & this.g == 255 & this.b == 255)
         stroke(60 + sin(this.anim_cycle) * 40, 120);
       else
