@@ -3195,7 +3195,7 @@ class sound
     this.play_sound(rand_build_str);
   }
 
-  play_destory_wall()
+  play_destory_wall()   // TODO: deSTORY? thats not right
   {
     // choose from one of the random wall destruction sounds
     this.play_sound("remove_wall");
@@ -3253,7 +3253,7 @@ function preload() {
   game.sound_handler.sounds["light_on"] = loadSound('assets/sounds/light_on');
   game.sound_handler.sounds["light_off"] = loadSound('assets/sounds/light_off');
   game.sound_handler.sounds["next_level_clicked"] = loadSound('assets/sounds/next_level_clicked');
-  game.sound_handler.drag_sound = loadSound('assets/sounds/light_moving');
+  // game.sound_handler.drag_sound = loadSound('assets/sounds/light_moving');
   // game.sound_handler.sounds["drag_sound"] = loadSound('assets/sounds/light_moving');
   // game.sound_handler.sounds["drag_sound"].setVolume(0.2);
   game.sound_handler.sounds["detector_on"] = loadSound('assets/sounds/detector_on');
