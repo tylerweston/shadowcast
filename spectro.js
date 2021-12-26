@@ -184,6 +184,9 @@ class states
   static TUTORIAL_GAME_INTRO = 24;
   static TUTORIAL_GAME_OUTRO = 25;
 
+
+  
+
   // to do: maybe setup all gui elements in one function
   // at start so we don't need to store if they have been
   // setup or not yet?
@@ -192,6 +195,34 @@ class states
   static need_setup_options = true;
   static need_setup_show_time_results = true;
   static need_setup_confirm = true;
+}
+
+let STATE_TABLE = {
+  NEW_GAME: () => { setup_game(); },
+  SETUP_CONFIRM_NEW_GAME: () => { do_setup_confirm_game(); },
+  CONFIRM_NEW_GAME: () => { do_confirm_game(); },
+  INTRO: () => { do_intro(); },
+  GAME: () => { do_game(); },
+  LEVEL_TRANSITION_OUT: () => { do_level_transition_out(); },
+  LEVEL_TRANSITION_IN: () => { do_level_transition_in(); },
+  SETUP_EDITOR: () => { do_setup_editor(); },
+  EDITOR: () => { do_editor(); },
+  PREPARE_TUTORIAL: () => { prepare_tutorial(); },
+  TUTORIAL: () => { tutorial(); },
+  TEARDOWN_TUTORIAL: () => { tear_down_tutorial(); },
+  MAIN_MENU_SETUP: () => { do_setup_main_menu(); },
+  MAIN_MENU:() => {  do_main_menu(); },
+  MAIN_MENU_TEARDOWN: () => { teardown_main_menu(); },
+  SETUP_SHOW_TIME_RESULTS: () => { do_setup_show_time_results(); },
+  SHOW_TIME_RESULTS: () => { do_show_time_results(); },
+  SETUP_OPTIONS: () => { do_setup_options(); },
+  OPTIONS: () => { do_options_menu(); },
+  TEARDOWN_OPTIONS: () => { do_teardown_options(); },
+  SETUP_ABOUT: () => { do_setup_about(); },
+  ABOUT: () => { do_about_menu(); },
+  TEARDOWN_ABOUT: () => { do_teardown_about_menu(); },
+  TUTORIAL_GAME_INTRO:  () => { do_tutorial_game_intro(); },
+  TUTORIAL_GAME_OUTRO: () => { do_tutorial_game_outro(); }
 }
 
 class menus
@@ -389,7 +420,7 @@ class game
   static has_new_timer_high_score = false;
 
   static editor_available = false;
-  static show_intro = true;         // <--------------- intro flag
+  static show_intro = false;         // <--------------- intro flag
   static show_tutorial = false;
 
   static need_load_menu_map = true;
@@ -1428,14 +1459,33 @@ class detector
     // correct?
     this.correct = false;
     this.old_correct = false;
+    this.total_correct = 0;
     // animation stuff
     this.anim_cycle = random(TWO_PI);
     this.anim_speed = ((random() + 1) / 7);
+    this.anim_offset = random(TWO_PI);
+    this.rings = [[], [], []];
     // flash juice
     this.flashing = false;
     this.flash_radius = 0;
     this.flash_inc = random() + 1.5;
     this.flash_radius_max = game.FLASH_SIZE + random(game.gridSize);
+  }
+
+  init_rings()
+  {
+    this.rings = [[], [], []];
+    let num_rings = 3;
+    for (let i = 0; i < 3; ++i)
+    {
+      // we have three rings
+      for (let j = 0; j < num_rings; ++j)
+      {
+        let start = random(TWO_PI);
+        let size = random(QUARTER_PI);
+        this.rings[i].push([start, size]);
+      }
+    }
   }
 
   change_color(r, g, b)
@@ -1529,7 +1579,16 @@ class detector
           b = min(b + l.b, 255);
         }
       }
-      this.correct = (r === this.r && g === this.g && b === this.b);
+      this.total_correct = 0;
+      if (r === this.r)
+        this.total_correct += 1;
+      if (g === this.g)
+        this.total_correct += 1;
+      if (b === this.b)
+        this.total_correct += 1;
+      //this.correct = (r === this.r && g === this.g && b === this.b);
+      this.correct = (this.total_correct === 3);
+    
     }
 
     //   // once we get here, we have r, g, and b values of a single
@@ -1591,6 +1650,7 @@ class detector
     this.flash_radius = 0;
     this.flash_inc = random() + 2;
     this.flashing = true;
+    this.init_rings();
     // detector
     particle_system.particle_explosion
     (
@@ -1648,25 +1708,53 @@ class detector
     if (this.flashing && game.use_animations)
     {
       this.flash_radius += (deltaTime / this.flash_inc);
-      this.flash_inc += 0.15;
-      strokeWeight(game.GRID_HALF);
+      this.flash_inc += 0.18;
+      strokeWeight(game.GRID_QUARTER);
       noFill();
       let alph = map(this.flash_radius, 0, this.flash_radius_max, 75, 0);
       
       if (this.flash_radius > game.gridSize * 2)
       {
         stroke(this.r, this.g, this.b, alph * 0.3);
-        ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.3, this.flash_radius * 0.3);
+        for (const a of this.rings[0])
+        {
+          arc(grid_center_x, 
+            grid_center_y, 
+            this.flash_radius * (0.3 + a[1] / 4), 
+            this.flash_radius * (0.3 + a[1] / 4),
+             a[0], 
+             a[1]);
+        }
+        // ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.3, this.flash_radius * 0.3);
       }
 
       if (this.flash_radius > game.gridSize * 2)
       {
         stroke(this.r, this.g, this.b, alph * 0.7);
-        ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.5, this.flash_radius * 0.5);
+        for (const a of this.rings[1])
+        {
+          arc(grid_center_x, 
+            grid_center_y, 
+            this.flash_radius * (0.5 + a[1] / 3), 
+            this.flash_radius * (0.5 + a[1] / 3), 
+            a[0], 
+            a[1]
+            );
+        }
+        //ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.5, this.flash_radius * 0.5);
       }
 
       stroke(this.r, this.g, this.b, alph);
-      ellipse(grid_center_x, grid_center_y, this.flash_radius, this.flash_radius);
+      for (const a of this.rings[2])
+      {
+        arc(grid_center_x, 
+          grid_center_y, 
+          this.flash_radius + a[1] / 2, 
+          this.flash_radius + a[1] / 2, 
+          a[0], 
+          a[1]);
+      }
+      //ellipse(grid_center_x, grid_center_y, this.flash_radius, this.flash_radius);
 
       if (this.flash_radius > this.flash_radius_max)
       {
@@ -1675,7 +1763,7 @@ class detector
       }
     }
 
-    this.anim_cycle += this.anim_speed / 6;
+    this.anim_cycle += this.anim_speed * ((this.total_correct + 1) / 2);
     if (this.anim_cycle > TWO_PI)
       this.anim_cycle = 0;
 
@@ -1683,53 +1771,91 @@ class detector
 
     if (this.correct)
     {
-      strokeWeight(11);
-      if (this.r == 255 & this.g == 255 & this.b == 255)
-        stroke(60 + sin(this.anim_cycle * 2) * 40, 120);
-      else
-        stroke(130 + sin(this.anim_cycle * 2) * 40, 90);
-      beginShape();
-      let gx = this.x * game.gridSize;
-      let gy = this.y * game.gridSize;
-      vertex(gx + game.GRID_HALF, gy + game.GRID_QUARTER);
-      vertex(gx + game.gridSize - game.GRID_QUARTER, gy + game.GRID_HALF);
-      vertex(gx + game.GRID_HALF, gy + game.gridSize - game.GRID_QUARTER);
-      vertex(gx + game.GRID_QUARTER, gy + game.GRID_HALF);
-      endShape(CLOSE);
-      
+      // // We are correct! All of the colors are right!
       strokeWeight(5);
+      if (this.r == 255 & this.g == 255 & this.b == 255)
+        stroke(60 + sin(this.anim_cycle) * 40, 120);
+      else
+        stroke(130 + sin(this.anim_cycle) * 40, 90);
+      // beginShape();
+      // let gx = this.x * game.gridSize;
+      // let gy = this.y * game.gridSize;
+      // vertex(gx + game.GRID_HALF, gy + game.GRID_QUARTER);
+      // vertex(gx + game.gridSize - game.GRID_QUARTER, gy + game.GRID_HALF);
+      // vertex(gx + game.GRID_HALF, gy + game.gridSize - game.GRID_QUARTER);
+      // vertex(gx + game.GRID_QUARTER, gy + game.GRID_HALF);
+      // endShape(CLOSE);
+      circle(this.x * game.gridSize + game.GRID_HALF, 
+        this.y * game.gridSize + game.GRID_HALF, 
+        game.gridSize * 0.3);
+      
+      strokeWeight(4);
       stroke(this.c);
-      beginShape();
-      vertex(gx + game.GRID_HALF, gy + game.GRID_QUARTER);
-      vertex(gx + game.gridSize - game.GRID_QUARTER, gy + game.GRID_HALF);
-      vertex(gx + game.GRID_HALF, gy + game.gridSize - game.GRID_QUARTER);
-      vertex(gx + game.GRID_QUARTER, gy + game.GRID_HALF);
-      endShape(CLOSE);
+      circle(this.x * game.gridSize + game.GRID_HALF, 
+        this.y * game.gridSize + game.GRID_HALF, 
+        game.gridSize * 0.3);
+      // beginShape();
+      // vertex(gx + game.GRID_HALF, gy + game.GRID_QUARTER);
+      // vertex(gx + game.gridSize - game.GRID_QUARTER, gy + game.GRID_HALF);
+      // vertex(gx + game.GRID_HALF, gy + game.gridSize - game.GRID_QUARTER);
+      // vertex(gx + game.GRID_QUARTER, gy + game.GRID_HALF);
+      // endShape(CLOSE);
+
     }
     else
     {
+      var arc_start = (this.anim_offset + this.anim_cycle) % TWO_PI;
+      var arc_end = arc_start + HALF_PI;
+      // we are incorrect! Not all colors correct!
       strokeWeight(8);
       if (this.r == 0 & this.g == 0 & this.b == 0)
         stroke(170, 100);
       else
         stroke(4, 100);
       
-      rect(
-            (this.x + 0.3) * game.gridSize, 
-            (this.y + 0.3) * game.gridSize, 
-            0.4 * game.gridSize, 
-            0.4 * game.gridSize
-      );
+      
+      // rect(
+      //       (this.x + 0.3) * game.gridSize, 
+      //       (this.y + 0.3) * game.gridSize, 
+      //       0.4 * game.gridSize, 
+      //       0.4 * game.gridSize
+      // );
+      var size_amt = 0.3;
+      arc(this.x * game.gridSize + game.GRID_HALF, 
+        this.y * game.gridSize + game.GRID_HALF, 
+        game.gridSize * size_amt, 
+        game.gridSize * size_amt, 
+        arc_start, 
+        arc_end);
+
+      arc(this.x * game.gridSize + game.GRID_HALF, 
+        this.y * game.gridSize + game.GRID_HALF, 
+        game.gridSize * size_amt, 
+        game.gridSize * size_amt, 
+        PI + arc_start, 
+        PI + arc_end);
 
       strokeWeight(4);
       stroke(this.c);
-      
-      rect(
-            (this.x + 0.3) * game.gridSize, 
-            (this.y + 0.3) * game.gridSize, 
-            0.4 * game.gridSize, 
-            0.4 * game.gridSize
-      );
+      arc(this.x * game.gridSize + game.GRID_HALF, 
+        this.y * game.gridSize + game.GRID_HALF, 
+        game.gridSize * size_amt, 
+        game.gridSize * size_amt, 
+        arc_start, 
+        arc_end);
+
+      arc(this.x * game.gridSize + game.GRID_HALF, 
+        this.y * game.gridSize + game.GRID_HALF, 
+        game.gridSize * size_amt, 
+        game.gridSize * size_amt, 
+        PI + arc_start, 
+        PI + arc_end);
+      // rect(
+      //       (this.x + 0.3) * game.gridSize, 
+      //       (this.y + 0.3) * game.gridSize, 
+      //       0.4 * game.gridSize, 
+      //       0.4 * game.gridSize
+      // );
     }
 
     if (this.correct && Math.random() < 0.015)
@@ -2100,12 +2226,25 @@ class light_source
 
       blendMode(BLEND);
     }
-    strokeWeight(4);
+    strokeWeight(5);
     fill(0);
-    stroke(0, 70);
-    ellipse(this.x * game.gridSize + (game.gridSize / 2), this.y * game.gridSize + (game.gridSize / 2), game.gridSize * 0.7, game.gridSize * 0.7);
-
+    stroke(0, 30);
+    // ellipse(this.x * game.gridSize + (game.gridSize / 2), this.y * game.gridSize + (game.gridSize / 2), game.gridSize * 0.7, game.gridSize * 0.7);
+    arc(this.x * game.gridSize + game.gridSize / 2, this.y * game.gridSize + game.gridSize / 2, game.gridSize * 0.7, game.gridSize * 0.7, 0 + 0.1, PI - 0.1);
   
+    // fill(0);
+    stroke(0, 50);
+    // ellipse(this.x * game.gridSize + (game.gridSize / 2), this.y * game.gridSize + (game.gridSize / 2), game.gridSize * 0.7, game.gridSize * 0.7);
+    arc(this.x * game.gridSize + game.gridSize / 2, this.y * game.gridSize + game.gridSize / 2, game.gridSize * 0.7, game.gridSize * 0.7, PI + 0.1, TWO_PI - 0.1);
+  
+      // fill(0);
+    stroke(255, 30);
+    strokeWeight(1);
+    ellipse(this.x * game.gridSize + (game.gridSize / 2), this.y * game.gridSize + (game.gridSize / 2), game.gridSize * 0.7, game.gridSize * 0.7);
+    // arc(this.x * game.gridSize + game.gridSize / 2, this.y * game.gridSize + game.gridSize / 2, game.gridSize * 0.7, game.gridSize * 0.7, PI + 0.1, TWO_PI - 0.1);
+
+
+
     strokeWeight(2);
     if (this.selected)
     {
@@ -4456,6 +4595,9 @@ function setup_game()
 // DRAW gets called EVERY frame, this is the MAIN GAME LOOP
 function draw() {
   game.global_mouse_handler.handle();  // do mouse stuff
+  // TODO: Move this to an array of functions like funcs[state.NEW_GAME] = setup_game, etc.
+  // then we can simply call funcs[game.game_state]
+  // states.STATE_TABLE[game.game_state]();
   switch (game.game_state)
   {
   case states.NEW_GAME:
