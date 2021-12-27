@@ -1775,7 +1775,8 @@ class detector
     this.anim_cycle += this.anim_speed * ((this.total_correct + 1) / 2);
     if (this.anim_cycle > TWO_PI)
       this.anim_cycle = 0;
-
+    if (!game.use_animations)
+      this.anim_cycle = 0;
     noFill();
 
     if (this.correct)
