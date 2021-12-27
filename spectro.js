@@ -132,7 +132,7 @@ Editor stuff (Maybe eventually):
 const MAJOR_VERSION = 1;
 const MINOR_VERSION = 7;
 
-const USE_DEBUG_KEYS = false;
+const USE_DEBUG_KEYS = true;
 
 // TODO: Bunch of little bits of state to clean up
 // TODO: The rest of this stuff will be taken care of via some sort of
@@ -377,6 +377,8 @@ class game
   static current_dim;
   static gridWidth;
   static gridHeight;
+
+  static overlay_image = undefined;
 
   static FLASH_SIZE;
   static JIGGLE_CONSTRAINT = 1.5;
@@ -3385,6 +3387,7 @@ function windowResized()
   game.current_dim = largest_dim;
 
   update_all_light_viz_polys();
+  make_overlay();
 
   // if we are currently in a game, update game specific info.
   if (game.current_gamemode !== undefined)
@@ -3588,6 +3591,7 @@ function draw_menu_background()
   }
   draw_walls_and_floors();
   draw_detector_floors();
+  display_overlay();
   draw_light_sources(); 
   particle_system.update_particles();
   particle_system.draw_particles();
@@ -4283,6 +4287,8 @@ function do_game()
   draw_walls_and_floors();
   draw_detector_floors();
 
+  display_overlay();
+
   // Check active status of detectors
   let all_active = true;
   let skip_juice = game.stick_give_up_juice;
@@ -4508,6 +4514,7 @@ function do_level_transition_out()
       }
       make_tutorial_level();
     }
+    make_overlay(); // new overlay per level
     game.game_state = states.LEVEL_TRANSITION_IN;
   }
 }
@@ -5265,6 +5272,112 @@ function draw_light_sources()
   {
     l.draw_this()
   }
+}
+
+function make_overlay()
+{
+  // Generates a random overlay image, this should be mostly black and low alpha as it will be blended
+  // over the generated bg to add a bit of detail and flavor
+  game.overlay_image = createGraphics(game.gameWidth, game.gameHeight);
+  clear(game.overlay_image);
+  game.overlay_image.noStroke();
+  
+  for (let x = 0 ; x < game.gameWidth; x += game.gridSize * 2)
+  {
+    for (let y = 0; y < game.gameHeight; y += game.gridSize * 2)
+    {
+      if (random(0, 1) > 0.5)
+        continue;
+      // random number between 20 and 60
+      let r = random(0, 40);
+      let alph = random(10, 35);
+      game.overlay_image.fill(r, alph);
+      game.overlay_image.rect(x, y, game.gridSize * 2, game.gridSize * 2);
+    }
+  }
+  
+  for (let x = 0 ; x < game.gameWidth; x += game.gridSize)
+  {
+    for (let y = 0; y < game.gameHeight; y += game.gridSize)
+    {
+
+      // random number between 20 and 60
+      let r = random(0, 40);
+      let alph = random(10, 45);
+      game.overlay_image.fill(r, alph);
+      game.overlay_image.rect(x, y, game.gridSize, game.gridSize);
+    }
+  }
+
+  for (let x = 0 ; x < game.gameWidth; x += game.gridSize / 2)
+  {
+    for (let y = 0; y < game.gameHeight; y += game.gridSize / 2)
+    {
+      // 50% chance to skip
+      if (random(0, 1) > 0.5)
+        continue;
+      // random number between 20 and 60
+      let r = random(0, 30);
+      let alph = random(10, 35);
+      game.overlay_image.fill(r, alph);
+      game.overlay_image.rect(x, y, game.gridSize / 2, game.gridSize / 2);
+    }
+  }
+
+  // big sticks
+  let num_sticks = random(40, 60);
+  for (let i = 0; i < num_sticks; ++i)
+  {
+    let r = random(10, 30);
+    let alph = random(14, 35);
+    let x1 = random(0, game.gameWidth);
+    let y1 = random(0, game.gameHeight);
+    let x2 = x1 + random(0, 60) - 30;
+    let y2 = y1 + random(0, 60) - 30;
+    game.overlay_image.strokeWeight(random(2, 6));
+    game.overlay_image.stroke(r, alph);
+    game.overlay_image.line(x1, y1, x2, y2);
+  }
+
+  // small sticks
+  let num_small_sticks = random(70, 100);
+  for (let i = 0; i < num_small_sticks; ++i)
+  {
+    let r = random(0, 30);
+    let alph = random(10, 50);
+    let x1 = random(0, game.gameWidth);
+    let y1 = random(0, game.gameHeight);
+    let x2 = x1 + random(0, 20) - 10;
+    let y2 = y1 + random(0, 20) - 10;
+    game.overlay_image.strokeWeight(random(1, 2));
+    game.overlay_image.stroke(r, alph);
+    game.overlay_image.line(x1, y1, x2, y2);
+  }
+
+  let num_circles = random(45, 80);
+  game.overlay_image.noStroke();
+  for (let i = 0; i < num_circles; ++i)
+  {
+    let r = random(0, 25);
+    let alph = random(5, 20);
+    let x1 = random(0, game.gameWidth);
+    let y1 = random(0, game.gameHeight);
+    let rad = random(5, 150);
+    game.overlay_image.fill(r, alph);
+    game.overlay_image.ellipse(x1, y1, rad, rad);
+  }
+}
+
+function display_overlay()
+{
+
+  if (game.overlay_image == undefined)
+  {
+    // console.log("game overlay is undefined, creating");
+    make_overlay();
+  }
+  // console.log("displaying");
+  image(game.overlay_image, 0, 0);
 }
 
 //////// LEVEL SAVE / LOAD
