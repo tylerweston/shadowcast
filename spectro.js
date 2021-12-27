@@ -1476,7 +1476,7 @@ class detector
   init_rings()
   {
     this.rings = [[], [], []];
-    let num_rings = 3;
+    let num_rings = 2;
     for (let i = 0; i < 3; ++i)
     {
       // we have three rings
@@ -3592,6 +3592,7 @@ function draw_menu_background()
   particle_system.update_particles();
   particle_system.draw_particles();
   draw_detectors(); 
+  draw_outside_walls();
   draw_floor_lines();
   draw_edges();
 }
@@ -4274,8 +4275,6 @@ function clear_grid_spot(which_grid, x, y)
 //////// STATES
 function do_game()
 {
- //  let grid = game.current_level.grid;
-
   fill(57);
 
   game.jiggle.update_jiggles();
@@ -4328,9 +4327,12 @@ function do_game()
 
   draw_detectors(); 
   
+  draw_outside_walls();
   draw_floor_lines();
 
   draw_edges();
+
+  // filter(POSTERIZE, 3);
 
   // // Draw glass (Extra tiles to draw would happen here?)
   // draw_glass();
@@ -4807,6 +4809,7 @@ function draw_floor_lines()
 
 function draw_walls_and_floors()
 {
+  // TODO: We can remove the permanant wall stuff from here since thats drawn elsewhere
   let lvl = game.current_level;
 
   strokeWeight(3);
@@ -4821,9 +4824,9 @@ function draw_walls_and_floors()
   let target_stroke = null;
 
   strokeWeight(1);
-  for (let x = 0 ; x < lvl.xsize; ++x)
+  for (let x = 1 ; x < lvl.xsize - 1; ++x)
   {
-    for (let y = 0; y < lvl.ysize; ++y)
+    for (let y = 1; y < lvl.ysize - 1; ++y)
     {
 
       // TODO: Refactor this, new class?
@@ -5049,6 +5052,113 @@ function draw_walls_and_floors()
         vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
         endShape(CLOSE);
       }
+    }
+  }
+}
+
+function draw_outside_walls()
+{
+  // TODO: We can remove all the non-permanant wall stuff from here since that's all that
+  // is being drawn here
+  let lvl = game.current_level;
+
+  strokeWeight(3);
+  noFill();
+  stroke(palette.solid_wall_fill);
+  rect(0, 0, game.gameWidth, game.gameHeight);
+
+  let cur_fill = null;
+  let cur_stroke = null;
+
+  let target_fill = null;
+  let target_stroke = null;
+
+  strokeWeight(1);
+  for (let x = 0 ; x < lvl.xsize; ++x)
+  {
+    for (let y = 0; y < lvl.ysize; ++y)
+    {
+      if (!(x === 0 || y === 0 || x === lvl.xsize - 1 || y === lvl.ysize - 1))
+        continue;
+      
+      // TODO: Refactor this, new class?
+      let top_left_offset = game.jiggle.jiggle_grid[x][y];
+      let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
+      let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
+      let bottom_right_offset = game.jiggle.jiggle_grid[x + 1][y + 1];
+
+      let top_left_point;
+      let top_right_point;
+      let bottom_left_point;
+      let bottom_right_point;
+
+      let cur_fade = lvl.grid[x][y].fade;
+      let odd = lvl.odd_grid[x][y];
+      let permenant = lvl.grid[x][y].permenant; // This should be programmed into the level
+
+      if (cur_fade < 1)
+      {
+        lvl.grid[x][y].fade += deltaTime / 250;
+        if (lvl.grid[x][y].fade > 1)
+          lvl.grid[x][y].fade = 1;
+        cur_fade = lvl.grid[x][y].fade;
+      }
+
+      target_stroke = palette.solid_wall_fill;
+      
+      // exact same thing as above!
+      
+      if (game.use_animations)
+      {
+        if (cur_fade === 0)
+        {
+          target_fill = odd ? palette.buildable_fill : palette.buildable_2_fill;
+        }
+        else if (cur_fade === 1)
+        {
+          target_fill = permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill;
+        }
+        else
+        {
+          target_fill = lerpColor( odd ? palette.buildable_fill : palette.buildable_2_fill, 
+                                  permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill, 
+                                  cur_fade);
+        }
+      }
+      else
+      {
+        target_fill = permenant ? palette.solid_wall_permenant_fill : palette.solid_wall_fill;
+      }
+      top_left_point = [x * game.gridSize, y * game.gridSize];
+      top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
+      bottom_left_point = [x * game.gridSize, (y + 1) * game.gridSize];
+      bottom_right_point = [(x + 1) * game.gridSize, (y + 1) * game.gridSize];
+        
+      // draw
+      if (!game.use_animations)
+      {
+        top_left_offset = [0, 0];
+        top_right_offset = [0, 0];
+        bottom_left_offset = [0, 0];
+        bottom_right_offset = [0, 0];
+      }
+      if (target_stroke != cur_stroke)
+      {
+        cur_stroke = target_stroke;
+        stroke(target_stroke);
+      }
+      if (target_fill != cur_fill)
+      {
+        cur_fill = target_fill;
+        fill(cur_fill);
+      }
+      beginShape();
+      vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
+      vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
+      vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
+      vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
+      endShape(CLOSE);
+
     }
   }
 }
