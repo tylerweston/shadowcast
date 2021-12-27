@@ -1716,7 +1716,7 @@ class detector
     {
       this.flash_radius += (deltaTime / this.flash_inc);
       this.flash_inc += 0.18;
-      strokeWeight(game.GRID_QUARTER);
+      strokeWeight(game.GRID_QUARTER / 2);
       noFill();
       let alph = map(this.flash_radius, 0, this.flash_radius_max, 75, 0);
       
@@ -1735,6 +1735,7 @@ class detector
         // ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.3, this.flash_radius * 0.3);
       }
 
+      strokeWeight(game.GRID_QUARTER);
       if (this.flash_radius > game.gridSize * 2)
       {
         stroke(this.r, this.g, this.b, alph * 0.7);
@@ -1751,6 +1752,7 @@ class detector
         //ellipse(grid_center_x, grid_center_y, this.flash_radius * 0.5, this.flash_radius * 0.5);
       }
 
+      strokeWeight(game.GRID_QUARTER * 2);
       stroke(this.r, this.g, this.b, alph);
       for (const a of this.rings[2])
       {
@@ -5303,6 +5305,8 @@ function make_overlay()
 
       // random number between 20 and 60
       let r = random(0, 40);
+      if (random(0, 1) > 0.9)
+        r = 80 - r;
       let alph = random(10, 45);
       game.overlay_image.fill(r, alph);
       game.overlay_image.rect(x, y, game.gridSize, game.gridSize);
@@ -5318,6 +5322,7 @@ function make_overlay()
         continue;
       // random number between 20 and 60
       let r = random(0, 30);
+
       let alph = random(10, 35);
       game.overlay_image.fill(r, alph);
       game.overlay_image.rect(x, y, game.gridSize / 2, game.gridSize / 2);
@@ -5344,6 +5349,7 @@ function make_overlay()
   for (let i = 0; i < num_small_sticks; ++i)
   {
     let r = random(0, 30);
+
     let alph = random(10, 50);
     let x1 = random(0, game.gameWidth);
     let y1 = random(0, game.gameHeight);
