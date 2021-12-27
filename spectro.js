@@ -95,6 +95,7 @@ Sounds required:
   - all detectors active  - need
   - next level clicked  - done
   - new high score  - need
+Make remaining sounds!
 We need an input from the user before we can start playing any sounds
 so maybe after we load stuff we just present a PLAY button that the user
 has to click before the intro, menu, etc. so that way we can play sounds.
@@ -4005,14 +4006,23 @@ function make_menu()
   // the top right menu button
   let menu_region = new mouse_region((game.gridWidth - 3) * game.gridSize, 0,
                                   game.gridWidth * game.gridSize, game.gridSize);
-  menu_region.events[mouse_events.CLICK] = () => { launch_menu(); };
+  menu_region.events[mouse_events.CLICK] = () => { 
+    game.sound_handler.play_sound("menu_click"); 
+    launch_menu(); 
+  };
   menu_region.events[mouse_events.UNCLICK] = () => {top_menu_accept_input = true;};
-  menu_region.events[mouse_events.ENTER_REGION] = () => {mouse_over_menu = true;};
+  menu_region.events[mouse_events.ENTER_REGION] = () => { 
+    game.sound_handler.play_sound("menu_hover"); 
+    mouse_over_menu = true;
+  };
   menu_region.events[mouse_events.EXIT_REGION] = () => {mouse_over_menu = false;};
   game.global_mouse_handler.register_region("top_menu", menu_region);
   
   // initialize the menu handler and region stuff
   let open_menu_region = new mouse_region((game.gridWidth - 8) * game.gridSize, 0, game.gridWidth * game.gridSize, menus.top_menu_height * game.gridSize);
+  open_menu_region.events[mouse_events.CLICK] = () => {game.sound_handler.play_sound("menu_click");};
+  open_menu_region.events[mouse_events.ENTER_REGION] = () => {game.sound_handler.play_sound("menu_hover");};
+
   open_menu_region.events[mouse_events.EXIT_REGION] = () => {disable_menu();};
   open_menu_region.events[mouse_events.UNCLICK] = () => {top_menu_accept_input = true;};
   game.global_mouse_handler.register_region("opened_top_menu", open_menu_region);
@@ -4022,8 +4032,14 @@ function make_menu()
   for (let m of menus.top_menu_choices)
   {
     let reg = new mouse_region((game.gridWidth - 7) * game.gridSize, i * game.gridSize, game.gridSize * game.gridWidth, (i + 1) * game.gridSize);
-    reg.events[mouse_events.CLICK] = () => handle_top_menu_selection(int(game.global_mouse_handler.my / game.gridSize));
-    reg.events[mouse_events.ENTER_REGION] = () => {menus.top_menu_selected = int(game.global_mouse_handler.my / game.gridSize);};
+    reg.events[mouse_events.CLICK] = () => {
+      game.sound_handler.play_sound("menu_click");
+      handle_top_menu_selection(int(game.global_mouse_handler.my / game.gridSize))
+    };
+    reg.events[mouse_events.ENTER_REGION] = () => {
+      game.sound_handler.play_sound("menu_hover");
+      menus.top_menu_selected = int(game.global_mouse_handler.my / game.gridSize);
+    };
     game.global_mouse_handler.register_region(m, reg);
     ++i;
   }
