@@ -9,6 +9,11 @@ space: go to next level (if available)
 
 TODO:
 
+- Reddit feedback:
+  - Disable wobbling apart from options
+  - Look into menu with mobile compatibility
+  - Tutorial could be a bit more in-depth/obvious
+
 - Break up big functions
   - Basically any function that is taking in a boolean flag that
     changes its 'mode' can be refactored into something simpler.
@@ -19,6 +24,8 @@ TODO:
   gave up is still saved
 - Give up option in top menu during timed game is glitchy, should
   just exit to main menu?
+- some glitchiness if you exit to menu during tutorial
+  or try to use the top menu. disable during tutorial?
 
 Important:
 - remove tutorial from top menu.
@@ -246,7 +253,7 @@ class menus
   static main_menu_selected = undefined;
   static main_menu_height = menus.main_menu_options.length + 1;
 
-  static option_options = ["animations", "sounds", "reset data", "back"]
+  static option_options = ["animations", "floor wobble", "sounds", "reset data", "back"]
   static option_menu_selected = undefined;
   static option_menu_height = menus.option_options.length + 1;
 
@@ -445,6 +452,7 @@ class game
   // visual options
   // static animated_background = true;
   static use_animations = true;
+  static use_floor_wobble = true;
 
   // font
   static spectro_font;
@@ -1676,7 +1684,7 @@ class detector
     fill(37);
     fill(game.current_level.odd_grid[this.x][this.y]?
       palette.buildable_fill : palette.buildable_2_fill);
-    if (game.use_animations)
+    if (game.use_floor_wobble)
     {
       //square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize);
       let top_left_offset = game.jiggle.jiggle_grid[this.x][this.y];
@@ -3308,6 +3316,16 @@ function setup() {
     game.sounds_enabled = getItem("sounds_enabled");
   }
 
+  if (getItem("use_floor_wobble") === null)
+  {
+    game.use_floor_wobble = true;
+    storeItem("use_floor_wobble", true);
+  }
+  else
+  {
+    game.use_floor_wobble = getItem("use_floor_wobble");
+  }
+
   // console.log("On mobile? " + mobileCheck());
   if (mobileCheck())
     game.PLAYFIELD_DIM = game.MOBILE_PLAYFIELD_DIM;
@@ -3803,14 +3821,18 @@ function handle_option_menu_selection(option_index)
       storeItem("use_animations", game.use_animations);
       break;
     case 1:
+      game.use_floor_wobble = !game.use_floor_wobble;
+      storeItem("use_floor_wobble", game.use_floor_wobble);
+      break;
+    case 2:
       game.sounds_enabled = !game.sounds_enabled;
       storeItem("sounds_enabled", game.sounds_enabled);
       break;
-    case 2:
+    case 3:
       // TODO: ARE YOU SURE?!
       remove_saved_data();
       break;
-    case 3:
+    case 4:
       game.game_state = states.TEARDOWN_OPTIONS;
       break;
   }
@@ -3854,8 +3876,22 @@ function do_options_menu()
         text("N", 0, (i + 2) * game.gridSize * 2);  
       }
     }
-
+  
     if (i === 1)
+    {
+      if (game.use_floor_wobble)
+      {
+        fill(0 , 155, 0);
+        text("Y", 0, (i + 2) * game.gridSize * 2);
+      }
+      else
+      {
+        fill(155, 0, 0);
+        text("N", 0, (i + 2) * game.gridSize * 2);  
+      }
+    }
+
+    if (i === 2)
     {
       if (game.sounds_enabled)
       {
@@ -4793,7 +4829,7 @@ function draw_floor_lines()
       let top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
       let bottom_left_point = [x * game.gridSize, (y + 1) * game.gridSize];
 
-      if (!game.use_animations)
+      if (!game.use_floor_wobble)
       {
         top_left_offset = [0, 0];
         top_right_offset = [0, 0];
@@ -5041,7 +5077,8 @@ function draw_walls_and_floors()
       // draw
       if (do_draw)
       {
-        if (!game.use_animations)
+        // console.log(game.use_floor_wobble);
+        if (!game.use_floor_wobble)
         {
           top_left_offset = [0, 0];
           top_right_offset = [0, 0];
@@ -5148,7 +5185,7 @@ function draw_outside_walls()
       bottom_right_point = [(x + 1) * game.gridSize, (y + 1) * game.gridSize];
         
       // draw
-      if (!game.use_animations)
+      if (!game.use_floor_wobble)
       {
         top_left_offset = [0, 0];
         top_right_offset = [0, 0];
@@ -5178,7 +5215,7 @@ function draw_outside_walls()
 
 function draw_edges()
 {
-  if (!game.use_animations)
+  if (!game.use_floor_wobble)
   {
     strokeWeight(4);
     stroke(palette.edge_color);
@@ -5283,7 +5320,7 @@ function draw_light_sources()
 function make_overlay()
 {
   // Generates a random overlay image, this should be mostly black and low alpha as it will be blended
-  // over the generated bg to add a bit of detail and flavor
+  // over the generated bg to add a bit of detail and flavor (greebles!)
   game.overlay_image = createGraphics(game.gameWidth, game.gameHeight);
   clear(game.overlay_image);
   game.overlay_image.noStroke();
@@ -5377,6 +5414,7 @@ function make_overlay()
     game.overlay_image.ellipse(x1, y1, rad, rad);
   }
 
+  // letters!
   let num_text = 30;
   for (let i = 0; i < num_text; ++i)
   {
@@ -5395,6 +5433,31 @@ function make_overlay()
     }
     game.overlay_image.text(random_string, xp, yp)
   }
+
+  // dark strips
+  let draw_on = true;
+  let r = random(0, 10);
+  let alph = random(8, 15);
+  for (let x = 0 ; x < game.gameWidth; x += game.gridSize)
+  {
+    for (let y = 0; y < game.gameHeight; y += game.gridSize)
+    {
+      if (draw_on) {
+        game.overlay_image.fill(r, alph);
+        game.overlay_image.rect(x, y, game.gridSize, game.gridSize);
+      }
+      if (random(0, 1) < 0.5)
+      {
+        r = random(0, 10);
+        alph = random(8, 15);
+        draw_on = !draw_on;
+      }
+    }
+  }
+  
+  // pipes
+
+  
 }
 
 function display_overlay()
@@ -5937,6 +6000,7 @@ function teardown_show_time_results()
   game.global_mouse_handler.disable_region("time_result_back_main_menu_btn");
   // disable our mouse events for our buttons
 }
+
 //////// RANDOM GAME MODE
 function setup_random_game()
 {
@@ -6533,7 +6597,6 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
 }
 
 /////////////////////// Unbuildable floor pattern functions
-
 const unbuildable_pattern_functions = {
   // take in an x position, y position, and sub_type (will be same for each
   // x and y pos). Return true if the floor should be made empty, false otherwise.
@@ -6884,7 +6947,6 @@ function teardown_tutorial_game()
   game.global_mouse_handler.disable_region("game.ghandler"); // remove entirely at some point!
 }
 
-
 //////// EDGE ALG
 function scale_all_edges(new_scale)
 {
@@ -7163,7 +7225,6 @@ function remove_saved_data()
 {
   // This will erase all game data including saves, high scores, etc.
   // use with care
-
   clearStorage();
 }
 
