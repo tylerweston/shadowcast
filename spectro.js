@@ -3560,11 +3560,11 @@ function do_main_menu()
 
   blendMode(ADD);
   fill(255, 0, 0);
-  text("spectro", (game.gridWidth - 17) * game.gridSize, game.gridSize * 2 - 5);
+  text("spectro", 2 * game.gridSize, game.gridSize * 2 - 5);
   fill(0, 255, 0);
-  text("spectro", (game.gridWidth - 17) * game.gridSize, game.gridSize * 2);
+  text("spectro", 2 * game.gridSize, game.gridSize * 2);
   fill(0, 0, 255);
-  text("spectro", (game.gridWidth - 17) * game.gridSize, game.gridSize * 2 + 5);
+  text("spectro", 2 * game.gridSize, game.gridSize * 2 + 5);
   blendMode(BLEND);
 
   if (mouseX >= game.gridSize * 12 || 
@@ -3582,7 +3582,7 @@ function do_main_menu()
     if (i === 1 && !game.have_saved_game)
       fill(57);
 
-    text(m, (game.gridWidth - 17) * game.gridSize, (i + 2) * game.gridSize * 2);
+    text(m, 2 * game.gridSize, (i + 2) * game.gridSize * 2);
     ++i;
   }
 }
