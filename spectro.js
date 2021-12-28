@@ -50,7 +50,6 @@ Visual fixes:
   We could encapsulate this into a class that keeps track
   of the string, location, size, etc, and then run little
   offsets and color individual letters, etc.
-- get intro back into game
 - add more floor patterns
 - fix / add more default floor animations
 - add more bonus floor animations
@@ -1682,7 +1681,7 @@ class detector
   draw_floor()
   {
     noStroke();
-    fill(37);
+    // fill(37);
     fill(game.current_level.odd_grid[this.x][this.y]?
       palette.buildable_fill : palette.buildable_2_fill);
     if (game.use_floor_wobble)
@@ -1702,9 +1701,22 @@ class detector
       vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
       vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
       endShape(CLOSE);
+      noFill();
+      stroke(this.r, this.g, this.b, 8);
+      strokeWeight(4);
+      beginShape();
+      vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
+      vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
+      vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
+      vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
+      endShape(CLOSE); 
     }
     else
     {
+      square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize);
+      noFill();
+      stroke(this.r, this.g, this.b, 8);
+      strokeWeight(4);
       square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize);
     }
   }
@@ -3854,16 +3866,17 @@ function do_options_menu()
 
   blendMode(ADD);
   fill(255, 0, 0);
-  text("options", (game.gridWidth - 17) * game.gridSize, game.gridSize * 2 - 5);
+  text("options", 2 * game.gridSize, game.gridSize * 2 - 5);
   fill(0, 255, 0);
-  text("options", (game.gridWidth - 17) * game.gridSize, game.gridSize * 2);
+  text("options", 2 * game.gridSize, game.gridSize * 2);
   fill(0, 0, 255);
-  text("options", (game.gridWidth - 17) * game.gridSize, game.gridSize * 2 + 5);
+  text("options", 2 * game.gridSize, game.gridSize * 2 + 5);
   blendMode(BLEND);
 
   if ((mouseY <= game.gridSize * 2) || (mouseY >= game.gridSize * 2 * (menus.option_menu_height)))
     menus.option_menu_selected = undefined;
 
+  // TODO: Check if symbol ✓ is allowed to be used
   for (let m of menus.option_options)
   {
     if (i === 0)
@@ -3871,12 +3884,12 @@ function do_options_menu()
       if (game.use_animations)
       {
         fill(0 , 155, 0);
-        text("Y", 0, (i + 2) * game.gridSize * 2);
+        text("Y", game.gridSize, (i + 2) * game.gridSize * 2);
       }
       else
       {
         fill(155, 0, 0);
-        text("N", 0, (i + 2) * game.gridSize * 2);  
+        text("N", game.gridSize, (i + 2) * game.gridSize * 2);  
       }
     }
   
@@ -3885,12 +3898,12 @@ function do_options_menu()
       if (game.use_floor_wobble)
       {
         fill(0 , 155, 0);
-        text("Y", 0, (i + 2) * game.gridSize * 2);
+        text("Y", game.gridSize, (i + 2) * game.gridSize * 2);
       }
       else
       {
         fill(155, 0, 0);
-        text("N", 0, (i + 2) * game.gridSize * 2);  
+        text("N", game.gridSize, (i + 2) * game.gridSize * 2);  
       }
     }
 
@@ -3899,12 +3912,12 @@ function do_options_menu()
       if (game.sounds_enabled)
       {
         fill(0, 155, 0);
-        text("Y", 0, (i + 2) * game.gridSize * 2);
+        text("Y", game.gridSize, (i + 2) * game.gridSize * 2);
       }
       else
       {
         fill(155, 0, 0);
-        text("N", 0, (i + 2) * game.gridSize * 2);
+        text("N", game.gridSize, (i + 2) * game.gridSize * 2);
       }
     }
 
@@ -3915,7 +3928,7 @@ function do_options_menu()
 
 
 
-    text(m, (game.gridWidth - 17) * game.gridSize, (i + 2) * game.gridSize * 2);
+    text(m, 2 * game.gridSize, (i + 2) * game.gridSize * 2);
     ++i;
   }
 }
@@ -4856,18 +4869,18 @@ function draw_floor_lines()
       }
       if(x > 0 && x < game.gridWidth - 1)
       {
-      line(top_left_point[0] + top_left_offset[0], 
+      line(top_left_point[0] + top_left_offset[0] + 1, 
         top_left_point[1] + top_left_offset[1],
-        top_right_point[0] + top_right_offset[0],
+        top_right_point[0] + top_right_offset[0] - 1,
         top_right_point[1] + top_right_offset[1]);
       }
 
       if (y > 0 && y < game.gridHeight - 1)
       {
       line(top_left_point[0] + top_left_offset[0], 
-        top_left_point[1] + top_left_offset[1],
+        top_left_point[1] + top_left_offset[1] + 1,
         bottom_left_point[0] + bottom_left_offset[0],
-        bottom_left_point[1] + bottom_left_offset[1]);
+        bottom_left_point[1] + bottom_left_offset[1] - 1);
       }
     }
   }
@@ -5249,26 +5262,6 @@ function draw_edges()
     }  
     return;
   }
-
-  // blendMode(BLEND);
-  // strokeWeight(1);
-  // stroke(palette.edge_color);
-  // fill(palette.edge_circle_color)
-  // for (let e of game.edges)
-  // {
-  //   let sx_index = jiggle.get_index(e.sx);
-  //   let sy_index = jiggle.get_index(e.sy);
-  //   let ex_index = jiggle.get_index(e.ex);
-  //   let ey_index = jiggle.get_index(e.ey);
-  //   let [sx, sy] = game.jiggle.jiggle_grid[sx_index][sy_index];
-  //   let [ex, ey] = game.jiggle.jiggle_grid[ex_index][ey_index];
-  //   ellipse(e.sx + sx, e.sy + sy, 5, 5);
-  //   ellipse(e.ex + ex, e.ey + ey, 5, 5);
-  // }
-
-  // strokeWeight(3);
-  // noFill();
-  // stroke(palette.edge_color);
 
   for (let iteration = 0; iteration <= 1; ++iteration)
   {
