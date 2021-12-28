@@ -3487,8 +3487,11 @@ function do_setup_main_menu()
     let easter_egg_region = new mouse_region(game.gridSize * 2, game.gridSize, game.gridSize * 7, game.gridSize * 3);
     easter_egg_region.events[mouse_events.CLICK] = () => {
       if (getItem("savedgame") === null)
+      {
         solvable_random_level(/*save=*/false, 
                               /*showcase=*/true);
+        make_overlay();
+      }
     };
     game.global_mouse_handler.register_region("eegg", easter_egg_region);
 
@@ -5373,6 +5376,25 @@ function make_overlay()
     game.overlay_image.fill(r, alph);
     game.overlay_image.ellipse(x1, y1, rad, rad);
   }
+
+  let num_text = 30;
+  for (let i = 0; i < num_text; ++i)
+  {
+    game.overlay_image.textSize(random(10, game.gameHeight));
+    let xp = random(-40, -20);
+    let yp = random(-10, game.gameHeight);
+    let r = random(80, 150);
+    let alph = random(0, 5);
+    game.overlay_image.fill(r, alph);
+    //let random_string = random(0, 26) + 'a';
+    var random_string           = '';
+    var characters       = '0.oO-*:/|\\~ #?';
+    var charactersLength = characters.length;
+    for ( var k = 0; k < 80; k++ ) {
+      random_string += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    game.overlay_image.text(random_string, xp, yp)
+  }
 }
 
 function display_overlay()
@@ -5384,7 +5406,19 @@ function display_overlay()
     make_overlay();
   }
   // console.log("displaying");
-  image(game.overlay_image, 0, 0);
+  let lvl = game.current_level;
+
+  for (let x = 1 ; x < lvl.xsize - 1; ++x)
+  {
+    for (let y = 1; y < lvl.ysize - 1; ++y)
+    {
+      if (lvl.grid[x][y].grid_type == tiles.FLOOR_EMPTY) 
+        continue;
+      // image(game.overlay_image, 0, 0);
+      image(game.overlay_image, x * game.gridSize, y * game.gridSize, game.gridSize, game.gridSize,
+        x * game.gridSize, y * game.gridSize, game.gridSize, game.gridSize);
+    }
+  }
 }
 
 //////// LEVEL SAVE / LOAD
