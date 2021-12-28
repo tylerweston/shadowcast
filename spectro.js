@@ -362,6 +362,7 @@ class game
   static PLAYFIELD_DIM;
   static PC_PLAYFIELD_DIM = 19;
   static MOBILE_PLAYFIELD_DIM = 14;
+  static ON_MOBILE;
 
   // play mode
   static GAMEMODE_RANDOM = 0;
@@ -1662,12 +1663,13 @@ class detector
     this.flash_inc = random() + 2;
     this.flashing = true;
     this.init_rings();
+    let amt = game.ON_MOBILE ? 16 : 32;
     // detector
     particle_system.particle_explosion
     (
       this.x * game.gridSize + game.GRID_HALF,
       this.y * game.gridSize + game.GRID_HALF,
-      32,
+      amt,
       this.c,
       600,
       150,
@@ -1891,11 +1893,12 @@ class detector
 
     if (this.correct && Math.random() < 0.015)
     {
+      let amt = game.ON_MOBILE ? Math.floor(Math.random() * 4) : Math.floor(Math.random() * 8);
       particle_system.particle_explosion
       (
         this.x * game.gridSize + game.GRID_HALF,
         this.y * game.gridSize + game.GRID_HALF,
-        Math.floor(Math.random() * 8),
+        amt,
         this.c,
         250,
         100,
@@ -3340,7 +3343,8 @@ function setup() {
   }
 
   // console.log("On mobile? " + mobileCheck());
-  if (mobileCheck())
+  game.ON_MOBILE = mobileCheck();
+  if (game.ON_MOBILE)
     game.PLAYFIELD_DIM = game.MOBILE_PLAYFIELD_DIM;
   else
     game.PLAYFIELD_DIM = game.PC_PLAYFIELD_DIM;
@@ -4683,6 +4687,8 @@ function tutorial()
 function setup_game()
 {
   particle_system.clear_particles();
+  if (game.ON_MOBILE)
+    particle_system.MAX_PARTICLES = 128;
   disable_menu();             // top menu starts disabled;
   undo.reset_undo_stacks();   // ensure we have a fresh redo stack to start
   game.next_level_available = false; // clear next level flag
