@@ -11,3 +11,7 @@ body {
   -ms-user-select: none;
   user-select: none;
 }
+
+.canvas {
+  touch-action: none;
+}
