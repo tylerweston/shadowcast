@@ -484,6 +484,7 @@ class palette
   static empty_fill;
   static edge_color;
   static edge_circle_color;
+  static edge_color_light;
   static font_color;
   static bright_font_color;
 
@@ -3432,7 +3433,8 @@ function initialize_colors() {
   palette.empty_outline = color(2, 2, 2);
   palette.empty_fill = color(13, 13, 13);
 
-  palette.edge_color = color(60, 60, 70);
+  palette.edge_color = color(70, 70, 80);
+  palette.edge_color_light = color(95, 95, 100);
   palette.edge_circle_color = color(60, 60, 70);
 
   palette.font_color = color(200, 200, 215);
@@ -3623,6 +3625,7 @@ function draw_menu_background()
   draw_outside_walls();
   draw_floor_lines();
   draw_edges();
+  darken_border();
 }
 
 function enable_main_menu()
@@ -4443,6 +4446,21 @@ function do_game()
   if (show_menu)      // disable game? Layer mouse listeners
     draw_menu();
 
+  darken_border();
+
+}
+
+function darken_border()
+{
+  // a little dark around the border
+  stroke(17, 100);
+  strokeWeight(6);
+  noFill();
+  rect(1, 1, game.gameWidth - 2, game.gameHeight - 2);
+  stroke(0, 100);
+  strokeWeight(3);
+  noFill();
+  rect(1, 1, game.gameWidth - 2, game.gameHeight - 2);
 }
 
 function do_intro()
@@ -5217,12 +5235,18 @@ function draw_edges()
 {
   if (!game.use_floor_wobble)
   {
-    strokeWeight(4);
+    strokeWeight(3);
     stroke(palette.edge_color);
     for (let e of game.edges)
     {
       line(e.sx, e.sy, e.ex, e.ey);
     }
+    strokeWeight(1);
+    stroke(palette.edge_color_light, 150);
+    for (let e of game.edges)
+    {
+      line(e.sx, e.sy, e.ex, e.ey);
+    }  
     return;
   }
 
@@ -5242,46 +5266,61 @@ function draw_edges()
   //   ellipse(e.ex + ex, e.ey + ey, 5, 5);
   // }
 
-  strokeWeight(3);
-  noFill();
-  stroke(palette.edge_color);
+  // strokeWeight(3);
+  // noFill();
+  // stroke(palette.edge_color);
 
-  for (let e of game.edges)
+  for (let iteration = 0; iteration <= 1; ++iteration)
   {
-    // instead of drawing a straight line between the start and end point,
-    // we need to iterate over the line and draw each gridpoint
-    let start_x = e.sx;
-    let start_y = e.sy;
-    let end_x = e.ex;
-    let end_y = e.ey;
-    let curr_x = start_x;
-    let curr_y = start_y;
-    let next_x = curr_x;
-    let next_y = curr_y;
-    while (!(curr_x === end_x && curr_y === end_y))
+    if (iteration == 0)
     {
-      // use min to ensure we don't overshoot endpoints
-      if (curr_x < end_x)
+      strokeWeight(3);
+      noFill();
+      stroke(palette.edge_color);
+    }
+    else if (iteration == 1)
+    {
+      strokeWeight(1);
+      noFill();
+      stroke(palette.edge_color_light, 150);
+    }
+    for (let e of game.edges)
+    {
+      // instead of drawing a straight line between the start and end point,
+      // we need to iterate over the line and draw each gridpoint
+      let start_x = e.sx;
+      let start_y = e.sy;
+      let end_x = e.ex;
+      let end_y = e.ey;
+      let curr_x = start_x;
+      let curr_y = start_y;
+      let next_x = curr_x;
+      let next_y = curr_y;
+      while (!(curr_x === end_x && curr_y === end_y))
       {
-        next_x = min(end_x, curr_x + game.gridSize);
+        // use min to ensure we don't overshoot endpoints
+        if (curr_x < end_x)
+        {
+          next_x = min(end_x, curr_x + game.gridSize);
+        }
+        if (curr_y < end_y)
+        {
+          next_y = min(end_y, curr_y + game.gridSize);
+        }
+
+        let sx_index = jiggle.get_index(curr_x);
+        let sy_index = jiggle.get_index(curr_y);
+        let ex_index = jiggle.get_index(next_x);
+        let ey_index = jiggle.get_index(next_y);
+
+        let [sx_off, sy_off] = game.jiggle.jiggle_grid[sx_index][sy_index];
+        let [ex_off, ey_off] = game.jiggle.jiggle_grid[ex_index][ey_index];
+
+        line(curr_x + sx_off, curr_y + sy_off, next_x + ex_off, next_y + ey_off);
+
+        curr_x = next_x;
+        curr_y = next_y;
       }
-      if (curr_y < end_y)
-      {
-        next_y = min(end_y, curr_y + game.gridSize);
-      }
-
-      let sx_index = jiggle.get_index(curr_x);
-      let sy_index = jiggle.get_index(curr_y);
-      let ex_index = jiggle.get_index(next_x);
-      let ey_index = jiggle.get_index(next_y);
-
-      let [sx_off, sy_off] = game.jiggle.jiggle_grid[sx_index][sy_index];
-      let [ex_off, ey_off] = game.jiggle.jiggle_grid[ex_index][ey_index];
-
-      line(curr_x + sx_off, curr_y + sy_off, next_x + ex_off, next_y + ey_off);
-
-      curr_x = next_x;
-      curr_y = next_y;
     }
   }
 }
