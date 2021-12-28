@@ -3635,6 +3635,7 @@ function draw_menu_background()
   particle_system.draw_particles();
   draw_detectors(); 
   draw_outside_walls();
+  draw_outside_overlay();
   draw_floor_lines();
   draw_edges();
   darken_border();
@@ -4392,6 +4393,7 @@ function do_game()
   draw_detectors(); 
   
   draw_outside_walls();
+  draw_outside_overlay();
   draw_floor_lines();
 
   draw_edges();
@@ -5353,6 +5355,7 @@ function make_overlay()
 {
   // Generates a random overlay image, this should be mostly black and low alpha as it will be blended
   // over the generated bg to add a bit of detail and flavor (greebles!)
+  // This is a static image that is only generated once per level so it can be a little complicated
   game.overlay_image = createGraphics(game.gameWidth, game.gameHeight);
   clear(game.overlay_image);
   game.overlay_image.noStroke();
@@ -5402,6 +5405,38 @@ function make_overlay()
     }
   }
 
+  // quarter grids, only a few
+  for (let x = 0 ; x < game.gameWidth; x += game.gridSize / 4)
+  {
+    for (let y = 0; y < game.gameHeight; y += game.gridSize / 4)
+    {
+      // 50% chance to skip
+      if (random(0, 1) > 0.99)
+        continue;
+      // random number between 20 and 60
+      let r = random(0, 30);
+
+      let alph = random(10, 25);
+      game.overlay_image.fill(r, alph);
+      game.overlay_image.rect(x, y, game.gridSize / 4, game.gridSize / 4);
+    }
+  }
+
+  // // even more fine grained detail
+  // for (let x = 0 ; x < game.gameWidth; x += game.gridSize / 8)
+  // {
+  //   for (let y = 0; y < game.gameHeight; y += game.gridSize / 8)
+  //   {
+  //     if (random(0, 1) > 0.995)
+  //       continue;
+  //     // random number between 20 and 60
+  //     let r = random(0, 25);
+
+  //     let alph = random(10, 15);
+  //     game.overlay_image.fill(r, alph);
+  //     game.overlay_image.rect(x, y, game.gridSize / 8, game.gridSize / 8);
+  //   }
+  // }
   // big sticks
   let num_sticks = random(40, 60);
   for (let i = 0; i < num_sticks; ++i)
@@ -5458,7 +5493,7 @@ function make_overlay()
     game.overlay_image.fill(r, alph);
     //let random_string = random(0, 26) + 'a';
     var random_string           = '';
-    var characters       = '0.oO-*:/|\\~ #?';
+    var characters       = '0.oO-*:/|\\~ #?^!<>=';
     var charactersLength = characters.length;
     for ( var k = 0; k < 80; k++ ) {
       random_string += characters.charAt(Math.floor(Math.random() * charactersLength));
@@ -5508,6 +5543,28 @@ function display_overlay()
     for (let y = 1; y < lvl.ysize - 1; ++y)
     {
       if (lvl.grid[x][y].grid_type == tiles.FLOOR_EMPTY) 
+        continue;
+      // image(game.overlay_image, 0, 0);
+      image(game.overlay_image, x * game.gridSize, y * game.gridSize, game.gridSize, game.gridSize,
+        x * game.gridSize, y * game.gridSize, game.gridSize, game.gridSize);
+    }
+  }
+}
+
+function draw_outside_overlay()
+{
+  let lvl = game.current_level;
+  if (game.overlay_image == undefined)
+  {
+    // console.log("game overlay is undefined, creating");
+    make_overlay();
+  }
+
+  for (let x = 0 ; x < lvl.xsize; ++x)
+  {
+    for (let y = 0; y < lvl.ysize; ++y)
+    {
+      if (!(x === 0 || x === lvl.xsize - 1 || y ===0 || y === lvl.ysize - 1))
         continue;
       // image(game.overlay_image, 0, 0);
       image(game.overlay_image, x * game.gridSize, y * game.gridSize, game.gridSize, game.gridSize,
