@@ -5397,7 +5397,7 @@ function make_overlay()
     for (let y = 0; y < game.gameHeight; y += game.gridSize / 4)
     {
       // 50% chance to skip
-      if (random(0, 1) > 0.99)
+      if (random(0, 1) < 0.8)
         continue;
       // random number between 20 and 60
       let r = random(0, 30);
@@ -5408,7 +5408,7 @@ function make_overlay()
     }
   }
 
-  // // even more fine grained detail
+  // even more fine grained detail
   // for (let x = 0 ; x < game.gameWidth; x += game.gridSize / 8)
   // {
   //   for (let y = 0; y < game.gameHeight; y += game.gridSize / 8)
@@ -5423,6 +5423,38 @@ function make_overlay()
   //     game.overlay_image.rect(x, y, game.gridSize / 8, game.gridSize / 8);
   //   }
   // }
+  // rusty streaks
+  let rand_rust_amt = random(0.8, 0.995);
+  for (let x = 0 ; x < game.gameWidth; x += game.gridSize / 4)
+  {
+    for (let y = 0; y < game.gameHeight; y += game.gridSize / 4)
+    {
+      if (random(0, 1) < rand_rust_amt)
+        continue;
+      // random number between 20 and 60
+      let r = random(0, 30);
+
+      let alph = random(15, 20);
+      game.overlay_image.fill(r * 5, r * 2.5, 0, alph);
+      game.overlay_image.rect(x, y, game.gridSize / random(1, 4), game.gridSize / random(1, 4));
+    }
+  }
+  // darker streaks
+  for (let x = 0 ; x < game.gameWidth; x += game.gridSize / 8)
+  {
+    for (let y = 0; y < game.gameHeight; y += game.gridSize / 8)
+    {
+      if (random(0, 1) < 0.99)
+        continue;
+      // random number between 20 and 60
+      let r = random(0, 30);
+
+      let alph = random(20, 30);
+      game.overlay_image.fill(r, alph);
+      game.overlay_image.rect(x, y, game.gridSize / random(0.5, 8), game.gridSize / random(0.5, 8));
+    }
+  }
+
   // big sticks
   let num_sticks = random(40, 60);
   for (let i = 0; i < num_sticks; ++i)
