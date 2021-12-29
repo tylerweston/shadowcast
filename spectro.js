@@ -10,8 +10,6 @@ space: go to next level (if available)
 TODO:
 
 - Reddit feedback:
-  - Disable wobbling apart from options
-  - Look into menu with mobile compatibility
   - Tutorial could be a bit more in-depth/obvious
 
 - Break up big functions
@@ -26,21 +24,10 @@ TODO:
   just exit to main menu?
 - some glitchiness if you exit to menu during tutorial
   or try to use the top menu. disable during tutorial?
-
-Important:
-- remove tutorial from top menu.
-- Note that generated solutions are not guaranteed to be optimal.
-- Right click a solid tile to change it into colored glass?
-- mode where you can't see the color of a detector
-unless it is correct?
+- mobile input could use some tweaking, instead of having to double tap to enter a choice?
 
 - Sound juice. Finish this and add options.
-- Detect if the user is on mobile and make the grid smaller so it
-  is easier to choose/move lights, etc. ??
-    - This now requires a few more fixes! Work on this, ie.
-      mobile mode vs PC mode
-    - Maybe it just needs to be a better way to choose the lights, ie.
-      if on mobile and a click is really close to a light, auto choose it?
+- Make the game size adjust better on mobile, it can be a rectangle instead of square?
 
 Visual fixes:
 - animation idea: add another offset to the jiggle
@@ -73,13 +60,6 @@ Bugs:
     a mouse off listener like: cnv.mouseOut(callback)
 - Reposition OK button in About menu
 
-QOL improvements:
-- make it so all text is aligned the same way (ie, all using baseline or
-  something so there isn't switching back and forth)
-- Make sure all detectors aren't the same color?
-- fix webpage
-- timer game should be a bit easier to play
-- difficulty balance in progression - timer game is too hard?
 
 Options:
  - Reset all game data
@@ -136,7 +116,7 @@ Editor stuff (Maybe eventually):
 
 // game version things
 const MAJOR_VERSION = 1;
-const MINOR_VERSION = 7;
+const MINOR_VERSION = 8;
 
 const USE_DEBUG_KEYS = false;
 
