@@ -1454,7 +1454,7 @@ class detector
     this.total_correct = 0;
     // animation stuff
     this.anim_cycle = random(TWO_PI);
-    this.anim_speed = ((random() + 1) / 7);
+    this.anim_speed = ((random() + 1) / 12);
     this.anim_offset = random(TWO_PI);
     this.rings = [[], [], []];
     // flash juice
@@ -1774,17 +1774,23 @@ class detector
         this.flash_inc = random() + 1.5;
       }
     }
-
-    this.anim_cycle += this.anim_speed * ((this.total_correct + 1) / 2);
-    if (this.anim_cycle > TWO_PI)
-      this.anim_cycle = 0;
     if (!game.use_animations)
+    {
       this.anim_cycle = 0;
+    }
+    else
+    {
+      this.anim_cycle += this.anim_speed * ((this.total_correct + 1) / 2);
+      if (this.anim_cycle > TWO_PI)
+        this.anim_cycle = 0;
+    }
+
     noFill();
 
     if (this.correct)
     {
       // // We are correct! All of the colors are right!
+      let size_amt = 0.4;
       strokeWeight(6);
       if (this.r == 255 & this.g == 255 & this.b == 255)
         stroke(60 + sin(this.anim_cycle) * 40, 120);
@@ -1800,13 +1806,13 @@ class detector
       // endShape(CLOSE);
       circle(this.x * game.gridSize + game.GRID_HALF, 
         this.y * game.gridSize + game.GRID_HALF, 
-        game.gridSize * 0.3);
+        game.gridSize * size_amt);
       
       strokeWeight(4);
       stroke(this.c);
       circle(this.x * game.gridSize + game.GRID_HALF, 
         this.y * game.gridSize + game.GRID_HALF, 
-        game.gridSize * 0.3);
+        game.gridSize * size_amt);
       // beginShape();
       // vertex(gx + game.GRID_HALF, gy + game.GRID_QUARTER);
       // vertex(gx + game.gridSize - game.GRID_QUARTER, gy + game.GRID_HALF);
@@ -1833,7 +1839,7 @@ class detector
       //       0.4 * game.gridSize, 
       //       0.4 * game.gridSize
       // );
-      var size_amt = 0.3;
+      var size_amt = 0.4;
       arc(this.x * game.gridSize + game.GRID_HALF, 
         this.y * game.gridSize + game.GRID_HALF, 
         game.gridSize * size_amt, 
@@ -2962,6 +2968,13 @@ class particle
       return;
     }
 
+    if (this.particle_type === 0)
+    {
+      this.x += (this.x_vel / 8);
+      this.y += (this.y_vel / 8);
+      return;
+    }
+
     if (this.path.length === this.path_points)
     {
       this.path.shift();
@@ -2997,7 +3010,7 @@ class particle
         // no transformation
         break
       case 5:
-        this.x_vel
+        this.x_vel += (Math.random() * 2 - 1) / 4;
       // case 4:
       //   this.x_vel 
     }
@@ -3043,14 +3056,16 @@ class particle
 
   draw()
   {
-    let alph_amount = map(this.life, 0, this.lifetime, 200, 10);
+    let alph_amount = map(this.life, 0, this.lifetime, 100, 0);
     this.color.setAlpha(alph_amount);
 
     if (this.particle_type === 0)
     {
-      let p_size = map(this.life, 0, this.lifetime, 20, 1);
-      fill(this.color);
-      noStroke();
+      let p_size = map(this.life, 0, this.lifetime, game.GRID_QUARTER * this.sub_type, 1);
+      // fill(this.color);
+      // noStroke();
+      noFill();
+      stroke(this.color);
       ellipse(this.x, this.y, p_size, p_size);
     }
     else if (this.particle_type === 1)
@@ -3138,6 +3153,9 @@ class particle_system
     {
       let xrand = Math.random() * game.gridSize - game.GRID_HALF;
       let yrand = Math.random() * game.gridSize - game.GRID_HALF;
+      // choose random number 0 or 1
+      // let rand_particle = Math.floor(Math.random() * 2);
+      let rand_particle = Math.random() * 100 < 5 ? 0 : 1;
       let p = new particle(
         x + xrand, 
         y + yrand, 
@@ -3145,7 +3163,7 @@ class particle_system
         (random() * (max_speed * 2) - max_speed) * 2, 
         (random() * (max_speed * 2) - max_speed) * 2, 
         max_life + random(spread),
-        particle_type);
+        rand_particle);
       particle_system.add_particle(p);
     }
   }
