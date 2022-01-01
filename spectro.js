@@ -3429,7 +3429,7 @@ function initialize_colors() {
   palette.empty_outline = color(2, 2, 2);
   palette.empty_fill = color(13, 13, 13);
 
-  palette.edge_color = color(70, 70, 80);
+  palette.edge_color = color(60, 60, 80);
   palette.edge_color_light = color(95, 95, 100);
   palette.edge_circle_color = color(60, 60, 70);
 
@@ -4453,11 +4453,11 @@ function darken_border()
 {
   // a little dark around the border
   stroke(17, 100);
-  strokeWeight(6);
+  strokeWeight(game.GRID_QUARTER);
   noFill();
   rect(1, 1, game.gameWidth - 2, game.gameHeight - 2);
   stroke(0, 100);
-  strokeWeight(3);
+  strokeWeight(game.GRID_QUARTER / 2);
   noFill();
   rect(1, 1, game.gameWidth - 2, game.gameHeight - 2);
 }
@@ -5059,13 +5059,27 @@ function draw_walls_and_floors()
         else
         {
           do_draw = true;
-          top_left_point = [x * game.gridSize, y * game.gridSize];
-          top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
+          // top_left_point = [x * game.gridSize, y * game.gridSize];
+          // top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
+          // if (game.use_animations)
+          // {
+          //   bottom_left_point = [x * game.gridSize,  (y + lvl.grid[x][y].fade) * game.gridSize - 1];
+          //   bottom_right_point = [(x + 1) * game.gridSize,  (y + lvl.grid[x][y].fade) * game.gridSize + 1];
+          // } else {
+          //   bottom_left_point = [x * game.gridSize,  (y + 1) * game.gridSize];
+          //   bottom_right_point = [(x + 1) * game.gridSize,  (y + 1) * game.gridSize];
+          // }
           if (game.use_animations)
           {
-            bottom_left_point = [x * game.gridSize,  (y + lvl.grid[x][y].fade) * game.gridSize];
-            bottom_right_point = [(x + 1) * game.gridSize,  (y + lvl.grid[x][y].fade) * game.gridSize];
-          } else {
+            top_left_point = [(x * game.gridSize) + game.GRID_HALF - (lvl.grid[x][y].fade * game.GRID_HALF), (y * game.gridSize) + game.GRID_HALF - (lvl.grid[x][y].fade * game.GRID_HALF)];
+            top_right_point = [((x + 1) * game.gridSize) - game.GRID_HALF + (lvl.grid[x][y].fade * game.GRID_HALF), (y * game.gridSize) + game.GRID_HALF - (lvl.grid[x][y].fade * game.GRID_HALF) ]; 
+            bottom_left_point = [(x * game.gridSize) + game.GRID_HALF - (lvl.grid[x][y].fade * game.GRID_HALF),  ((y + 1) * game.gridSize) - game.GRID_HALF + (lvl.grid[x][y].fade * game.GRID_HALF)];
+            bottom_right_point = [((x + 1) * game.gridSize) - game.GRID_HALF + (lvl.grid[x][y].fade * game.GRID_HALF),  ((y + 1) * game.gridSize) - game.GRID_HALF + (lvl.grid[x][y].fade * game.GRID_HALF)];
+          }
+          else
+          {
+            top_left_point = [x * game.gridSize, y * game.gridSize];
+            top_right_point = [(x + 1) * game.gridSize, y * game.gridSize]; 
             bottom_left_point = [x * game.gridSize,  (y + 1) * game.gridSize];
             bottom_right_point = [(x + 1) * game.gridSize,  (y + 1) * game.gridSize];
           }
