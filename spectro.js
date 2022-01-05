@@ -12,7 +12,6 @@ TODO:
 - Reddit feedback:
   - Tutorial could be a bit more in-depth/obvious
 
-- The menu mouse-overs are appearing when the menu button is clicked
 - Break up big functions
   - Basically any function that is taking in a boolean flag that
     changes its 'mode' can be refactored into something simpler.
@@ -241,7 +240,7 @@ class menus
   static main_menu_selected = undefined;
   static main_menu_height = menus.main_menu_options.length + 1;
 
-  static option_options = ["animations", "floor wobble", "sounds", "difficulty", "reset data", "back"]
+  static option_options = [" animations", " floor wobble", " sounds", " difficulty", "reset data", "back"]
   static option_menu_selected = undefined;
   static option_menu_height = menus.option_options.length + 1;
 
@@ -426,7 +425,7 @@ class game
   static has_new_timer_high_score = false;
 
   static editor_available = false;
-  static show_intro = false;         // <--------------- intro flag
+  static show_intro = true;         // <--------------- intro flag
   static show_tutorial = false;
 
   static need_load_menu_map = true;
@@ -4151,7 +4150,7 @@ function handle_top_menu_selection(menu_index)
 {
   if (!top_menu_accept_input)
     return;
-  menus.top_menu_callbacks[menu_index]();
+  menus.top_menu_callbacks[menu_index - 1]();
 }
 
 function launch_menu()
@@ -4203,7 +4202,7 @@ function make_menu()
   game.global_mouse_handler.register_region("top_menu", menu_region);
   
   // initialize the menu handler and region stuff
-  let open_menu_region = new mouse_region(game.gameWidth - (6 * game.textSize), 0, game.gameWidth, menus.top_menu_height * game.textSize);
+  let open_menu_region = new mouse_region(game.gameWidth - (6 * game.textSize), 0, game.gameWidth, (menus.top_menu_height + 1) * game.textSize);
   open_menu_region.events[mouse_events.CLICK] = () => {game.sound_handler.play_sound("menu_click");};
   open_menu_region.events[mouse_events.ENTER_REGION] = () => {game.sound_handler.play_sound("menu_hover");};
 
@@ -4215,7 +4214,7 @@ function make_menu()
   let i = 0;
   for (let m of menus.top_menu_choices)
   {
-    let reg = new mouse_region(game.gameWidth - (5 * game.textSize), i * game.textSize, game.gameWidth, (i + 1) * game.textSize);
+    let reg = new mouse_region(game.gameWidth - (5 * game.textSize), (i + 1) * game.textSize, game.gameWidth, (i + 2) * game.textSize);
     reg.events[mouse_events.CLICK] = () => {
       game.sound_handler.play_sound("menu_click");
       handle_top_menu_selection(int(game.global_mouse_handler.my / game.textSize))
@@ -4620,8 +4619,6 @@ function do_intro()
   }
   else if (game.intro_timer < 3000)
   {
-
-    // game.intro_timer += deltaTime;
     game.intro_timer += deltaTime;
     if (game.intro_timer < 2500)
     {
@@ -4636,26 +4633,19 @@ function do_intro()
       rect(0, 0, width, height);
     }
 
-    if (1500 < game.intro_timer && game.intro_timer < 1800)
-    {
-      stroke(0);
-      fill(random(random_cols));
-      let t = map(game.intro_timer, 1500, 1800, 0, height);
-      rect(0, t, width, 40);
-    }
+    // if (1500 < game.intro_timer && game.intro_timer < 1800)
+    // {
+    //   stroke(0);
+    //   fill(random(random_cols));
+    //   let t = map(game.intro_timer, 1500, 1800, 0, height);
+    //   rect(0, t, width, 40);
+    // }
 
     if (game.intro_timer < 2000)
     {
       stroke(0);
-      // fill(0);
       fill(random(random_cols));
-      // let t = map(game.intro_timer, 0, 1000, 0, height);
-      // rect(0, t, width, 10);
-
-
       text("a tw game", width / 2, random(height - game.textSize * 3));
-
-      // rect(0, 0, width, height);
     }
     else
     {
@@ -4669,9 +4659,6 @@ function do_intro()
         fill(0);
         stroke(0);
       }
-
-      // rect(0, 0, width, height);
-
       blendMode(MULTIPLY);
       textSize(game.textSize * 4)
       text("spectro", width / 2, (height - game.textSize * 3 )/ 2);
@@ -4947,7 +4934,7 @@ function draw_menu()
   fill(37, 210);
   stroke(12);
   strokeWeight(2);
-  rect(game.gameWidth - (6 * game.textSize), 0, game.gameWidth, game.textSize * (menus.top_menu_height));
+  rect(game.gameWidth - (6 * game.textSize), 0, game.gameWidth, game.textSize * (menus.top_menu_height + 1));
 
   // display menu options
   var i = 0;
@@ -4957,7 +4944,7 @@ function draw_menu()
 
   for (let m of menus.top_menu_choices)
   {
-    if (menus.top_menu_selected === i)
+    if (menus.top_menu_selected === i + 1)
       fill(253);
     else
       fill(157);
@@ -4970,7 +4957,7 @@ function draw_menu()
     if (game.given_up && i < 5)
       fill(57);
       
-    text(m, game.gameWidth - (5 * game.textSize), (i) * game.textSize );
+    text(m, game.gameWidth - (5 * game.textSize), (i + 1) * game.textSize );
     ++i;
   }
   textAlign(LEFT, BASELINE);
