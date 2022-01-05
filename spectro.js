@@ -12,6 +12,7 @@ TODO:
 - Reddit feedback:
   - Tutorial could be a bit more in-depth/obvious
 
+- The menu mouse-overs are appearing when the menu button is clicked
 - Break up big functions
   - Basically any function that is taking in a boolean flag that
     changes its 'mode' can be refactored into something simpler.
@@ -425,7 +426,7 @@ class game
   static has_new_timer_high_score = false;
 
   static editor_available = false;
-  static show_intro = true;         // <--------------- intro flag
+  static show_intro = false;         // <--------------- intro flag
   static show_tutorial = false;
 
   static need_load_menu_map = true;
@@ -682,6 +683,21 @@ class mouse_handler
       // this is the fallinge edge of a click
       this.clicked = false;
       this.run_callbacks(mouse_events.UNCLICK);
+    }
+  }
+
+  visualize_mouse_regions()
+  {
+    stroke(0);
+    strokeWeight(2);
+    for (const [key, _region] of Object.entries(this.registered_regions)) {
+      if (!_region.enabled)
+        //fill(map(_region.x1, 0, width, 0, 255), map(_region.y1, 0, width, 0, 255), 0, 50);
+        fill(255, 0, 0, 50);
+      else
+        //fill(0, map(_region.x1, 0, width, 0, 255), map(_region.y1, 0, width, 0, 255), 50);
+        fill(0, 255, 0, 50);
+      rect(_region.x1, _region.y1, _region.x2-_region.x1, _region.y2-_region.y1);
     }
   }
 
@@ -2312,8 +2328,9 @@ class light_source
 
   end_light_mouse_handler()
   {
-    game.global_mouse_handler.disable_region(this.name);
+    game.global_mouse_handler.remove_region(this.name);
   }
+
 }
 
 class edge
@@ -3464,6 +3481,8 @@ function windowResized()
   scale_all_edges(new_scale);
   game.current_dim = largest_dim;
 
+  make_menu();
+
   update_all_light_viz_polys();
   make_overlay();
 
@@ -4139,6 +4158,7 @@ function launch_menu()
 {
   // send mouse off event to top_menu to disable high-lighting? 
   game.global_mouse_handler.disable_region("top_menu");
+
   enable_menu();
   show_menu = true;
 }
@@ -4151,6 +4171,7 @@ function enable_menu()
   {
     game.global_mouse_handler.enable_region(m);
   }
+  top_menu_accept_input = true;
 }
 
 function disable_menu()
@@ -4168,8 +4189,7 @@ function disable_menu()
 function make_menu()
 {
   // the top right menu button
-  let menu_region = new mouse_region((game.gridWidth - 3) * game.gridSize, 0,
-                                  game.gridWidth * game.gridSize, game.gridSize);
+  let menu_region = new mouse_region((game.gridWidth - 3) * game.gridSize, 0, game.gameWidth - game.gridSize, game.gridSize);
   menu_region.events[mouse_events.CLICK] = () => { 
     game.sound_handler.play_sound("menu_click"); 
     launch_menu(); 
@@ -4179,11 +4199,11 @@ function make_menu()
     game.sound_handler.play_sound("menu_hover"); 
     mouse_over_menu = true;
   };
-  menu_region.events[mouse_events.EXIT_REGION] = () => {mouse_over_menu = false;};
+  menu_region.events[mouse_events.EXIT_REGION] = () => { mouse_over_menu = false;};
   game.global_mouse_handler.register_region("top_menu", menu_region);
   
   // initialize the menu handler and region stuff
-  let open_menu_region = new mouse_region((game.gridWidth - 8) * game.textSize, 0, game.gridWidth * game.textSize, menus.top_menu_height * game.textSize);
+  let open_menu_region = new mouse_region(game.gameWidth - (6 * game.textSize), 0, game.gameWidth, menus.top_menu_height * game.textSize);
   open_menu_region.events[mouse_events.CLICK] = () => {game.sound_handler.play_sound("menu_click");};
   open_menu_region.events[mouse_events.ENTER_REGION] = () => {game.sound_handler.play_sound("menu_hover");};
 
@@ -4195,7 +4215,7 @@ function make_menu()
   let i = 0;
   for (let m of menus.top_menu_choices)
   {
-    let reg = new mouse_region((game.gridWidth - 7) * game.textSize, i * game.textSize, game.textSize * game.gridWidth, (i + 1) * game.textSize);
+    let reg = new mouse_region(game.gameWidth - (5 * game.textSize), i * game.textSize, game.gameWidth, (i + 1) * game.textSize);
     reg.events[mouse_events.CLICK] = () => {
       game.sound_handler.play_sound("menu_click");
       handle_top_menu_selection(int(game.global_mouse_handler.my / game.textSize))
@@ -4209,6 +4229,11 @@ function make_menu()
   }
 }
 
+
+//////////////////// CONFIRM NEW GAME
+// Todo: Make this more generic so that it can display any YES/NO
+// dialog and put the results somewhere, since we want to display this
+// for ie. changing game size (since it will erase data?)
 function do_setup_confirm_game()
 {
   if (states.need_setup_confirm)
@@ -4496,6 +4521,8 @@ function do_game()
 
   draw_edges();
 
+
+
   // filter(POSTERIZE, 3);
 
   // // Draw glass (Extra tiles to draw would happen here?)
@@ -4560,6 +4587,9 @@ function do_game()
     draw_menu();
 
   darken_border();
+
+  // debug drawings!
+  // game.global_mouse_handler.visualize_mouse_regions();
 
 }
 
@@ -4737,6 +4767,7 @@ function do_level_transition_in()
 
 }
 
+///////////// TUTORIAL
 function prepare_tutorial()
 {
   // eventually tutorial will be something that happens in game
@@ -4916,7 +4947,7 @@ function draw_menu()
   fill(37, 210);
   stroke(12);
   strokeWeight(2);
-  rect((game.gridWidth - 8) * game.textSize, 0, game.gridWidth * game.textSize, game.textSize * (menus.top_menu_height));
+  rect(game.gameWidth - (6 * game.textSize), 0, game.gameWidth, game.textSize * (menus.top_menu_height));
 
   // display menu options
   var i = 0;
@@ -4939,7 +4970,7 @@ function draw_menu()
     if (game.given_up && i < 5)
       fill(57);
       
-    text(m, (game.gridWidth - 7) * game.textSize, (i) * game.textSize );
+    text(m, game.gameWidth - (5 * game.textSize), (i) * game.textSize );
     ++i;
   }
   textAlign(LEFT, BASELINE);
@@ -6266,7 +6297,7 @@ function setup_random_game()
 {
   game.ghandler = new gameplay_handler();
   // next level button, will start hidden and disabled
-  let next_region = new mouse_region((game.gridWidth - 3) * game.gridSize, (game.gridHeight - 1) * game.gridSize, game.gridWidth * game.gridSize, game.gridHeight * game.gridSize);
+  let next_region = new mouse_region((game.gridWidth - 3) * game.gridSize, (game.gridHeight - 1) * game.gridSize, (game.gridWidth - 1) * game.gridSize, game.gridHeight * game.gridSize);
   next_region.events[mouse_events.CLICK] = () => { 
     game.sound_handler.play_sound("next_level_clicked");
     game.game_state = states.LEVEL_TRANSITION_OUT; 
@@ -6374,6 +6405,7 @@ function solvable_random_level(save=true, showcase=false)
   new_random_level.xsize = game.gridWidth;
   new_random_level.ysize = game.gridHeight;
 
+  // TODO: This is ugly! 
   new_random_level.initialize_grid(); 
   initializeGrid(new_random_level.grid);
 
@@ -6506,6 +6538,9 @@ function random_level(save=true)
 
 function init_light_sources(start_active = false)
 {
+  // remove old mouse handlers
+  game.lightsources.forEach(l => l.end_light_mouse_handler());
+
   // init lights
   game.lightsources.splice(0, game.lightsources.length);
 
