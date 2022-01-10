@@ -8,6 +8,9 @@ r, g, b: switch corresponding light (This currently doesn't work during tutorial
 space: go to next level (if available)
 
 TODO:
+- Make the difficulties more meaningful, ie, harder levels should have more detectors off the bat, not the single detector, etc.
+- Should get more points per level on harder difficulties as well
+- Store multiple best scores for different difficulties?
 
 - Reddit feedback:
   - Tutorial could be a bit more in-depth/obvious
@@ -37,14 +40,6 @@ Visual fixes:
   We could encapsulate this into a class that keeps track
   of the string, location, size, etc, and then run little
   offsets and color individual letters, etc.
-- TODO: Need to decouple size of grid and printing of UI elements?!
-  - At least main menu elements should NOT depend on size of grid!!
-  - Top menu is janky still and bottom left next menu item
-    - these need to be based on grid size still, so we just need to rescale 
-      these mouse regions in a smarter way?
-  - Intro still depends on gridSize, change this up for textSize
-  - Top menu funkiness, doesn't work on first click anymore? 
-    - doesn't work when game is full size
 - add more floor patterns
 - fix / add more default floor animations
 - add more bonus floor animations
@@ -360,8 +355,8 @@ class game
 
   // difficulty
   // level 1 to 5
-  static old_difficulty = 3;
-  static difficulty = 3;  // default is 3!
+  static old_difficulty = 2;
+  static difficulty = 2;  // default is 3!
 
   static edges = [];
   static lightsources = [];
@@ -3371,9 +3366,9 @@ function setup() {
 
   if (getItem("difficulty") === null)
   {
-    game.difficulty = 3;
-    game.old_difficulty = 3;
-    storeItem("difficulty", 3);
+    game.difficulty = 2;
+    game.old_difficulty = 2;
+    storeItem("difficulty", 2);
   }
   else
   {
@@ -3505,25 +3500,25 @@ function change_game_difficulty(skip_resize=false)
       game.gridHeight = 15;
       break;
     case 2:
-      game.PLAYFIELD_DIM = 17;
-      game.gridWidth = 17;
-      game.gridHeight = 17;
-      break;
-    case 3:
       game.PLAYFIELD_DIM = 19;
       game.gridWidth = 19;
       game.gridHeight = 19;
       break;
-    case 4:
-      game.PLAYFIELD_DIM = 23;
-      game.gridWidth = 23;
-      game.gridHeight = 23;
+    case 3:
+      game.PLAYFIELD_DIM = 25;
+      game.gridWidth = 25;
+      game.gridHeight = 25;
       break;
-    case 5:
-      game.PLAYFIELD_DIM = 27;
-      game.gridWidth = 27;
-      game.gridHeight = 27;
-      break;
+    // case 4:
+    //   game.PLAYFIELD_DIM = 23;
+    //   game.gridWidth = 23;
+    //   game.gridHeight = 23;
+    //   break;
+    // case 5:
+    //   game.PLAYFIELD_DIM = 27;
+    //   game.gridWidth = 27;
+    //   game.gridHeight = 27;
+    //   break;
   }
   if (!skip_resize)
     windowResized();
@@ -3947,7 +3942,7 @@ function handle_option_menu_selection(option_index)
       break;
     case 3:
       game.difficulty += 1;
-      if (game.difficulty == 6)
+      if (game.difficulty == 4)
         game.difficulty = 1;
       storeItem("difficulty", game.difficulty);
       break;
@@ -6107,8 +6102,8 @@ function setup_time_game()
     game.high_timer_score = 0;
 
 
-  game.difficulty_level = 1;   // todo: shouldn't be hard coded here
-  game.time_remaining = game.initial_time;    // todo: shouldn't be hard coded here
+  game.difficulty_level = 1;
+  game.time_remaining = game.initial_time;
   game.total_time_played = game.time_remaining;
   game.has_new_timer_high_score = false;
   init_light_sources();
@@ -6434,7 +6429,7 @@ function solvable_random_level(save=true, showcase=false)
   activate_lights();
 
   // randomly deactivate light source
-  if (diff_level < 20)
+  if (diff_level < 10)
   {
     for (let l of game.lightsources)
     {
@@ -6449,7 +6444,7 @@ function solvable_random_level(save=true, showcase=false)
   }
 
   // now place detectors in places that work, ie. they can be active
-  let amt_detectors = max(9, (game.difficulty * 2) + 2);
+  let amt_detectors = max(15, (game.difficulty * 2) + 3);
   let d_amount = showcase ? amt_detectors : difficulty_to_detector_amount();
 
   solvable_init_random_detectors(game.current_level, d_amount);
