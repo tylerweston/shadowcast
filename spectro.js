@@ -448,8 +448,6 @@ class tiles
   static FLOOR_BUILDABLE = 1;  // tiles, need buildable 1 and 2 for different color floors?
   static FLOOR_BUILT = 6;      // buildable and built on
   static PERMENANT_WALL = 2;
-  static GLASS_WALL = 3;
-  static GLASS_WALL_TOGGLABLE = 4;
   static DETECTOR_TILE = 5;
 }
 
@@ -898,8 +896,6 @@ class level
           case tiles.FLOOR_BUILDABLE: cur_char = "1"; break;
           case tiles.FLOOR_BUILT: cur_char = "6"; break;     
           case tiles.PERMENANT_WALL: cur_char = "2"; break;
-          case tiles.GLASS_WALL: cur_char = "3"; break;
-          case tiles.GLASS_WALL_TOGGLABLE: cur_char = "4"; break;
           default: cur_char = "x"; break;
         }
         level_string += cur_char;
@@ -4120,12 +4116,6 @@ function set_grid(which_grid, x, y, type)
       which_grid[x][y].permenant = true;
       which_grid[x][y].unpassable = false;
       break;
-    case tiles.GLASS_WALL:
-      which_grid[x][y].grid_type = tiles.GLASS_WALL;
-      which_grid[x][y].exist = false;
-      which_grid[x][y].permenant = true;
-      which_grid[x][y].unpassable = true;
-      break;
   }
 }
 
@@ -4199,13 +4189,6 @@ function do_game()
   draw_floor_lines();
 
   draw_edges();
-
-
-
-  // filter(POSTERIZE, 3);
-
-  // // Draw glass (Extra tiles to draw would happen here?)
-  // draw_glass();
 
   // Render any text that we have to
   stroke(0);
@@ -4636,22 +4619,6 @@ function draw_menu()
   }
   textAlign(LEFT, BASELINE);
 }
-
-// function draw_glass()
-// {
-//   let lvl = game.current_level;
-//   fill(255, 150);
-//   strokeWeight(4);
-//   stroke(90, 50);
-//   for (let x = 0 ; x < lvl.xsize; ++x)
-//   {
-//     for (let y = 0; y < lvl.ysize; ++y)
-//     {
-//       if (lvl.grid[x][y].grid_type == tiles.GLASS_WALL || lvl.grid[x][y].grid_type == tiles.GLASS_WALL_TOGGLABLE)
-//         square(x * game.gridSize, y * game.gridSize, game.gridSize);
-//     }
-//   }
-// }
 
 function draw_floor_lines()
 {
