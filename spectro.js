@@ -239,6 +239,7 @@ class menus
   static option_options = [" animations", " floor wobble", " sounds", " difficulty", "reset data", "back"]
   static option_menu_selected = undefined;
   static option_menu_height = menus.option_options.length + 1;
+  static option_menu_reset_clicks = 0;
 
   static confirm_options = ["yes", "no"];
   static confirm_selected = undefined;
@@ -861,7 +862,7 @@ class level
     let level_string = this.generate_save_string(lights, detectors);
     if (use_juice)
       game.save_fade = 1;
-    storeItem("savedgame", level_string);
+    storeItem("savedgame"+game.difficulty, level_string);
   }
 
   copy_save_string_to_clipboard(lights, detectors)
@@ -3527,8 +3528,11 @@ function change_game_difficulty(skip_resize=false)
   }
   if (!skip_resize)
     windowResized();
-  // we need to start a new saved game
-  storeItem("savedgame", null);
+  // we need to start a new saved game? Not if we have a game saved?
+  if (getItem("savedgame"+game.difficulty) === null)
+  {
+    storeItem("savedgame"+game.difficulty, null);
+  }
   game.need_load_menu_map = true;
   game.game_state = states.MAIN_MENU_SETUP;
 }
@@ -3618,7 +3622,7 @@ function do_setup_main_menu()
 
     let easter_egg_region = new mouse_region(game.textSize * 2, game.textSize, game.textSize * 7, game.textSize * 3);
     easter_egg_region.events[mouse_events.CLICK] = () => {
-      if (getItem("savedgame") === null)
+      if (getItem("savedgame"+game.difficulty) === null)
       {
         solvable_random_level(/*save=*/false, 
                               /*showcase=*/true);
@@ -3632,12 +3636,12 @@ function do_setup_main_menu()
   disable_menu(); // disable the top menu in case it is active
   enable_main_menu();
   // random_level();
-  game.have_saved_game = (getItem("savedgame") !== null);
+  game.have_saved_game = (getItem("savedgame"+game.difficulty) !== null);
   
   if (game.need_load_menu_map)
   {
     if (game.have_saved_game) {
-      try_load_level(getItem("savedgame"));
+      try_load_level(getItem("savedgame"+game.difficulty));
       update_all_light_viz_polys();
     } else {
       init_light_sources();
@@ -3766,7 +3770,7 @@ function handle_main_menu_selection(menu_index)
   {
     case 0:
       // if we don't have a saved game, simply start a new one
-      if (getItem("savedgame") === null)
+      if (getItem("savedgame"+game.difficulty) === null)
       {
         game.current_gamemode = game.GAMEMODE_RANDOM;
         game.game_state = states.NEW_GAME;
@@ -3952,10 +3956,25 @@ function handle_option_menu_selection(option_index)
       storeItem("difficulty", game.difficulty);
       break;
     case 4:
-      // TODO: ARE YOU SURE?!
-      remove_saved_data();
+      if (menus.option_menu_reset_clicks === 0)
+      {
+        menus.option_options[4] = "click to confirm";
+        menus.option_menu_reset_clicks += 1;
+      }
+      else if (menus.option_menu_reset_clicks === 1)
+      {
+        // TODO: ARE YOU SURE?!
+        remove_saved_data();
+        menus.option_options[4] = "reset data";
+        menus.option_menu_reset_clicks = 0;
+      }
+
       break;
     case 5:
+      if (menus.option_menu_reset_clicks === 1)
+      {
+        menus.option_options[4] = "reset data";
+      }
       game.game_state = states.TEARDOWN_OPTIONS;
       break;
   }
@@ -4076,8 +4095,8 @@ function top_menu_main_menu()
   {
     if (game.given_up)
     {
-      storeItem("savedgame", null);
-      storeItem("savedsolution", null);
+      storeItem("savedgame"+game.difficulty, null);
+      storeItem("savedsolution"+game.difficulty, null);
       game.need_load_menu_map = false;
     }
     else
@@ -4120,7 +4139,7 @@ function top_menu_reset_stuff()
 function top_menu_reset_game() 
 {
   // TODO: Yes/no confirm
-  storeItem("savedgame", null);
+  storeItem("savedgame"+game.difficulty, null);
   game.game_state = states.NEW_GAME;
 }
 
@@ -4279,7 +4298,7 @@ function teardown_confirm_menu()
 function handle_confirm_yes_click()
 {
   teardown_confirm_menu();
-  storeItem("savedgame", null);
+  storeItem("savedgame"+game.difficulty, null);
   game.current_gamemode = game.GAMEMODE_RANDOM;
   game.game_state = states.NEW_GAME;
 }
@@ -4295,6 +4314,8 @@ function handle_confirm_no_click()
 function do_confirm_game()
 {
   // textAlign(LEFT, TOP);
+  fill(0, 10);
+  rect(0, 0, width, height);
   // draw_menu_background();
   // display confirm screen
   fill(palette.font_color);
@@ -4379,9 +4400,10 @@ function keyPressed() {
   } else if (key === 'l') {
     load_solution();
   } else if (key === 'q') {
-    storeItem("high_random_score", null);
-    storeItem("game.high_timer_score", null);
-    storeItem("savedgame", null);
+    clearStorage();
+    // storeItem("high_random_score", null);
+    // storeItem("game.high_timer_score", null);
+    // storeItem("savedgame", null);
   } else if (key === 'e') {
     let lvl_txt = get_level_and_load();
     try_load_level(lvl_txt);
@@ -5766,7 +5788,7 @@ function try_load_level(level_string)
     load_level(level_string);
     return true;
   } catch (err) {
-    storeItem("savedgame", null);
+    storeItem("savedgame"+game.difficulty, null);
     return false;
   }
 }
@@ -6287,7 +6309,7 @@ function setup_random_game()
 
 
   // check if we have a saved game
-  let saved_g = getItem("savedgame");
+  let saved_g = getItem("savedgame"+game.difficulty);
   if (!saved_g)
   {
     game.difficulty_level = 1;
