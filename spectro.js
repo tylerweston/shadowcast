@@ -10,11 +10,12 @@ space: go to next level (if available)
 TODO:
 - Make the difficulties more meaningful, ie, harder levels should have more detectors off the bat, not the single detector, etc.
 - Should get more points per level on harder difficulties as well
-- Store multiple best scores for different difficulties?
+- Should a timed game always be in the middle difficulty setting?
 
 - Reddit feedback:
   - Tutorial could be a bit more in-depth/obvious
 
+- need to optimize, this is slow now for some reason again?
 - Break up big functions
   - Basically any function that is taking in a boolean flag that
     changes its 'mode' can be refactored into something simpler.
@@ -187,33 +188,33 @@ class states
   static need_setup_confirm = true;
 }
 
-let STATE_TABLE = {
-  NEW_GAME: () => { setup_game(); },
-  SETUP_CONFIRM_NEW_GAME: () => { do_setup_confirm_game(); },
-  CONFIRM_NEW_GAME: () => { do_confirm_game(); },
-  INTRO: () => { do_intro(); },
-  GAME: () => { do_game(); },
-  LEVEL_TRANSITION_OUT: () => { do_level_transition_out(); },
-  LEVEL_TRANSITION_IN: () => { do_level_transition_in(); },
-  SETUP_EDITOR: () => { do_setup_editor(); },
-  EDITOR: () => { do_editor(); },
-  PREPARE_TUTORIAL: () => { prepare_tutorial(); },
-  TUTORIAL: () => { tutorial(); },
-  TEARDOWN_TUTORIAL: () => { tear_down_tutorial(); },
-  MAIN_MENU_SETUP: () => { do_setup_main_menu(); },
-  MAIN_MENU:() => {  do_main_menu(); },
-  MAIN_MENU_TEARDOWN: () => { teardown_main_menu(); },
-  SETUP_SHOW_TIME_RESULTS: () => { do_setup_show_time_results(); },
-  SHOW_TIME_RESULTS: () => { do_show_time_results(); },
-  SETUP_OPTIONS: () => { do_setup_options(); },
-  OPTIONS: () => { do_options_menu(); },
-  TEARDOWN_OPTIONS: () => { do_teardown_options(); },
-  SETUP_ABOUT: () => { do_setup_about(); },
-  ABOUT: () => { do_about_menu(); },
-  TEARDOWN_ABOUT: () => { do_teardown_about_menu(); },
-  TUTORIAL_GAME_INTRO:  () => { do_tutorial_game_intro(); },
-  TUTORIAL_GAME_OUTRO: () => { do_tutorial_game_outro(); }
-}
+// let STATE_TABLE = {
+//   NEW_GAME: () => { setup_game(); },
+//   SETUP_CONFIRM_NEW_GAME: () => { do_setup_confirm_game(); },
+//   CONFIRM_NEW_GAME: () => { do_confirm_game(); },
+//   INTRO: () => { do_intro(); },
+//   GAME: () => { do_game(); },
+//   LEVEL_TRANSITION_OUT: () => { do_level_transition_out(); },
+//   LEVEL_TRANSITION_IN: () => { do_level_transition_in(); },
+//   SETUP_EDITOR: () => { do_setup_editor(); },
+//   EDITOR: () => { do_editor(); },
+//   PREPARE_TUTORIAL: () => { prepare_tutorial(); },
+//   TUTORIAL: () => { tutorial(); },
+//   TEARDOWN_TUTORIAL: () => { tear_down_tutorial(); },
+//   MAIN_MENU_SETUP: () => { do_setup_main_menu(); },
+//   MAIN_MENU:() => {  do_main_menu(); },
+//   MAIN_MENU_TEARDOWN: () => { teardown_main_menu(); },
+//   SETUP_SHOW_TIME_RESULTS: () => { do_setup_show_time_results(); },
+//   SHOW_TIME_RESULTS: () => { do_show_time_results(); },
+//   SETUP_OPTIONS: () => { do_setup_options(); },
+//   OPTIONS: () => { do_options_menu(); },
+//   TEARDOWN_OPTIONS: () => { do_teardown_options(); },
+//   SETUP_ABOUT: () => { do_setup_about(); },
+//   ABOUT: () => { do_about_menu(); },
+//   TEARDOWN_ABOUT: () => { do_teardown_about_menu(); },
+//   TUTORIAL_GAME_INTRO:  () => { do_tutorial_game_intro(); },
+//   TUTORIAL_GAME_OUTRO: () => { do_tutorial_game_outro(); }
+// }
 
 class menus
 {
@@ -373,6 +374,8 @@ class game
   static gridWidth;
   static gridHeight;
 
+  static need_check_detectors = true;
+
   static textSize;
 
   static overlay_image = undefined;
@@ -402,7 +405,9 @@ class game
 
   // random game / score
   static have_saved_game;
-  static highest_score;
+  static highest_score; // medium high score, don't call it highest_score_medium for compatability
+  static highest_score_easy;
+  static highest_score_hard;
   static new_high_score_juice = 0;
   static highest_score_changed = 0;
   static highest_score_display_timer = 0;
@@ -1591,9 +1596,9 @@ class detector
         }
         if (!has_intersection)
         {
-          r = min(r + l.r, 255);
-          g = min(g + l.g, 255);
-          b = min(b + l.b, 255);
+          r = Math.min(r + l.r, 255);
+          g = Math.min(g + l.g, 255);
+          b = Math.min(b + l.b, 255);
         }
       }
       this.total_correct = 0;
@@ -2004,17 +2009,17 @@ class light_source
     this.dark_light = color(r / 6, g / 6, b / 6, 60);
     this.med_light = color(r / 4, g / 4, b / 4, 70);
 
-    this.selected_on_outside = color(max(120, r), max(120, g), max(120, b));
-    this.selected_on_inside = color(max(150, r - 50), max(150, g - 50), max(150, b - 50));
+    this.selected_on_outside = color(Math.max(120, r), Math.max(120, g), Math.max(120, b));
+    this.selected_on_inside = color(Math.max(150, r - 50), Math.max(150, g - 50), Math.max(150, b - 50));
 
-    this.selected_off_outside = color(max(80, r - 70), max(80, g - 70), max(80, b - 70));
-    this.selected_off_inside = color(max(50, r - 110), max(50, g - 110), max(50, b - 110));
+    this.selected_off_outside = color(Math.max(80, r - 70), Math.max(80, g - 70), Math.max(80, b - 70));
+    this.selected_off_inside = color(Math.max(50, r - 110), Math.max(50, g - 110), Math.max(50, b - 110));
 
-    this.dark_outside = color(max(70, r / 2), max(70, g / 2), max(70, b / 2));
-    this.dark_inside = color(max(60, r / 2 - 10), max(60, g / 2 - 10), max(60, b / 2 - 10));
+    this.dark_outside = color(Math.max(70, r / 2), Math.max(70, g / 2), Math.max(70, b / 2));
+    this.dark_inside = color(Math.max(60, r / 2 - 10), Math.max(60, g / 2 - 10), Math.max(60, b / 2 - 10));
 
-    this.light_outside = color(max(100, r), max(100, g), max(100, b));
-    this.light_inside = color(max(80, r - 30), max(80, g - 30), max(80, b - 30));
+    this.light_outside = color(Math.max(100, r), Math.max(100, g), Math.max(100, b));
+    this.light_inside = color(Math.max(80, r - 30), Math.max(80, g - 30), Math.max(80, b - 30));
 
     this.ls_region = new mouse_region(x * game.gridSize, y * game.gridSize, 
                                       (x + 1) * game.gridSize, (y + 1) * game.gridSize);
@@ -3391,7 +3396,7 @@ function setup() {
   // look ok on different screen sizes.
 
   // -10 to avoid having bars?
-  let largest_dim = min(windowWidth, windowHeight) * 0.9;
+  let largest_dim = Math.min(windowWidth, windowHeight) * 0.9;
   // round down to nearest interval of 20 (PLAYFIELD_DIM)
   largest_dim -= largest_dim % game.PLAYFIELD_DIM;
   let target_gridSize = int(largest_dim / game.PLAYFIELD_DIM);
@@ -3417,7 +3422,7 @@ function setup() {
   game.cnv = createCanvas(game.gameWidth, game.gameHeight);
 
 
-  frameRate(60);
+  frameRate(30);
   centerCanvas();
   initialize_colors();  // Can't happen until a canvas has been created!
   game.current_dim = largest_dim;
@@ -4290,7 +4295,7 @@ function handle_confirm_no_click()
 function do_confirm_game()
 {
   // textAlign(LEFT, TOP);
-  draw_menu_background();
+  // draw_menu_background();
   // display confirm screen
   fill(palette.font_color);
   textSize(game.textSize);
@@ -4457,7 +4462,9 @@ function clear_grid_spot(which_grid, x, y)
 //////// STATES
 function do_game()
 {
-  game.jiggle.update_jiggles();
+  if(game.use_floor_wobble)
+    game.jiggle.update_jiggles();
+
   game.floor_animation.update();
   // draw base grid (walls + floors)
   draw_walls_and_floors();
@@ -4958,21 +4965,21 @@ function draw_menu()
   textAlign(LEFT, BASELINE);
 }
 
-function draw_glass()
-{
-  let lvl = game.current_level;
-  fill(255, 150);
-  strokeWeight(4);
-  stroke(90, 50);
-  for (let x = 0 ; x < lvl.xsize; ++x)
-  {
-    for (let y = 0; y < lvl.ysize; ++y)
-    {
-      if (lvl.grid[x][y].grid_type == tiles.GLASS_WALL || lvl.grid[x][y].grid_type == tiles.GLASS_WALL_TOGGLABLE)
-        square(x * game.gridSize, y * game.gridSize, game.gridSize);
-    }
-  }
-}
+// function draw_glass()
+// {
+//   let lvl = game.current_level;
+//   fill(255, 150);
+//   strokeWeight(4);
+//   stroke(90, 50);
+//   for (let x = 0 ; x < lvl.xsize; ++x)
+//   {
+//     for (let y = 0; y < lvl.ysize; ++y)
+//     {
+//       if (lvl.grid[x][y].grid_type == tiles.GLASS_WALL || lvl.grid[x][y].grid_type == tiles.GLASS_WALL_TOGGLABLE)
+//         square(x * game.gridSize, y * game.gridSize, game.gridSize);
+//     }
+//   }
+// }
 
 function draw_floor_lines()
 {
@@ -4991,40 +4998,55 @@ function draw_floor_lines()
       if (game.use_animations)
         stroke(game.floor_animation.get_color(x, y));
 
-
       if (game.current_level.grid[x][y].grid_type == tiles.FLOOR_EMPTY 
           || game.current_level.grid[x][y].exist)
         continue;
-      // TODO: Refactor this, new class?
-      let top_left_offset = game.jiggle.jiggle_grid[x][y];
-      let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
-      let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
-
-      let top_left_point = [x * game.gridSize, y * game.gridSize];
-      let top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
-      let bottom_left_point = [x * game.gridSize, (y + 1) * game.gridSize];
-
-      if (!game.use_floor_wobble)
+      
+      if (game.use_floor_wobble)
       {
-        top_left_offset = [0, 0];
-        top_right_offset = [0, 0];
-        bottom_left_offset = [0, 0];
-        // bottom_right_offset = [0, 0];
+        let top_left_offset = game.jiggle.jiggle_grid[x][y];
+        let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
+        let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
+  
+        let top_left_point = [x * game.gridSize, y * game.gridSize];
+        let top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
+        let bottom_left_point = [x * game.gridSize, (y + 1) * game.gridSize];
+        if(x > 0 && x < game.gridWidth - 1)
+        {
+        line(top_left_point[0] + top_left_offset[0] + 1, 
+          top_left_point[1] + top_left_offset[1],
+          top_right_point[0] + top_right_offset[0] - 1,
+          top_right_point[1] + top_right_offset[1]);
+        }
+  
+        if (y > 0 && y < game.gridHeight - 1)
+        {
+        line(top_left_point[0] + top_left_offset[0], 
+          top_left_point[1] + top_left_offset[1] + 1,
+          bottom_left_point[0] + bottom_left_offset[0],
+          bottom_left_point[1] + bottom_left_offset[1] - 1);
+        }
       }
-      if(x > 0 && x < game.gridWidth - 1)
+      else
       {
-      line(top_left_point[0] + top_left_offset[0] + 1, 
-        top_left_point[1] + top_left_offset[1],
-        top_right_point[0] + top_right_offset[0] - 1,
-        top_right_point[1] + top_right_offset[1]);
-      }
-
-      if (y > 0 && y < game.gridHeight - 1)
-      {
-      line(top_left_point[0] + top_left_offset[0], 
-        top_left_point[1] + top_left_offset[1] + 1,
-        bottom_left_point[0] + bottom_left_offset[0],
-        bottom_left_point[1] + bottom_left_offset[1] - 1);
+        let top_left_point = [x * game.gridSize, y * game.gridSize];
+        let top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
+        let bottom_left_point = [x * game.gridSize, (y + 1) * game.gridSize];
+        if(x > 0 && x < game.gridWidth - 1)
+        {
+        line(top_left_point[0]+ 1, 
+          top_left_point[1],
+          top_right_point[0] - 1,
+          top_right_point[1]);
+        }
+  
+        if (y > 0 && y < game.gridHeight - 1)
+        {
+        line(top_left_point[0], 
+          top_left_point[1] + 1,
+          bottom_left_point[0],
+          bottom_left_point[1] - 1);
+        }
       }
     }
   }
@@ -5033,13 +5055,9 @@ function draw_floor_lines()
 
 function draw_walls_and_floors()
 {
-  // TODO: We can remove the permanant wall stuff from here since thats drawn elsewhere
   let lvl = game.current_level;
 
-  strokeWeight(3);
-  noFill();
-  stroke(palette.solid_wall_fill);
-  rect(0, 0, game.gameWidth, game.gameHeight);
+  // We were clearing the screen before, but since the entire thing gets redrawn, tis unncessary?
 
   let cur_fill = null;
   let cur_stroke = null;
@@ -5052,13 +5070,6 @@ function draw_walls_and_floors()
   {
     for (let y = 1; y < lvl.ysize - 1; ++y)
     {
-
-      // TODO: Refactor this, new class?
-      let top_left_offset = game.jiggle.jiggle_grid[x][y];
-      let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
-      let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
-      let bottom_right_offset = game.jiggle.jiggle_grid[x + 1][y + 1];
-
       let top_left_point;
       let top_right_point;
       let bottom_left_point;
@@ -5241,38 +5252,9 @@ function draw_walls_and_floors()
           }
         }
       }
-      
-      // if (lvl.grid[x][y].grid_type == tiles.GLASS_WALL_TOGGLABLE || lvl.grid[x][y] == tiles.GLASS_WALL)
-      // // TODO: This is unused! Don't worry about it for now
-      // {
-      //   strokeWeight(2);
-      //   stroke(170, 170, 170);
-      //   if (permenant)
-      //   {
-      //     noStroke();
-      //     fill(170, 170, 170, 40);
-      //   }
-      //   square(x * game.gridSize + 1, y * game.gridSize + 1, game.gridSize - 3);
-
-      //   // TODO: Little glass lines on the windows?
-      //   // strokeWeight(1);
-      //   // for (j = 0; j < 5; ++ j)
-      //   // {
-      //   //  line(x * game.gridSize + 10 - j, y * game.gridSize - j, x * game.gridSize + j, y * game.gridSize + 10 + j);
-      //   // }
-
-      // }
-
       // draw
       if (do_draw)
       {
-        if (!game.use_floor_wobble)
-        {
-          top_left_offset = [0, 0];
-          top_right_offset = [0, 0];
-          bottom_left_offset = [0, 0];
-          bottom_right_offset = [0, 0];
-        }
         if (target_stroke != cur_stroke)
         {
           cur_stroke = target_stroke;
@@ -5283,12 +5265,23 @@ function draw_walls_and_floors()
           cur_fill = target_fill;
           fill(cur_fill);
         }
-        beginShape();
-        vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
-        vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
-        vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
-        vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
-        endShape(CLOSE);
+        if (game.use_floor_wobble)
+        {
+          let top_left_offset = game.jiggle.jiggle_grid[x][y];
+          let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
+          let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
+          let bottom_right_offset = game.jiggle.jiggle_grid[x + 1][y + 1];
+          beginShape();
+          vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
+          vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
+          vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
+          vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
+          endShape(CLOSE);
+        }
+        else
+        {
+          rect(top_left_point[0], top_left_point[1], game.gridSize, game.gridSize);
+        }
       }
     }
   }
@@ -5296,7 +5289,6 @@ function draw_walls_and_floors()
 
 function draw_outside_walls()
 {
-  // TODO: We can remove all the non-permanant wall stuff from here since that's all that
   // is being drawn here
   let lvl = game.current_level;
 
@@ -5320,10 +5312,7 @@ function draw_outside_walls()
         continue;
       
       // TODO: Refactor this, new class?
-      let top_left_offset = game.jiggle.jiggle_grid[x][y];
-      let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
-      let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
-      let bottom_right_offset = game.jiggle.jiggle_grid[x + 1][y + 1];
+
 
       let top_left_point;
       let top_right_point;
@@ -5373,13 +5362,6 @@ function draw_outside_walls()
       bottom_right_point = [(x + 1) * game.gridSize, (y + 1) * game.gridSize];
         
       // draw
-      if (!game.use_floor_wobble)
-      {
-        top_left_offset = [0, 0];
-        top_right_offset = [0, 0];
-        bottom_left_offset = [0, 0];
-        bottom_right_offset = [0, 0];
-      }
       if (target_stroke != cur_stroke)
       {
         cur_stroke = target_stroke;
@@ -5390,12 +5372,24 @@ function draw_outside_walls()
         cur_fill = target_fill;
         fill(cur_fill);
       }
-      beginShape();
-      vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
-      vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
-      vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
-      vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
-      endShape(CLOSE);
+      if (game.use_floor_wobble)
+      {
+        let top_left_offset = game.jiggle.jiggle_grid[x][y];
+        let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
+        let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
+        let bottom_right_offset = game.jiggle.jiggle_grid[x + 1][y + 1];
+        beginShape();
+        vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
+        vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
+        vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
+        vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
+        endShape(CLOSE);
+      }
+      else
+      {
+        rect(top_left_point[0], top_left_point[1], game.gridSize, game.gridSize);
+      }
+
 
     }
   }
@@ -5412,7 +5406,7 @@ function draw_edges()
       line(e.sx, e.sy, e.ex, e.ey);
     }
     strokeWeight(1);
-    stroke(palette.edge_color_light, 150);
+    stroke(palette.edge_color_light, 120);
     for (let e of game.edges)
     {
       line(e.sx, e.sy, e.ex, e.ey);
@@ -5451,11 +5445,11 @@ function draw_edges()
         // use min to ensure we don't overshoot endpoints
         if (curr_x < end_x)
         {
-          next_x = min(end_x, curr_x + game.gridSize);
+          next_x = Math.min(end_x, curr_x + game.gridSize);
         }
         if (curr_y < end_y)
         {
-          next_y = min(end_y, curr_y + game.gridSize);
+          next_y = Math.min(end_y, curr_y + game.gridSize);
         }
 
         let sx_index = jiggle.get_index(curr_x);
@@ -6242,6 +6236,7 @@ function do_show_time_results()
   }
 
   textAlign(LEFT);
+  // TODO: Line this up better
   let x1 = game.gridWidth * 10;
   let y1 = (game.gridHeight - 5) * game.gridSize;
   let x2 = game.gridWidth * 14;
@@ -6308,7 +6303,18 @@ function setup_random_game()
   //     random_level();
   //   }
   // }
-  game.highest_score = getItem("high_random_score")
+  switch(game.difficulty)
+  {
+    case 1:
+      game.highest_score = getItem("high_random_score_easy");
+      break;
+    case 2:
+      game.highest_score = getItem("high_random_score")
+      break;
+    case 3:
+      game.highest_score = getItem("high_random_score_hard");
+      break;
+  }
   if (game.highest_score == null)
     game.highest_score = 0;
   game.highest_score_display_timer = 5;
@@ -6411,7 +6417,7 @@ function solvable_random_level(save=true, showcase=false)
   make_some_floor_unbuildable(game.current_level.grid, shrink_level);
   make_some_floor_buildable(game.current_level.grid, diff_level);
 
-  let target_patterns = min(4, Math.floor(diff_level / 7));
+  let target_patterns = Math.min(4, Math.floor(diff_level / 7));
   if (showcase)
     target_patterns = 3;
   if (showcase && game.difficulty <= 2)
@@ -6444,7 +6450,7 @@ function solvable_random_level(save=true, showcase=false)
   }
 
   // now place detectors in places that work, ie. they can be active
-  let amt_detectors = max(15, (game.difficulty * 2) + 3);
+  let amt_detectors = Math.max(15, (game.difficulty * 2) + 3);
   let d_amount = showcase ? amt_detectors : difficulty_to_detector_amount();
 
   solvable_init_random_detectors(game.current_level, d_amount);
@@ -6507,10 +6513,34 @@ function random_level(save=true)
   make_edges();
   update_all_light_viz_polys();
   // check if we're a high score, if we are, store us
-  let high_score = getItem("high_random_score");
+  let high_score;
+  switch (game.difficulty)
+  {
+    case 1:
+      high_score = getItem("high_random_score_easy");
+      break;
+    case 2:
+      high_score = getItem("high_random_score");
+      break;
+    case 3:
+      high_score = getItem("high_random_score_hard");
+      break;
+  } 
   if (high_score == null || high_score < game.new_scoring_system)
   {
-    storeItem("high_random_score", game.new_scoring_system);
+    switch(game.difficulty)
+    {
+      case 1:
+        storeItem("high_random_score_easy", game.new_scoring_system);
+        break;
+      case 2:
+        storeItem("high_random_score", game.new_scoring_system);
+        break;
+      case 3:
+        storeItem("high_random_score_hard", game.new_scoring_system);
+        break;
+    }
+    
     game.highest_score = game.new_scoring_system;
     game.highest_score_changed = 1;
     game.highest_score_display_timer = 10;
@@ -6719,13 +6749,14 @@ function difficulty_to_detector_amount()
 {
   // map from a difficulty level to number of detectors
   // on the field
-  if (game.difficulty_level <= 8)
-    return game.difficulty_level;
-  if (game.difficulty_level <= 20)
-    return int(game.difficulty_level / 4) + 4;
-  if (game.difficulty_level <= 30)
-    return int(game.difficulty_level / 5) + 3;
-  return min(10, int(4 + game.difficulty_level / 4));
+  // if (game.difficulty_level <= 8)
+  //   return game.difficulty_level;
+  // if (game.difficulty_level <= 20)
+  //   return int(game.difficulty_level / 4) + 4;
+  // if (game.difficulty_level <= 30)
+  //   return int(game.difficulty_level / 5) + 3;
+  // return min(10, int(4 + game.difficulty_level / 4));
+  return Math.min(7 * game.difficulty, game.difficulty * game.difficulty_level);
 }
 
 function difficulty_to_shrink_amount()
@@ -6960,7 +6991,7 @@ function make_unbuildable_pattern(which_grid, difficulty_amount)
 
 function make_some_built_floor(which_grid, difficulty_amount)
 {
-  for (let i = 0; i < min(10, difficulty_amount); ++i)
+  for (let i = 0; i < Math.min(10, difficulty_amount); ++i)
   {
     // TODO: Make sure this doesn't happen on one of the lights?
     // or say it's a feature, not a bug
