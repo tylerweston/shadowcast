@@ -3362,8 +3362,8 @@ function setup() {
 
   if (getItem("use_floor_wobble") === null)
   {
-    game.use_floor_wobble = true;
-    storeItem("use_floor_wobble", true);
+    game.use_floor_wobble = false;
+    storeItem("use_floor_wobble", false);
   }
   else
   {
