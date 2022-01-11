@@ -8,14 +8,16 @@ r, g, b: switch corresponding light (This currently doesn't work during tutorial
 space: go to next level (if available)
 
 TODO:
-- Make the difficulties more meaningful, ie, harder levels should have more detectors off the bat, not the single detector, etc.
+- Decrease difficulty curve a little bit? At least for hard setting
 - Should get more points per level on harder difficulties as well
 - Should a timed game always be in the middle difficulty setting?
+- Remove p5js and move to raw Canvas API and audio API calls
+  - have to experiment with this on a smaller scale
+- Refactor buttons? The entire UI thing could maybe use a bit of an overhaul
 
 - Reddit feedback:
   - Tutorial could be a bit more in-depth/obvious
 
-- need to optimize, this is slow now for some reason again?
 - Break up big functions
   - Basically any function that is taking in a boolean flag that
     changes its 'mode' can be refactored into something simpler.
@@ -26,12 +28,13 @@ TODO:
   gave up is still saved
 - Give up option in top menu during timed game is glitchy, should
   just exit to main menu?
-- some glitchiness if you exit to menu during tutorial
-  or try to use the top menu. disable during tutorial?
 - mobile input could use some tweaking, instead of having to double tap to enter a choice?
 
-- Sound juice. Finish this and add options.
 - Make the game size adjust better on mobile, it can be a rectangle instead of square?
+  - The new difficulty levels don't work with the mobile, the screen is just too small
+  - problem on mobile when you change difficulty level? a new level is generated on exiting?
+  - The hard setting is TOO SMALL! Only have two difficulties on mobile?
+  - floor wobbles are too slow on mobile, disable them entirely?
 
 Visual fixes:
 - animation idea: add another offset to the jiggle
@@ -65,15 +68,6 @@ Bugs:
 - Reposition OK button in About menu
 
 
-Options:
- - Reset all game data
- - Disable animated background
- - Enable sounds
- - All animation?rgb
- - Game size? Or have that a different option?
-  - Like a "custom game" option?
- - Save options and auto restore defaults
-
 Sounds required:
   - intro sounds  - no?
   - menu mouse over - done
@@ -88,7 +82,7 @@ Sounds required:
 Make remaining sounds!
 We need an input from the user before we can start playing any sounds
 so maybe after we load stuff we just present a PLAY button that the user
-has to click before the intro, menu, etc. so that way we can play sounds.
+has to click before the intro, menu, etc. so that way we can play sounds?
 
 
 Refactoring:
@@ -109,11 +103,8 @@ Maybe eventually:
   one size?
 - Maybe try removing the lightsources from the grid and see if it's fun like that?
   - the extra constraints might be necessary though?
+  - save this for version 2
 
-Editor stuff (Maybe eventually):
-- give editor "LOAD" and "PLAY" functions, so individual levels will be used in there?
-- Just remove all the editor stuff entirely? or just switch it to another
-  unused branch and remove from main?
 */
 
 // global variables
@@ -148,8 +139,6 @@ class states
   static MAIN_MENU = 3;
   static MAIN_MENU_TEARDOWN = 4; 
   static GAME = 5; 
-  static SETUP_EDITOR = 6; 
-  static EDITOR = 7; 
   // static LOADLEVEL = 10; // unusued
   static SETUP_CONFIRM_NEW_GAME = 26;
   static CONFIRM_NEW_GAME = 27;
@@ -196,8 +185,6 @@ class states
 //   GAME: () => { do_game(); },
 //   LEVEL_TRANSITION_OUT: () => { do_level_transition_out(); },
 //   LEVEL_TRANSITION_IN: () => { do_level_transition_in(); },
-//   SETUP_EDITOR: () => { do_setup_editor(); },
-//   EDITOR: () => { do_editor(); },
 //   PREPARE_TUTORIAL: () => { prepare_tutorial(); },
 //   TUTORIAL: () => { tutorial(); },
 //   TEARDOWN_TUTORIAL: () => { tear_down_tutorial(); },
@@ -425,7 +412,6 @@ class game
   static high_timer_score = 0;
   static has_new_timer_high_score = false;
 
-  static editor_available = false;
   static show_intro = true;         // <--------------- intro flag
   static show_tutorial = false;
 
@@ -882,9 +868,7 @@ class level
     level_string += xsize_str;
     level_string += ysize_str;
 
-    // mode: assume random for now
-    // TODO: Figure out where this information comes from, if we're in the editor or single level
-    // mode, then this will be different!!
+    // mode: random mode (other modes unused)
     level_string += "r";
     level_string += (game.difficulty_level < 10 ? "0": "") + String(game.difficulty_level);
 
@@ -961,318 +945,6 @@ class level
     }
 
     return level_string;
-  }
-}
-
-class editor_handler
-{
-  static TOTAL_EDITOR_ITEMS = 14;
-  static hovered_item = undefined;
-  static selected_item = undefined;
-  static in_erase_mode = false;
-
-  // this class handles all of the editor functionality
-  // include dragging lights, activating/deactivating lights, building walls
-  // and removing walls
-  constructor()
-  {
-    this.DRAWING_MODE = 0;
-    this.ERASING_MODE = 1;
-    this.DRAGGING_ITEM_MODE = 2;
-    this.selected_light = undefined;
-    this.selected_detector = undefined;
-    this.dragging_mode = undefined;
-    this.editor_mode = this.DRAWING_MODE;
-    this.game_region = new mouse_region(0, 0, width, height);
-    this.game_region.events[mouse_events.MOVE] = () => { this.moved();};
-    this.game_region.events[mouse_events.CLICK] = () => { this.clicked();};
-    this.game_region.events[mouse_events.UNCLICK] = () => { this.unclicked();};
-    this.is_dragging = false;
-    game.global_mouse_handler.register_region("game.ehandler", this.game_region);
-    this.start_drag_x = undefined;
-    this.start_drag_y = undefined;
-    this.end_drag_x = undefined;
-    this.end_drag_y = undefined;
-    this.num_red_detectors = 0;
-    this.num_blue_detectors = 0;
-    this.num_green_detectors = 0;
-  }
-
-  disable()
-  {
-    game.global_mouse_handler.disable_region("game.ehandler");
-  }
-
-  enable()
-  {
-    game.global_mouse_handler.enable_region("game.ehandler");
-  }
-
-  moved()
-  {
-    // // only do something if we're dragging!
-    // if (!this.is_dragging)
-    //   return;
-
-    let tx = game.global_mouse_handler.get_targetx();
-    let ty = game.global_mouse_handler.get_targety();
-
-    if (ty === game.gridHeight - 1)
-    {
-      if (tx <= editor_handler.TOTAL_EDITOR_ITEMS)
-      {
-        editor_handler.hovered_item = tx;
-      }
-    }
-
-    if (tx < 1 || game.gridWidth - 2 < tx || ty < 1 || game.gridHeight - 2 < ty)
-    {
-      this.is_dragging = false;
-      return;
-    }
-
-    // everything after here only happens if we're actually
-    // holding down a mouse button
-    if (!this.is_dragging)
-      return;
-    
-    if (this.dragging_mode === this.DRAWING_MODE)
-    {
-      this.try_build_wall(tx, ty);
-    }
-    else if (this.dragging_mode === this.ERASING_MODE)
-    {
-      // this will erase the area back to buildable floor!
-      this.try_erase_wall(tx, ty);
-    }
-    else if (this.dragging_mode === this.DRAGGING_ITEM_MODE)
-    {
-      // we can drag lights OR detectors in this mode!
-      let tx = game.global_mouse_handler.get_targetx();
-      let ty = game.global_mouse_handler.get_targety();
-      if (tx != this.start_drag_x || ty != this.start_drag_y)
-      {
-        this.end_drag_x = tx;
-        this.end_drag_y = ty;
-        if (this.can_drag(this.start_drag_x, this.start_drag_y, this.end_drag_x, this.end_drag_y))
-        {
-          if (this.selected_light !== null)
-            game.lightsources[this.selected_light].move(this.end_drag_x, this.end_drag_y);
-          else if (this.selected_detector !== null)
-            game.detectors[this.selected_detector].move(this.end_drag_x, this.end_drag_y);
-        }
-        else
-        {
-          // we've bumped into something, drop our light!
-          this.dragging_mode = undefined;
-          this.is_dragging = false;
-          this.selected_light = undefined;
-          this.selected_detector = undefined;
-        }
-        this.start_drag_x = tx;
-        this.start_drag_y = ty;
-      }
-    }
-    
-  }
-
-  refresh_grid()
-  {
-    make_edges();
-    update_all_light_viz_polys();
-    game.points_for_current_grid = count_score();
-  }  
-
-  can_drag(sx, sy, ex, ey)
-  {
-    // all that matters is that the 
-    // return true if you can drag a light from sx,sy to ex,ey
-    if (is_target_a_light(ex, ey))
-      return false;
-
-    if (game.current_level.grid[ex][ey].grid_type === tiles.FLOOR_BUILDABLE ||
-      game.current_level.grid[ex][ey].grid_type === tiles.FLOOR_EMPTY)
-      return true;
-    
-    // TODO: CHECK ALL grids along this line and make sure they are ALL
-    // passable!
-    return false;
-  }
-
-  try_build_wall(_x, _y)
-  {
-    if (_x <= 0 || game.gridWidth - 1 <= _x || _y <= 0 || game.gridHeight - 1 <= _y)
-      return;
-
-    switch(editor_handler.selected_item)
-    {
-      case 11:
-      // tiles.PERMENANT_WALL
-        set_grid(game.current_level.grid, _x, _y, tiles.PERMENANT_WALL);
-        this.refresh_grid();
-        break;
-      case 12:
-      // tiles.GLASS_WALL
-        set_grid(game.current_level.grid, _x, _y, tiles.GLASS_WALL);
-        this.refresh_grid();
-        break;
-      case 13:
-      // tiles.FLOOR_BUILDABLE
-        set_grid(game.current_level.grid, _x, _y, tiles.FLOOR_BUILDABLE);
-        this.refresh_grid();
-        break;
-      case 14:
-      // tiles.FLOOR_EMPTY
-        set_grid(game.current_level.grid, _x, _y, tiles.FLOOR_EMPTY);
-        this.refresh_grid();
-        break;
-
-    }
-  }
-
-  try_erase_wall(_x, _y)
-  {
-    if (_x <= 1 || _x >= game.gridWidth - 2 || _y <= 1 || _y >= game.gridHeight - 2)
-      return;
-    // TODO: If we've erased a light or detector, we have
-    // to remove it from our list
-    set_grid(game.current_level.grid, _x, _y, tiles.FLOOR_EMPTY);
-    this.refresh_grid();
-  }
-
-  clicked()
-  {
-    // this is the same thing as assuming something created later will deal with
-    // this mouse input instead of us
-    if (show_menu || game.show_tutorial)  // hack for now to not draw stuff on grid while menu is open
-      return;
-    let px = game.global_mouse_handler.mx;
-    let py = game.global_mouse_handler.my;
-
-    let tx = game.global_mouse_handler.get_targetx();
-    let ty = game.global_mouse_handler.get_targety();
-
-    if (ty === game.gridHeight - 1 && tx <= editor_handler.TOTAL_EDITOR_ITEMS)
-    {
-      editor_handler.selected_item = tx;
-    }
-    if (ty === game.gridHeight - 1 && tx === 15)
-    {
-      editor_handler.in_erase_mode = !editor_handler.in_erase_mode;
-      if (editor_handler.in_erase_mode)
-        this.editor_mode = this.ERASING_MODE;
-      else
-        this.editor_mode = this.DRAWING_MODE;
-    }
-
-    if (tx <= 0 || game.gridWidth - 1 <= tx || ty <= 0 || game.gridHeight - 1 <= ty)
-      return; // all other clicks we only care about in game area
-
-    if (this.editor_mode != this.ERASING_MODE)
-    {
-      let gl = get_selected_light(px, py);
-      if (gl !== undefined)
-      {
-        this.is_dragging = true;
-        this.selected_light = gl;
-        this.selected_detector = null;
-        this.dragging_mode = this.DRAGGING_ITEM_MODE;
-        this.start_drag_x = tx;
-        this.start_drag_y = ty;
-        return;
-      }
-
-      let dt = get_selected_detector(px, py);
-      if (dt !== undefined)
-      {
-        this.is_dragging = true;
-        this.selected_light = null;
-        this.selected_detector = dt;
-        this.dragging_mode = this.DRAGGING_ITEM_MODE;
-        this.start_drag_x = tx;
-        this.start_drag_y = ty;
-        return;
-      }
-    }
-
-    // IF we have a lightsource or detector as our selected item
-    // we want to add it to the grid here!!
-
-    if (this.editor_mode === this.DRAWING_MODE)
-    {
-      // if we have selected a light or detector right now,
-      // we just put a single item on the map AND DON'T
-      // enter drag mode
-      if (editor_handler.selected_item <= 10)
-      {
-
-        if (editor_handler.selected_item <= 7)
-        {
-          // we're a detector with color equivalent to
-          // palette.detector_colors[editor_handler.selected_item]
-          let _dc = palette.detector_colors[editor_handler.selected_item];
-          let d = new detector(tx, ty, red(_dc), green(_dc), blue(_dc));
-          game.detectors.push(d);
-          set_grid(game.current_level.grid, tx, ty, tiles.DETECTOR_TILE);
-        }
-        else
-        {
-          // we're a light source
-          //  8 = r
-          //  9 = g
-          // 10 = b
-          let _r = (editor_handler.selected_item == 8) ? 255 : 0;
-          let _g = (editor_handler.selected_item == 9) ? 255 : 0;
-          let _b = (editor_handler.selected_item == 10) ? 255 : 0;
-          let _lc = new light_source(tx, ty, false, _r, _g, _b);
-          game.lightsources.push(_lc);
-          update_all_light_viz_polys();
-        }
-      }
-      else
-      {
-        // enter building mode
-        this.dragging_mode = this.DRAWING_MODE;
-        this.is_dragging = true;
-        this.try_build_wall(tx, ty);
-      }
-    }
-    else if (this.editor_mode === this.ERASING_MODE)
-    {
-      let gl = get_selected_light(px, py);
-      let dt = get_selected_detector(px, py);
-      // IF we have the ERASE TOOL selected
-      // erasing mode
-      // this.dragging_mode = this.ERASING_MODE;
-      // this.is_dragging = true;
-      // this.try_erase_wall(tx, ty);
-      if (gl !== undefined)
-      {
-        // erase_lightsource(gl);
-        this.erase_lightsource(gl, tx, ty);
-      }
-      if (dt !== undefined)
-      {
-        this.erase_detector(dt, tx, ty);
-      }
-    }
-
-  }
-
-  unclicked()
-  {
-    this.is_dragging = false;
-  }
-
-  erase_detector(_dt, _x, _y)
-  {
-    set_grid(game.current_level.grid, _x, _y, tiles.FLOOR_BUILDABLE);
-    game.detectors.splice(_dt, 1);
-  }
-
-  erase_lightsource(_gl, _x, _y)
-  {
-    game.lightsources.splice(_gl, 1);
   }
 }
 
@@ -4143,22 +3815,10 @@ function top_menu_reset_game()
   game.game_state = states.NEW_GAME;
 }
 
-function top_menu_load_editor() 
-{
-  if (game.editor_available)
-    game.game_state = states.SETUP_EDITOR;
-}
-
 function top_menu_tutorial() 
 {
   game.game_state = states.PREPARE_TUTORIAL;
 }
-
-// function top_menu_options() 
-// {
-//   // TODO: No options available for now, so just ignore
-//   // game.game_state = states.SETUP_OPTIONS;
-// }
 
 function top_menu_about() 
 {
@@ -4342,11 +4002,7 @@ function do_confirm_game()
 
 // keyboard input
 function keyPressed() {
-  // if (!game.current_gamemode)
-  //   return;
-  // only handle keypresses if we have an active game
-  // JUST DEBUG STUFF?
-  // editor keys and stuff will be handled here as well??
+  // don't handle keys if a mouse button is held down
   if (mouseIsPressed)
     return; // for now this should be an easy fix around this!
 
@@ -4895,12 +4551,6 @@ function draw() {
     break;
   case states.LEVEL_TRANSITION_IN:
     do_level_transition_in();
-    break;
-  case states.SETUP_EDITOR:
-    do_setup_editor();
-    break;
-  case states.EDITOR:
-    do_editor();
     break;
   case states.PREPARE_TUTORIAL:
     prepare_tutorial();
@@ -5899,207 +5549,6 @@ function load_level(level_string, keep_bg=false)
   game.points_for_current_grid = count_score();
   make_edges();
   update_all_light_viz_polys();
-}
-
-//////// LEVEL EDIT
-function do_setup_editor()
-{
-  // setup editor handler
-  if (!game.ehandler)
-    game.ehandler = new editor_handler();
-
-  // ok, we need a new level
-  editor_lvl = new level();
-  editor_lvl.xsize = game.gridWidth;
-  editor_lvl.ysize = game.gridHeight;
-  editor_lvl.initialize_grid();
-  initializeGrid(editor_lvl.grid);
-  game.current_level = editor_lvl;
-
-  // clear light sources
-  game.lightsources = [];
-
-  // clear detectors
-  game.detectors = [];
-
-  make_edges();
-
-  // make sure game handler isn't running any more
-  if (game.ghandler)
-    game.ghandler.disable();
-
-  // when we're done settin up
-  game.game_state = states.EDITOR;
-}
-
-function do_editor()
-{
-  let grid = game.current_level.grid;
-
-  // draw base grid (walls + floors)
-  draw_walls_and_floors();
-
-  // draw edges
-  draw_edges();
-
-  draw_detectors(); // these eventually will take current_level as well?
-
-  draw_light_sources(); // these eventually will take current_level as well?
-
-
-  // Draw glass (Extra tiles to draw would happen here?)
-  draw_glass();
-
-  let all_active = true;
-  for (let d of game.detectors)
-  {
-    d.check_color();
-    if(!d.correct)
-      all_active = false;
-  }
-
-  // draw editor UI components
-  draw_editor_ui();
-
-  if (editor_handler.in_erase_mode)
-  {
-    noStroke();
-    fill(255, 0, 0, 50);
-    square(game.global_mouse_handler.get_targetx() * game.gridSize, 
-    game.global_mouse_handler.get_targety() * game.gridSize, game.gridSize);
-  }
-
-  strokeWeight(4);
-  stroke(90, 50);
-  // TODO: Should editor levels be able to have names?
-  // // Render any text that we have to
-  // textSize(game.gridSize - 2);
-  // fill(palette.font_color);
-  // text("level: " + editor_level_name, 0 + game.GRID_HALF, game.gridSize - 4);
-
-  fill(palette.font_color);
-  if (mouse_over_menu)
-    fill(255);
-  
-  text("menu", (game.gridWidth - 3) * game.gridSize, game.gridSize - 4);
-
-  if (game.show_tutorial)
-    tutorial(); // this can be the editor tutorial
-
-  if (show_menu)
-    draw_menu();
-
-}
-
-function draw_editor_ui()
-{
-  let i = 0;
-  for (let c of palette.detector_colors)
-  {
-    draw_detector_at_grid_spot(i++, game.gridHeight - 1, c);
-  }
-  draw_light_at_grid_spot(i++, game.gridHeight - 1, color(255, 0, 0));
-  draw_light_at_grid_spot(i++, game.gridHeight - 1, color(0, 255, 0));
-  draw_light_at_grid_spot(i++, game.gridHeight - 1, color(0, 0, 255));
-
-  draw_map_tiles(11, game.gridHeight - 1);
-
-  draw_garbage_can(15, game.gridHeight - 1);
-
-  // highlight selected item
-  if (editor_handler.hovered_item !== undefined)
-  {
-    strokeWeight(3);
-    noFill();
-    stroke(255, 255, 0, 125);
-    square(game.gridSize * editor_handler.hovered_item, (game.gridHeight - 1) * game.gridSize, game.gridSize);
-  }
-
-  if (editor_handler.selected_item !== undefined)
-  {
-    strokeWeight(3);
-    noFill();
-    stroke(255, 0, 0, 125);
-    square(game.gridSize * editor_handler.selected_item, (game.gridHeight - 1) * game.gridSize, game.gridSize);
-  }
-
-  if (editor_handler.in_erase_mode)
-  {
-    strokeWeight(2);
-    fill(127, 0, 0, 50);
-    stroke(255, 0, 0);
-    square(15 * game.gridSize, (game.gridHeight - 1) * game.gridSize, game.gridSize);
-  }
-
-}
-
-function draw_garbage_can(_x, _y)
-{
-  stroke(255, 0, 0);
-  strokeWeight(2);
-  line(_x * game.gridSize, _y * game.gridSize, (_x + 1) * game.gridSize, (_y + 1) * game.gridSize);
-  line(_x * game.gridSize, (_y + 1) * game.gridSize, (_x + 1) * game.gridSize, _y * game.gridSize);
-}
-
-function draw_detector_at_grid_spot(_x, _y, _c)
-{
-  noStroke();
-  fill(37);
-  square(_x * game.gridSize, _y * game.gridSize, game.gridSize);
-
-  let default_size = 0.8;
-  strokeWeight(7);
-  if (red(_c) == 0 && green(_c) == 0 && blue(_c) == 0)
-    stroke(170);
-  else
-    stroke(4);
-  ellipse(_x * game.gridSize + game.GRID_HALF, _y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
-
-  strokeWeight(5);
-  stroke(_c);
-  noFill();
-  ellipse(_x * game.gridSize + game.GRID_HALF, _y * game.gridSize + game.GRID_HALF, game.gridSize * default_size, game.gridSize * default_size);
-  
-}
-
-function draw_light_at_grid_spot(_x, _y, _c)
-{
-  stroke(_c);
-  fill(_c);
-  ellipse(_x * game.gridSize + (game.gridSize / 2), _y * game.gridSize + (game.gridSize / 2), game.gridSize * 0.85, game.gridSize * 0.85);
-
-}
-
-function draw_map_tiles(_x, _y)
-{
-  // draw the tiles starting at _x and _y position
-  strokeWeight(1);
-  // first permenant wall
-  stroke(palette.solid_wall_outline);
-  fill(palette.solid_wall_permenant_fill);
-  square(_x * game.gridSize, _y * game.gridSize, game.gridSize);
-  ++_x;
-
-  // glass wall
-  strokeWeight(4);
-  stroke(90, 50);
-  fill(palette.buildable_fill);
-  square(_x * game.gridSize, _y * game.gridSize, game.gridSize);
-  ++_x;
-
-  // buildable space
-  strokeWeight(1);
-  stroke(palette.buildable_outline);
-  fill(palette.buildable_fill);
-  square(_x * game.gridSize, _y * game.gridSize, game.gridSize);
-  ++_x;
-
-  // empty space
-  stroke(palette.empty_outline);
-  fill(palette.empty_fill);
-  square(_x * game.gridSize, _y * game.gridSize, game.gridSize);
-  ++_x;
-
 }
 
 //////// TIME ATTACK MODE
@@ -7584,9 +7033,6 @@ function get_selected_detector(xpos, ypos)
 function resetStuff()
 {
   // This is only the reset function in a TIMED or RANDOM game
-  // in editor mode, it should ENTIRELY reset the level (remove
-  // detectors and lights as well).
-  // reset_grid_function
   // reset the grid (ie, all walls marked built (buildable + exist), will be changed to just buildable)
   undo.reset_undo_stacks();
   reset_grid(game.current_level);
