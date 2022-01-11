@@ -14,6 +14,15 @@ TODO:
 - Remove p5js and move to raw Canvas API and audio API calls
   - have to experiment with this on a smaller scale
 - Refactor buttons? The entire UI thing could maybe use a bit of an overhaul
+- make variable naming convetion more consistent, right now it is a mix of styles
+- tweak time game, shouldn't have as many detectors as quickly, and we need to make sure
+  the game is always the same size playfield. Plus it seems really hard to get past the 3 level?
+- tweak how time attack levels are made, right now they are pure random, not solvable?
+- solved by disabling give up for time game?
+- More BG animations! Even if you can't alway see lots of them, it will make a big visual impact I think!
+- Maybe add some more detail to the background or something like that?
+- can click light sources through the top menu? Maybe don't allow mouse clicks on light sources when top menu open?
+- bug with loading scores? Seems like that got a bit janked up somehow!
 
 - Reddit feedback:
   - Tutorial could be a bit more in-depth/obvious
@@ -67,7 +76,6 @@ Bugs:
     a mouse off listener like: cnv.mouseOut(callback)
 - Reposition OK button in About menu
 
-
 Sounds required:
   - intro sounds  - no?
   - menu mouse over - done
@@ -83,7 +91,6 @@ Make remaining sounds!
 We need an input from the user before we can start playing any sounds
 so maybe after we load stuff we just present a PLAY button that the user
 has to click before the intro, menu, etc. so that way we can play sounds?
-
 
 Refactoring:
 - encapsulate state in a better way
@@ -223,7 +230,7 @@ class menus
   static main_menu_selected = undefined;
   static main_menu_height = menus.main_menu_options.length + 1;
 
-  static option_options = [" animations", " floor wobble", " sounds", " difficulty", "reset data", "back"]
+  static option_options = [" animations", " floor wobble", " sounds", " difficulty", "erase all data", "back"]
   static option_menu_selected = undefined;
   static option_menu_height = menus.option_options.length + 1;
   static option_menu_reset_clicks = 0;
@@ -331,9 +338,9 @@ class game
   static cnv;
 
   // make the playing field a different size depending if we're on mobile
-  static PLAYFIELD_DIM;
-  static PC_PLAYFIELD_DIM = 19;
-  static MOBILE_PLAYFIELD_DIM = 14;
+  static playfield_dimensions;
+  // static PC_PLAYFIELD_DIM = 19;
+  // static MOBILE_PLAYFIELD_DIM = 14;
   static ON_MOBILE;
 
   // play mode
@@ -3053,27 +3060,27 @@ function setup() {
 
   // console.log("On mobile? " + mobileCheck());
   game.ON_MOBILE = mobileCheck();
-  if (game.ON_MOBILE)
-  {
-    game.PLAYFIELD_DIM = game.MOBILE_PLAYFIELD_DIM;
-  }
-  else
-  {
-    change_game_difficulty(/*skip_resize=*/true);
-  }
+  // if (game.ON_MOBILE)
+  // {
+  //   game.PLAYFIELD_DIM = game.MOBILE_PLAYFIELD_DIM;
+  // }
+  // else
+  // {
+  change_game_difficulty(/*skip_resize=*/true);
+  // }
   // Base size of gameboard on size of parent window, so this should
   // look ok on different screen sizes.
 
   // -10 to avoid having bars?
   let largest_dim = Math.min(windowWidth, windowHeight) * 0.9;
   // round down to nearest interval of 20 (PLAYFIELD_DIM)
-  largest_dim -= largest_dim % game.PLAYFIELD_DIM;
-  let target_gridSize = int(largest_dim / game.PLAYFIELD_DIM);
+  largest_dim -= largest_dim % game.playfield_dimensions;
+  let target_gridSize = int(largest_dim / game.playfield_dimensions);
   game.gameHeight = largest_dim;
   game.gameWidth = largest_dim;
   game.gridSize = target_gridSize;
-  game.gridWidth = game.PLAYFIELD_DIM;
-  game.gridHeight = game.PLAYFIELD_DIM;
+  game.gridWidth = game.playfield_dimensions;
+  game.gridHeight = game.playfield_dimensions;
 
   game.textSize = game.gameHeight / 18;
 
@@ -3118,13 +3125,13 @@ function windowResized()
   // is this a CSS issue?
 
   let largest_dim = min(windowWidth, windowHeight) * 0.9;
-  largest_dim -= largest_dim % game.PLAYFIELD_DIM;
-  let target_gridSize = int(largest_dim / game.PLAYFIELD_DIM);
+  largest_dim -= largest_dim % game.playfield_dimensions;
+  let target_gridSize = int(largest_dim / game.playfield_dimensions);
   game.gameHeight = largest_dim;
   game.gameWidth = largest_dim;
   game.gridSize = target_gridSize;
-  game.gridWidth = game.PLAYFIELD_DIM;
-  game.gridHeight = game.PLAYFIELD_DIM;
+  game.gridWidth = game.playfield_dimensions;
+  game.gridHeight = game.playfield_dimensions;
 
   game.GRID_HALF = int(game.gridSize / 2);
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
@@ -3166,34 +3173,38 @@ function windowResized()
 
 function change_game_difficulty(skip_resize=false)
 {
-  switch(game.difficulty)
+  if (game.ON_MOBILE)
   {
-    case 1:
-      game.PLAYFIELD_DIM = 15
-      game.gridWidth = 15;
-      game.gridHeight = 15;
-      break;
-    case 2:
-      game.PLAYFIELD_DIM = 19;
-      game.gridWidth = 19;
-      game.gridHeight = 19;
-      break;
-    case 3:
-      game.PLAYFIELD_DIM = 25;
-      game.gridWidth = 25;
-      game.gridHeight = 25;
-      break;
-    // case 4:
-    //   game.PLAYFIELD_DIM = 23;
-    //   game.gridWidth = 23;
-    //   game.gridHeight = 23;
-    //   break;
-    // case 5:
-    //   game.PLAYFIELD_DIM = 27;
-    //   game.gridWidth = 27;
-    //   game.gridHeight = 27;
-    //   break;
+    switch(game.difficulty)
+    {
+      case 1:
+        game.playfield_dimensions = 13
+        break;
+      case 2:
+        game.playfield_dimensions = 17;
+        break;
+      case 3:
+        game.playfield_dimensions = 21;
+        break;
+    }
   }
+  else
+  {
+    switch(game.difficulty)
+    {
+      case 1:
+        game.playfield_dimensions = 15
+        break;
+      case 2:
+        game.playfield_dimensions = 19;
+        break;
+      case 3:
+        game.playfield_dimensions = 25;
+        break;
+    }
+  }
+  game.gridWidth = game.playfield_dimensions;
+  game.gridHeight = game.playfield_dimensions;
   if (!skip_resize)
     windowResized();
   // we need to start a new saved game? Not if we have a game saved?
@@ -3633,7 +3644,7 @@ function handle_option_menu_selection(option_index)
       {
         // TODO: ARE YOU SURE?!
         remove_saved_data();
-        menus.option_options[4] = "reset data";
+        menus.option_options[4] = "erase all data";
         menus.option_menu_reset_clicks = 0;
       }
 
@@ -3641,7 +3652,7 @@ function handle_option_menu_selection(option_index)
     case 5:
       if (menus.option_menu_reset_clicks === 1)
       {
-        menus.option_options[4] = "reset data";
+        menus.option_options[4] = "erase all data";
       }
       game.game_state = states.TEARDOWN_OPTIONS;
       break;
@@ -3750,7 +3761,6 @@ function do_teardown_options()
 }
 
 //////// TOP MENU
-
 function top_menu_main_menu() 
 {
   // Exit to main menu, check here if we need to load or save
@@ -3785,7 +3795,7 @@ function top_menu_save_level()
 
 function top_menu_give_up() {
 
-  if (game.given_up)
+  if (game.given_up || game.current_gamemode == game.GAMEMODE_TIME)
     return; // don't save once given up
 
   game.given_up = true;
@@ -4613,6 +4623,9 @@ function draw_menu()
     
     if (game.given_up && i < 5)
       fill(57);
+    
+    if (i === 4 && game.current_gamemode === game.GAMEMODE_TIME)
+      fill(57);
       
     text(m, game.gameWidth - (5 * game.textSize), (i + 1) * game.textSize );
     ++i;
@@ -4877,10 +4890,15 @@ function draw_walls_and_floors()
           // }
           if (game.use_animations)
           {
-            top_left_point = [(x * game.gridSize) + game.GRID_HALF - (lvl.grid[x][y].fade * game.GRID_HALF), (y * game.gridSize) + game.GRID_HALF - (lvl.grid[x][y].fade * game.GRID_HALF)];
-            top_right_point = [((x + 1) * game.gridSize) - game.GRID_HALF + (lvl.grid[x][y].fade * game.GRID_HALF), (y * game.gridSize) + game.GRID_HALF - (lvl.grid[x][y].fade * game.GRID_HALF) ]; 
-            bottom_left_point = [(x * game.gridSize) + game.GRID_HALF - (lvl.grid[x][y].fade * game.GRID_HALF),  ((y + 1) * game.gridSize) - game.GRID_HALF + (lvl.grid[x][y].fade * game.GRID_HALF)];
-            bottom_right_point = [((x + 1) * game.gridSize) - game.GRID_HALF + (lvl.grid[x][y].fade * game.GRID_HALF),  ((y + 1) * game.gridSize) - game.GRID_HALF + (lvl.grid[x][y].fade * game.GRID_HALF)];
+            let fade = lvl.grid[x][y].fade;
+            top_left_point = [(x * game.gridSize + game.GRID_HALF) - (fade * game.GRID_HALF), 
+              (y * game.gridSize + game.GRID_HALF) - (fade * game.GRID_HALF)];
+            top_right_point = [(x * game.gridSize + game.GRID_HALF)  + (fade * game.GRID_HALF), 
+              (y * game.gridSize + game.GRID_HALF) - (fade * game.GRID_HALF) ]; 
+            bottom_left_point = [(x * game.gridSize) + game.GRID_HALF - (fade * game.GRID_HALF),  
+              (y * game.gridSize + game.GRID_HALF) + (fade * game.GRID_HALF)];
+            bottom_right_point = [(x * game.gridSize + game.GRID_HALF) + (fade * game.GRID_HALF),  
+              (y * game.gridSize + game.GRID_HALF) + (fade * game.GRID_HALF)];
           }
           else
           {
@@ -4919,7 +4937,9 @@ function draw_walls_and_floors()
         }
         else
         {
-          rect(top_left_point[0], top_left_point[1], game.gridSize, game.gridSize);
+          let w = top_right_point[0] - top_left_point[0];
+          let h = bottom_left_point[1] - top_left_point[1];
+          rect(top_left_point[0], top_left_point[1], w, h);
         }
       }
     }
@@ -5929,20 +5949,6 @@ function random_level(save=true)
   // TODO: This shouldn't happen here, this is just a test
   randomize_floor_colors();
   solvable_random_level(save, false);
-  // let new_random_level = new level();
-  // new_random_level.xsize = game.gridWidth;
-  // new_random_level.ysize = game.gridHeight;
-
-  // // TODO: Why calling new_random_level.initialize_grid() AND initializeGrid(new_random_level.grid);?
-  // // doesn't make sense, use one or the other.
-  // new_random_level.initialize_grid(); 
-  // initializeGrid(new_random_level.grid);
-
-  // game.current_level = new_random_level;
-  // // turn_lights_off();
-  // init_random_detectors(new_random_level, difficulty_to_detector_amount());
-  // make_some_floor_unbuildable(new_random_level.grid, difficulty_to_shrink_amount());
-  // shrink_lights();
 
   // save current level
   if (save)
