@@ -8,10 +8,14 @@ r, g, b: switch corresponding light (This currently doesn't work during tutorial
 space: go to next level (if available)
 
 TODO:
+- Make the difficulties more meaningful, ie, harder levels should have more detectors off the bat, not the single detector, etc.
+- Should get more points per level on harder difficulties as well
+- Should a timed game always be in the middle difficulty setting?
 
 - Reddit feedback:
   - Tutorial could be a bit more in-depth/obvious
 
+- need to optimize, this is slow now for some reason again?
 - Break up big functions
   - Basically any function that is taking in a boolean flag that
     changes its 'mode' can be refactored into something simpler.
@@ -184,33 +188,33 @@ class states
   static need_setup_confirm = true;
 }
 
-let STATE_TABLE = {
-  NEW_GAME: () => { setup_game(); },
-  SETUP_CONFIRM_NEW_GAME: () => { do_setup_confirm_game(); },
-  CONFIRM_NEW_GAME: () => { do_confirm_game(); },
-  INTRO: () => { do_intro(); },
-  GAME: () => { do_game(); },
-  LEVEL_TRANSITION_OUT: () => { do_level_transition_out(); },
-  LEVEL_TRANSITION_IN: () => { do_level_transition_in(); },
-  SETUP_EDITOR: () => { do_setup_editor(); },
-  EDITOR: () => { do_editor(); },
-  PREPARE_TUTORIAL: () => { prepare_tutorial(); },
-  TUTORIAL: () => { tutorial(); },
-  TEARDOWN_TUTORIAL: () => { tear_down_tutorial(); },
-  MAIN_MENU_SETUP: () => { do_setup_main_menu(); },
-  MAIN_MENU:() => {  do_main_menu(); },
-  MAIN_MENU_TEARDOWN: () => { teardown_main_menu(); },
-  SETUP_SHOW_TIME_RESULTS: () => { do_setup_show_time_results(); },
-  SHOW_TIME_RESULTS: () => { do_show_time_results(); },
-  SETUP_OPTIONS: () => { do_setup_options(); },
-  OPTIONS: () => { do_options_menu(); },
-  TEARDOWN_OPTIONS: () => { do_teardown_options(); },
-  SETUP_ABOUT: () => { do_setup_about(); },
-  ABOUT: () => { do_about_menu(); },
-  TEARDOWN_ABOUT: () => { do_teardown_about_menu(); },
-  TUTORIAL_GAME_INTRO:  () => { do_tutorial_game_intro(); },
-  TUTORIAL_GAME_OUTRO: () => { do_tutorial_game_outro(); }
-}
+// let STATE_TABLE = {
+//   NEW_GAME: () => { setup_game(); },
+//   SETUP_CONFIRM_NEW_GAME: () => { do_setup_confirm_game(); },
+//   CONFIRM_NEW_GAME: () => { do_confirm_game(); },
+//   INTRO: () => { do_intro(); },
+//   GAME: () => { do_game(); },
+//   LEVEL_TRANSITION_OUT: () => { do_level_transition_out(); },
+//   LEVEL_TRANSITION_IN: () => { do_level_transition_in(); },
+//   SETUP_EDITOR: () => { do_setup_editor(); },
+//   EDITOR: () => { do_editor(); },
+//   PREPARE_TUTORIAL: () => { prepare_tutorial(); },
+//   TUTORIAL: () => { tutorial(); },
+//   TEARDOWN_TUTORIAL: () => { tear_down_tutorial(); },
+//   MAIN_MENU_SETUP: () => { do_setup_main_menu(); },
+//   MAIN_MENU:() => {  do_main_menu(); },
+//   MAIN_MENU_TEARDOWN: () => { teardown_main_menu(); },
+//   SETUP_SHOW_TIME_RESULTS: () => { do_setup_show_time_results(); },
+//   SHOW_TIME_RESULTS: () => { do_show_time_results(); },
+//   SETUP_OPTIONS: () => { do_setup_options(); },
+//   OPTIONS: () => { do_options_menu(); },
+//   TEARDOWN_OPTIONS: () => { do_teardown_options(); },
+//   SETUP_ABOUT: () => { do_setup_about(); },
+//   ABOUT: () => { do_about_menu(); },
+//   TEARDOWN_ABOUT: () => { do_teardown_about_menu(); },
+//   TUTORIAL_GAME_INTRO:  () => { do_tutorial_game_intro(); },
+//   TUTORIAL_GAME_OUTRO: () => { do_tutorial_game_outro(); }
+// }
 
 class menus
 {
@@ -232,9 +236,10 @@ class menus
   static main_menu_selected = undefined;
   static main_menu_height = menus.main_menu_options.length + 1;
 
-  static option_options = ["animations", "floor wobble", "sounds", "reset data", "back"]
+  static option_options = [" animations", " floor wobble", " sounds", " difficulty", "reset data", "back"]
   static option_menu_selected = undefined;
   static option_menu_height = menus.option_options.length + 1;
+  static option_menu_reset_clicks = 0;
 
   static confirm_options = ["yes", "no"];
   static confirm_selected = undefined;
@@ -350,6 +355,11 @@ class game
   static GAMEMODE_TIME = 2;
   static GAMEMODE_TUTORIAL = 3;
 
+  // difficulty
+  // level 1 to 5
+  static old_difficulty = 2;
+  static difficulty = 2;  // default is 3!
+
   static edges = [];
   static lightsources = [];
   static detectors = [];
@@ -364,6 +374,10 @@ class game
   static current_dim;
   static gridWidth;
   static gridHeight;
+
+  static need_check_detectors = true;
+
+  static textSize;
 
   static overlay_image = undefined;
 
@@ -392,7 +406,9 @@ class game
 
   // random game / score
   static have_saved_game;
-  static highest_score;
+  static highest_score; // medium high score, don't call it highest_score_medium for compatability
+  static highest_score_easy;
+  static highest_score_hard;
   static new_high_score_juice = 0;
   static highest_score_changed = 0;
   static highest_score_display_timer = 0;
@@ -670,6 +686,21 @@ class mouse_handler
     }
   }
 
+  visualize_mouse_regions()
+  {
+    stroke(0);
+    strokeWeight(2);
+    for (const [key, _region] of Object.entries(this.registered_regions)) {
+      if (!_region.enabled)
+        //fill(map(_region.x1, 0, width, 0, 255), map(_region.y1, 0, width, 0, 255), 0, 50);
+        fill(255, 0, 0, 50);
+      else
+        //fill(0, map(_region.x1, 0, width, 0, 255), map(_region.y1, 0, width, 0, 255), 50);
+        fill(0, 255, 0, 50);
+      rect(_region.x1, _region.y1, _region.x2-_region.x1, _region.y2-_region.y1);
+    }
+  }
+
   update_mouse_overs(_mx, _my)
   {
     // check all registered regions and figure out which the mouse
@@ -831,7 +862,7 @@ class level
     let level_string = this.generate_save_string(lights, detectors);
     if (use_juice)
       game.save_fade = 1;
-    storeItem("savedgame", level_string);
+    storeItem("savedgame"+game.difficulty, level_string);
   }
 
   copy_save_string_to_clipboard(lights, detectors)
@@ -1566,9 +1597,9 @@ class detector
         }
         if (!has_intersection)
         {
-          r = min(r + l.r, 255);
-          g = min(g + l.g, 255);
-          b = min(b + l.b, 255);
+          r = Math.min(r + l.r, 255);
+          g = Math.min(g + l.g, 255);
+          b = Math.min(b + l.b, 255);
         }
       }
       this.total_correct = 0;
@@ -1979,17 +2010,17 @@ class light_source
     this.dark_light = color(r / 6, g / 6, b / 6, 60);
     this.med_light = color(r / 4, g / 4, b / 4, 70);
 
-    this.selected_on_outside = color(max(120, r), max(120, g), max(120, b));
-    this.selected_on_inside = color(max(150, r - 50), max(150, g - 50), max(150, b - 50));
+    this.selected_on_outside = color(Math.max(120, r), Math.max(120, g), Math.max(120, b));
+    this.selected_on_inside = color(Math.max(150, r - 50), Math.max(150, g - 50), Math.max(150, b - 50));
 
-    this.selected_off_outside = color(max(80, r - 70), max(80, g - 70), max(80, b - 70));
-    this.selected_off_inside = color(max(50, r - 110), max(50, g - 110), max(50, b - 110));
+    this.selected_off_outside = color(Math.max(80, r - 70), Math.max(80, g - 70), Math.max(80, b - 70));
+    this.selected_off_inside = color(Math.max(50, r - 110), Math.max(50, g - 110), Math.max(50, b - 110));
 
-    this.dark_outside = color(max(70, r / 2), max(70, g / 2), max(70, b / 2));
-    this.dark_inside = color(max(60, r / 2 - 10), max(60, g / 2 - 10), max(60, b / 2 - 10));
+    this.dark_outside = color(Math.max(70, r / 2), Math.max(70, g / 2), Math.max(70, b / 2));
+    this.dark_inside = color(Math.max(60, r / 2 - 10), Math.max(60, g / 2 - 10), Math.max(60, b / 2 - 10));
 
-    this.light_outside = color(max(100, r), max(100, g), max(100, b));
-    this.light_inside = color(max(80, r - 30), max(80, g - 30), max(80, b - 30));
+    this.light_outside = color(Math.max(100, r), Math.max(100, g), Math.max(100, b));
+    this.light_inside = color(Math.max(80, r - 30), Math.max(80, g - 30), Math.max(80, b - 30));
 
     this.ls_region = new mouse_region(x * game.gridSize, y * game.gridSize, 
                                       (x + 1) * game.gridSize, (y + 1) * game.gridSize);
@@ -2297,8 +2328,9 @@ class light_source
 
   end_light_mouse_handler()
   {
-    game.global_mouse_handler.disable_region(this.name);
+    game.global_mouse_handler.remove_region(this.name);
   }
+
 }
 
 class edge
@@ -2399,8 +2431,6 @@ class floor_animation
 
     this.animation_type = Math.floor(Math.random() * this.num_animations);
   
-    // this.animation_type = 7;
-    // console.log(`new animation type ${this.animation_type}`);
     if (this.animation_type === 4)
     {
       this.x_target = mouseX / game.gridSize;
@@ -3340,17 +3370,34 @@ function setup() {
     game.use_floor_wobble = getItem("use_floor_wobble");
   }
 
+  if (getItem("difficulty") === null)
+  {
+    game.difficulty = 2;
+    game.old_difficulty = 2;
+    storeItem("difficulty", 2);
+  }
+  else
+  {
+    game.difficulty = getItem("difficulty");
+    game.old_difficulty = game.difficulty;
+  }
+
+
   // console.log("On mobile? " + mobileCheck());
   game.ON_MOBILE = mobileCheck();
   if (game.ON_MOBILE)
+  {
     game.PLAYFIELD_DIM = game.MOBILE_PLAYFIELD_DIM;
+  }
   else
-    game.PLAYFIELD_DIM = game.PC_PLAYFIELD_DIM;
+  {
+    change_game_difficulty(/*skip_resize=*/true);
+  }
   // Base size of gameboard on size of parent window, so this should
   // look ok on different screen sizes.
 
   // -10 to avoid having bars?
-  let largest_dim = min(windowWidth, windowHeight) * 0.9;
+  let largest_dim = Math.min(windowWidth, windowHeight) * 0.9;
   // round down to nearest interval of 20 (PLAYFIELD_DIM)
   largest_dim -= largest_dim % game.PLAYFIELD_DIM;
   let target_gridSize = int(largest_dim / game.PLAYFIELD_DIM);
@@ -3359,6 +3406,8 @@ function setup() {
   game.gridSize = target_gridSize;
   game.gridWidth = game.PLAYFIELD_DIM;
   game.gridHeight = game.PLAYFIELD_DIM;
+
+  game.textSize = game.gameHeight / 18;
 
   game.jiggle = new jiggle(game.gridWidth + 1, game.gridHeight + 1);
   game.floor_animation = new floor_animation(game.gridWidth + 1, 
@@ -3374,7 +3423,7 @@ function setup() {
   game.cnv = createCanvas(game.gameWidth, game.gameHeight);
 
 
-  frameRate(60);
+  frameRate(30);
   centerCanvas();
   initialize_colors();  // Can't happen until a canvas has been created!
   game.current_dim = largest_dim;
@@ -3406,11 +3455,14 @@ function windowResized()
   game.gameHeight = largest_dim;
   game.gameWidth = largest_dim;
   game.gridSize = target_gridSize;
+  game.gridWidth = game.PLAYFIELD_DIM;
+  game.gridHeight = game.PLAYFIELD_DIM;
 
   game.GRID_HALF = int(game.gridSize / 2);
   game.GRID_QUARTER = int(game.GRID_HALF / 2);
   game.FLASH_SIZE = game.gridSize * 8;
   game.font_size = game.gridSize * 0.8;
+
 
   // resizeCanvas(game.gameWidth, game.gameHeight);
   // centerCanvas();
@@ -3418,9 +3470,18 @@ function windowResized()
   // reposition_all_buttons();  // THIS is going to require some rewrites
   let new_scale = largest_dim / game.current_dim;
   game.global_mouse_handler.scale_regions(new_scale);
-  game.jiggle.scale_jiggles(new_scale);
+  //game.jiggle.scale_jiggles(new_scale);
+
+  game.textSize = game.gameHeight / 18;
+
+  game.jiggle = new jiggle(game.gridWidth + 1, game.gridHeight + 1);
+  game.floor_animation = new floor_animation(game.gridWidth + 1, 
+    game.gridHeight + 1)
+
   scale_all_edges(new_scale);
   game.current_dim = largest_dim;
+
+  make_menu();
 
   update_all_light_viz_polys();
   make_overlay();
@@ -3433,6 +3494,47 @@ function windowResized()
 
   resizeCanvas(game.gameWidth, game.gameHeight);
   centerCanvas();
+}
+
+function change_game_difficulty(skip_resize=false)
+{
+  switch(game.difficulty)
+  {
+    case 1:
+      game.PLAYFIELD_DIM = 15
+      game.gridWidth = 15;
+      game.gridHeight = 15;
+      break;
+    case 2:
+      game.PLAYFIELD_DIM = 19;
+      game.gridWidth = 19;
+      game.gridHeight = 19;
+      break;
+    case 3:
+      game.PLAYFIELD_DIM = 25;
+      game.gridWidth = 25;
+      game.gridHeight = 25;
+      break;
+    // case 4:
+    //   game.PLAYFIELD_DIM = 23;
+    //   game.gridWidth = 23;
+    //   game.gridHeight = 23;
+    //   break;
+    // case 5:
+    //   game.PLAYFIELD_DIM = 27;
+    //   game.gridWidth = 27;
+    //   game.gridHeight = 27;
+    //   break;
+  }
+  if (!skip_resize)
+    windowResized();
+  // we need to start a new saved game? Not if we have a game saved?
+  if (getItem("savedgame"+game.difficulty) === null)
+  {
+    storeItem("savedgame"+game.difficulty, null);
+  }
+  game.need_load_menu_map = true;
+  game.game_state = states.MAIN_MENU_SETUP;
 }
 
 function initialize_colors() {
@@ -3502,13 +3604,13 @@ function do_setup_main_menu()
     let i = 0;
     for (let m of menus.main_menu_options)
     {
-      let reg = new mouse_region(2 * game.gridSize, (i + 1) * game.gridSize * 2, (2 + m.length) * game.gridSize, (i + 2) * game.gridSize * 2);
+      let reg = new mouse_region(2 * game.textSize, (i + 1) * game.textSize * 2, (2 + m.length) * game.textSize, (i + 2) * game.textSize * 2);
       reg.events[mouse_events.CLICK] = () => {
         game.sound_handler.play_sound("menu_click");
-        handle_main_menu_selection(int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1);
+        handle_main_menu_selection(int(game.global_mouse_handler.my / (game.textSize * 2)) - 1);
       }
       reg.events[mouse_events.ENTER_REGION] = () => {
-        menus.main_menu_selected = int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1;
+        menus.main_menu_selected = int(game.global_mouse_handler.my / (game.textSize * 2)) - 1;
         game.sound_handler.play_sound("menu_hover");
       };
       reg.events[mouse_events.EXIT_REGION] = () => {
@@ -3518,9 +3620,9 @@ function do_setup_main_menu()
       ++i;
     }
 
-    let easter_egg_region = new mouse_region(game.gridSize * 2, game.gridSize, game.gridSize * 7, game.gridSize * 3);
+    let easter_egg_region = new mouse_region(game.textSize * 2, game.textSize, game.textSize * 7, game.textSize * 3);
     easter_egg_region.events[mouse_events.CLICK] = () => {
-      if (getItem("savedgame") === null)
+      if (getItem("savedgame"+game.difficulty) === null)
       {
         solvable_random_level(/*save=*/false, 
                               /*showcase=*/true);
@@ -3534,12 +3636,12 @@ function do_setup_main_menu()
   disable_menu(); // disable the top menu in case it is active
   enable_main_menu();
   // random_level();
-  game.have_saved_game = (getItem("savedgame") !== null);
+  game.have_saved_game = (getItem("savedgame"+game.difficulty) !== null);
   
   if (game.need_load_menu_map)
   {
     if (game.have_saved_game) {
-      try_load_level(getItem("savedgame"));
+      try_load_level(getItem("savedgame"+game.difficulty));
       update_all_light_viz_polys();
     } else {
       init_light_sources();
@@ -3587,23 +3689,23 @@ function do_main_menu()
   draw_menu_background();
 
   // display menu options
-  textSize(game.font_size * 2);
+  textSize(game.textSize * 2);
   var i = 0;
   stroke(0);
   strokeWeight(2);
 
   blendMode(ADD);
   fill(255, 0, 0);
-  text("spectro", 2 * game.gridSize, game.gridSize * 2 - 5);
+  text("spectro", 2 * game.textSize, game.textSize * 2 - 5);
   fill(0, 255, 0);
-  text("spectro", 2 * game.gridSize, game.gridSize * 2);
+  text("spectro", 2 * game.textSize, game.textSize * 2);
   fill(0, 0, 255);
-  text("spectro", 2 * game.gridSize, game.gridSize * 2 + 5);
+  text("spectro", 2 * game.textSize, game.textSize * 2 + 5);
   blendMode(BLEND);
 
-  if (mouseX >= game.gridSize * 12 || 
-    (mouseY >= game.gridSize * 2 * (menus.main_menu_options.length + 1)) ||
-    mouseY <= game.gridSize * 2)
+  if (mouseX >= game.textSize * 12 || 
+    (mouseY >= game.textSize * 2 * (menus.main_menu_options.length + 1)) ||
+    mouseY <= game.textSize * 2)
     menus.main_menu_selected = undefined;
 
   for (let m of menus.main_menu_options)
@@ -3616,7 +3718,7 @@ function do_main_menu()
     if (i === 1 && !game.have_saved_game)
       fill(57);
 
-    text(m, 2 * game.gridSize, (i + 2) * game.gridSize * 2);
+    text(m, 2 * game.textSize, (i + 2) * game.textSize * 2);
     ++i;
   }
 }
@@ -3668,7 +3770,7 @@ function handle_main_menu_selection(menu_index)
   {
     case 0:
       // if we don't have a saved game, simply start a new one
-      if (getItem("savedgame") === null)
+      if (getItem("savedgame"+game.difficulty) === null)
       {
         game.current_gamemode = game.GAMEMODE_RANDOM;
         game.game_state = states.NEW_GAME;
@@ -3708,7 +3810,7 @@ function do_setup_about()
   if (states.need_setup_about)
   {
     // eventually tutorial will be something that happens in game
-    let about_ok_button = new mouse_region((width / 2) - game.gridSize, height - 5 * game.gridSize, (width / 2) + game.gridSize, height - 4 * game.gridSize);
+    let about_ok_button = new mouse_region((width / 2) - game.textSize, height - (5 * game.textSize), (width / 2) + game.textSize, height - (4 * game.textSize));
     about_ok_button.events[mouse_events.CLICK] = ()=>{ game.game_state = states.TEARDOWN_ABOUT; };
     about_ok_button.events[mouse_events.ENTER_REGION] = ()=>{ over_about_ok_btn = true; };
     about_ok_button.events[mouse_events.EXIT_REGION] = ()=>{ over_about_ok_btn = false; };
@@ -3742,7 +3844,7 @@ function do_about_menu()
    "and Jane Haselgrove for all the pizza.\n";
 
   //stroke(130);
-  textSize(game.font_size);
+  textSize(game.textSize / 2);
   textAlign(TOP, TOP);
   noStroke();
   blendMode(ADD);
@@ -3780,7 +3882,7 @@ function do_about_menu()
   }
   stroke(130);
   strokeWeight(2);
-  textSize(game.font_size);
+  textSize(game.textSize * 2);
   textAlign(CENTER, BASELINE);
   text("OK", (width / 2), height - 4 * game.gridSize);
 
@@ -3803,13 +3905,13 @@ function do_setup_options()
     let i = 0;
     for (let m of menus.option_options)
     {
-      let reg = new mouse_region(0, (i + 1) * game.gridSize * 2, game.gridSize * game.gridWidth, (i + 2) * game.gridSize * 2);
+      let reg = new mouse_region(0, (i + 1) * game.textSize * 2, game.gridSize * game.gridWidth, (i + 2) * game.textSize * 2);
       reg.events[mouse_events.CLICK] = () => {
         game.sound_handler.play_sound("menu_click");
-        handle_option_menu_selection(int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1);
+        handle_option_menu_selection(int(game.global_mouse_handler.my / (game.textSize * 2)) - 1);
       }
       reg.events[mouse_events.ENTER_REGION] = () => {
-        menus.option_menu_selected = int(game.global_mouse_handler.my / (game.gridSize * 2)) - 1;
+        menus.option_menu_selected = int(game.global_mouse_handler.my / (game.textSize * 2)) - 1;
         game.sound_handler.play_sound("menu_hover");
       };
       // reg.events[mouse_events.EXIT_REGION] = () => {menus.main_menu_selected = undefined; };
@@ -3824,6 +3926,7 @@ function do_setup_options()
     {
       game.global_mouse_handler.enable_region(m + "option_menu");
     }
+
   }
   game.game_state = states.OPTIONS;
 }
@@ -3847,10 +3950,31 @@ function handle_option_menu_selection(option_index)
       storeItem("sounds_enabled", game.sounds_enabled);
       break;
     case 3:
-      // TODO: ARE YOU SURE?!
-      remove_saved_data();
+      game.difficulty += 1;
+      if (game.difficulty == 4)
+        game.difficulty = 1;
+      storeItem("difficulty", game.difficulty);
       break;
     case 4:
+      if (menus.option_menu_reset_clicks === 0)
+      {
+        menus.option_options[4] = "click to confirm";
+        menus.option_menu_reset_clicks += 1;
+      }
+      else if (menus.option_menu_reset_clicks === 1)
+      {
+        // TODO: ARE YOU SURE?!
+        remove_saved_data();
+        menus.option_options[4] = "reset data";
+        menus.option_menu_reset_clicks = 0;
+      }
+
+      break;
+    case 5:
+      if (menus.option_menu_reset_clicks === 1)
+      {
+        menus.option_options[4] = "reset data";
+      }
       game.game_state = states.TEARDOWN_OPTIONS;
       break;
   }
@@ -3862,21 +3986,21 @@ function do_options_menu()
   rect(0, 0, width, height);
 
   // display menu options
-  textSize(game.font_size * 2);
+  textSize(game.textSize * 2);
   var i = 0;
   stroke(0);
   strokeWeight(2);
 
   blendMode(ADD);
   fill(255, 0, 0);
-  text("options", 2 * game.gridSize, game.gridSize * 2 - 5);
+  text("options", 2 * game.textSize, game.textSize * 2 - 5);
   fill(0, 255, 0);
-  text("options", 2 * game.gridSize, game.gridSize * 2);
+  text("options", 2 * game.textSize, game.textSize * 2);
   fill(0, 0, 255);
-  text("options", 2 * game.gridSize, game.gridSize * 2 + 5);
+  text("options", 2 * game.textSize, game.textSize * 2 + 5);
   blendMode(BLEND);
 
-  if ((mouseY <= game.gridSize * 2) || (mouseY >= game.gridSize * 2 * (menus.option_menu_height)))
+  if ((mouseY <= game.textSize * 2) || (mouseY >= game.textSize * 2 * (menus.option_menu_height)))
     menus.option_menu_selected = undefined;
 
   // TODO: Check if symbol ✓ is allowed to be used
@@ -3887,12 +4011,12 @@ function do_options_menu()
       if (game.use_animations)
       {
         fill(0 , 155, 0);
-        text("Y", game.gridSize, (i + 2) * game.gridSize * 2);
+        text("Y", game.textSize, (i + 2) * game.textSize * 2);
       }
       else
       {
         fill(155, 0, 0);
-        text("N", game.gridSize, (i + 2) * game.gridSize * 2);  
+        text("N", game.textSize, (i + 2) * game.textSize * 2);  
       }
     }
   
@@ -3901,12 +4025,12 @@ function do_options_menu()
       if (game.use_floor_wobble)
       {
         fill(0 , 155, 0);
-        text("Y", game.gridSize, (i + 2) * game.gridSize * 2);
+        text("Y", game.textSize, (i + 2) * game.textSize * 2);
       }
       else
       {
         fill(155, 0, 0);
-        text("N", game.gridSize, (i + 2) * game.gridSize * 2);  
+        text("N", game.textSize, (i + 2) * game.textSize * 2);  
       }
     }
 
@@ -3915,13 +4039,19 @@ function do_options_menu()
       if (game.sounds_enabled)
       {
         fill(0, 155, 0);
-        text("Y", game.gridSize, (i + 2) * game.gridSize * 2);
+        text("Y", game.textSize, (i + 2) * game.textSize * 2);
       }
       else
       {
         fill(155, 0, 0);
-        text("N", game.gridSize, (i + 2) * game.gridSize * 2);
+        text("N", game.textSize, (i + 2) * game.textSize * 2);
       }
+    }
+
+    if (i === 3)
+    {
+      fill(17, 17, 23);
+      text(game.difficulty, game.textSize, (i + 2) * game.textSize * 2);
     }
 
     if (menus.option_menu_selected === i)
@@ -3931,7 +4061,7 @@ function do_options_menu()
 
 
 
-    text(m, 2 * game.gridSize, (i + 2) * game.gridSize * 2);
+    text(m, 2 * game.textSize, (i + 2) * game.textSize * 2);
     ++i;
   }
 }
@@ -3941,6 +4071,11 @@ function do_teardown_options()
   for (let m of menus.option_options)
   {
     game.global_mouse_handler.disable_region(m + "option_menu");
+  }
+  if (game.old_difficulty !== game.difficulty)
+  {
+    change_game_difficulty();
+    game.old_difficulty = game.difficulty;
   }
 
   game.game_state = states.MAIN_MENU_SETUP;
@@ -3960,8 +4095,8 @@ function top_menu_main_menu()
   {
     if (game.given_up)
     {
-      storeItem("savedgame", null);
-      storeItem("savedsolution", null);
+      storeItem("savedgame"+game.difficulty, null);
+      storeItem("savedsolution"+game.difficulty, null);
       game.need_load_menu_map = false;
     }
     else
@@ -4004,7 +4139,7 @@ function top_menu_reset_stuff()
 function top_menu_reset_game() 
 {
   // TODO: Yes/no confirm
-  storeItem("savedgame", null);
+  storeItem("savedgame"+game.difficulty, null);
   game.game_state = states.NEW_GAME;
 }
 
@@ -4034,13 +4169,14 @@ function handle_top_menu_selection(menu_index)
 {
   if (!top_menu_accept_input)
     return;
-  menus.top_menu_callbacks[menu_index]();
+  menus.top_menu_callbacks[menu_index - 1]();
 }
 
 function launch_menu()
 {
   // send mouse off event to top_menu to disable high-lighting? 
   game.global_mouse_handler.disable_region("top_menu");
+
   enable_menu();
   show_menu = true;
 }
@@ -4053,6 +4189,7 @@ function enable_menu()
   {
     game.global_mouse_handler.enable_region(m);
   }
+  top_menu_accept_input = true;
 }
 
 function disable_menu()
@@ -4070,8 +4207,7 @@ function disable_menu()
 function make_menu()
 {
   // the top right menu button
-  let menu_region = new mouse_region((game.gridWidth - 3) * game.gridSize, 0,
-                                  game.gridWidth * game.gridSize, game.gridSize);
+  let menu_region = new mouse_region((game.gridWidth - 3) * game.gridSize, 0, game.gameWidth - game.gridSize, game.gridSize);
   menu_region.events[mouse_events.CLICK] = () => { 
     game.sound_handler.play_sound("menu_click"); 
     launch_menu(); 
@@ -4081,11 +4217,11 @@ function make_menu()
     game.sound_handler.play_sound("menu_hover"); 
     mouse_over_menu = true;
   };
-  menu_region.events[mouse_events.EXIT_REGION] = () => {mouse_over_menu = false;};
+  menu_region.events[mouse_events.EXIT_REGION] = () => { mouse_over_menu = false;};
   game.global_mouse_handler.register_region("top_menu", menu_region);
   
   // initialize the menu handler and region stuff
-  let open_menu_region = new mouse_region((game.gridWidth - 8) * game.gridSize, 0, game.gridWidth * game.gridSize, menus.top_menu_height * game.gridSize);
+  let open_menu_region = new mouse_region(game.gameWidth - (6 * game.textSize), 0, game.gameWidth, (menus.top_menu_height + 1) * game.textSize);
   open_menu_region.events[mouse_events.CLICK] = () => {game.sound_handler.play_sound("menu_click");};
   open_menu_region.events[mouse_events.ENTER_REGION] = () => {game.sound_handler.play_sound("menu_hover");};
 
@@ -4097,25 +4233,30 @@ function make_menu()
   let i = 0;
   for (let m of menus.top_menu_choices)
   {
-    let reg = new mouse_region((game.gridWidth - 7) * game.gridSize, i * game.gridSize, game.gridSize * game.gridWidth, (i + 1) * game.gridSize);
+    let reg = new mouse_region(game.gameWidth - (5 * game.textSize), (i + 1) * game.textSize, game.gameWidth, (i + 2) * game.textSize);
     reg.events[mouse_events.CLICK] = () => {
       game.sound_handler.play_sound("menu_click");
-      handle_top_menu_selection(int(game.global_mouse_handler.my / game.gridSize))
+      handle_top_menu_selection(int(game.global_mouse_handler.my / game.textSize))
     };
     reg.events[mouse_events.ENTER_REGION] = () => {
       game.sound_handler.play_sound("menu_hover");
-      menus.top_menu_selected = int(game.global_mouse_handler.my / game.gridSize);
+      menus.top_menu_selected = int(game.global_mouse_handler.my / game.textSize);
     };
     game.global_mouse_handler.register_region(m, reg);
     ++i;
   }
 }
 
+
+//////////////////// CONFIRM NEW GAME
+// Todo: Make this more generic so that it can display any YES/NO
+// dialog and put the results somewhere, since we want to display this
+// for ie. changing game size (since it will erase data?)
 function do_setup_confirm_game()
 {
   if (states.need_setup_confirm)
   {
-    let confirm_yes_region = new mouse_region(0, game.gridSize * 5, 5 * game.gridSize, game.gridSize * 7);
+    let confirm_yes_region = new mouse_region(0, game.textSize * 5, 5 * game.textSize, game.textSize * 7);
     confirm_yes_region.events[mouse_events.CLICK] = () => {
       game.sound_handler.play_sound("menu_click");
       handle_confirm_yes_click();
@@ -4126,7 +4267,7 @@ function do_setup_confirm_game()
     }
     game.global_mouse_handler.register_region("confirm_yes", confirm_yes_region);
 
-    let confirm_no_region = new mouse_region(0, game.gridSize * 7, 5 * game.gridSize, game.gridSize * 9);
+    let confirm_no_region = new mouse_region(0, game.textSize * 7, 5 * game.textSize, game.textSize * 9);
     confirm_no_region.events[mouse_events.CLICK] = () => {
       game.sound_handler.play_sound("menu_click");
       handle_confirm_no_click();
@@ -4157,7 +4298,7 @@ function teardown_confirm_menu()
 function handle_confirm_yes_click()
 {
   teardown_confirm_menu();
-  storeItem("savedgame", null);
+  storeItem("savedgame"+game.difficulty, null);
   game.current_gamemode = game.GAMEMODE_RANDOM;
   game.game_state = states.NEW_GAME;
 }
@@ -4173,27 +4314,29 @@ function handle_confirm_no_click()
 function do_confirm_game()
 {
   // textAlign(LEFT, TOP);
-  draw_menu_background();
+  fill(0, 10);
+  rect(0, 0, width, height);
+  // draw_menu_background();
   // display confirm screen
   fill(palette.font_color);
-  textSize(game.font_size * 2);
+  textSize(game.textSize);
   stroke(0);
   strokeWeight(2);
-  text("This will erase saved game, \n are you sure?", game.gridSize, game.gridSize * 2 + 5);
+  text("This will erase saved game, \n are you sure?", game.textSize, game.textSize * 2);
   if (menus.confirm_selected === 0)
     fill(253);
   else
     fill(157);
-  text("yes", game.gridSize * 2, game.gridSize * 6);
+  text("yes", game.textSize * 2, game.textSize * 6);
 
   if (menus.confirm_selected === 1)
     fill(253);
   else
     fill(157);
-  text("no", game.gridSize * 2, game.gridSize * 8);
+  text("no", game.textSize * 2, game.textSize * 8);
 
-  if (mouseY >= game.gridSize * 9 || mouseY <= game.gridSize * 4 ||
-    mouseX >= game.gridSize * 5)
+  if (mouseY >= game.textSize * 9 || mouseY <= game.textSize * 4 ||
+    mouseX >= game.textSize * 5)
     menus.confirm_selected = undefined;
 }
 
@@ -4257,9 +4400,10 @@ function keyPressed() {
   } else if (key === 'l') {
     load_solution();
   } else if (key === 'q') {
-    storeItem("high_random_score", null);
-    storeItem("game.high_timer_score", null);
-    storeItem("savedgame", null);
+    clearStorage();
+    // storeItem("high_random_score", null);
+    // storeItem("game.high_timer_score", null);
+    // storeItem("savedgame", null);
   } else if (key === 'e') {
     let lvl_txt = get_level_and_load();
     try_load_level(lvl_txt);
@@ -4340,9 +4484,9 @@ function clear_grid_spot(which_grid, x, y)
 //////// STATES
 function do_game()
 {
-  fill(57);
+  if(game.use_floor_wobble)
+    game.jiggle.update_jiggles();
 
-  game.jiggle.update_jiggles();
   game.floor_animation.update();
   // draw base grid (walls + floors)
   draw_walls_and_floors();
@@ -4399,6 +4543,8 @@ function do_game()
   draw_floor_lines();
 
   draw_edges();
+
+
 
   // filter(POSTERIZE, 3);
 
@@ -4465,6 +4611,9 @@ function do_game()
 
   darken_border();
 
+  // debug drawings!
+  // game.global_mouse_handler.visualize_mouse_regions();
+
 }
 
 function darken_border()
@@ -4489,42 +4638,59 @@ function do_intro()
   {
     game.intro_timer += deltaTime;
     textAlign(CENTER, TOP);
-    textSize(game.font_size * 3);
+    textSize(game.textSize * 3);
     strokeWeight(2);
   }
-  else if (game.intro_timer < 3500)
+  else if (game.intro_timer < 3000)
   {
-    game.intro_timer += deltaTime;
     game.intro_timer += deltaTime;
     if (game.intro_timer < 2500)
     {
+      noStroke();
       fill(0);
+      rect(0, 0, width, height);
     }
     else
     {
+      noStroke();
       fill(255);
+      rect(0, 0, width, height);
     }
-    rect(0, 0, width, height);
-    if (game.intro_timer < 2500)
+
+    // if (1500 < game.intro_timer && game.intro_timer < 1800)
+    // {
+    //   stroke(0);
+    //   fill(random(random_cols));
+    //   let t = map(game.intro_timer, 1500, 1800, 0, height);
+    //   rect(0, t, width, 40);
+    // }
+
+    if (game.intro_timer < 2000)
     {
       stroke(0);
       fill(random(random_cols));
-      text("a tw game", width / 2, random(height - game.font_size * 3));
-      // fill(0);
-      // rect(0, 0, width, height);
+      text("a tw game", width / 2, random(height - game.textSize * 3));
     }
     else
     {
-      fill(0);
-      // rect(0, 0, width, height);
+      if (game.intro_timer < 2500)
+      {
+        fill(255);
+        stroke(255);
+      }
+      else
+      {
+        fill(0);
+        stroke(0);
+      }
       blendMode(MULTIPLY);
-      stroke(0);
-      text("spectro", width / 2, (height - game.font_size * 3 )/ 2);
+      textSize(game.textSize * 4)
+      text("spectro", width / 2, (height - game.textSize * 3 )/ 2);
       blendMode(ADD);
     }
 
   }
-  else if (game.intro_timer >= 3500)
+  else if (game.intro_timer >= 3000)
   {
     blendMode(BLEND);
     textAlign(LEFT, BASELINE);
@@ -4612,6 +4778,7 @@ function do_level_transition_in()
 
 }
 
+///////////// TUTORIAL
 function prepare_tutorial()
 {
   // eventually tutorial will be something that happens in game
@@ -4791,7 +4958,7 @@ function draw_menu()
   fill(37, 210);
   stroke(12);
   strokeWeight(2);
-  rect((game.gridWidth - 8) * game.gridSize, 0, game.gridWidth * game.gridSize, game.gridSize * (menus.top_menu_height));
+  rect(game.gameWidth - (6 * game.textSize), 0, game.gameWidth, game.textSize * (menus.top_menu_height + 1));
 
   // display menu options
   var i = 0;
@@ -4801,7 +4968,7 @@ function draw_menu()
 
   for (let m of menus.top_menu_choices)
   {
-    if (menus.top_menu_selected === i)
+    if (menus.top_menu_selected === i + 1)
       fill(253);
     else
       fill(157);
@@ -4814,27 +4981,27 @@ function draw_menu()
     if (game.given_up && i < 5)
       fill(57);
       
-    text(m, (game.gridWidth - 7) * game.gridSize, (i) * game.gridSize );
+    text(m, game.gameWidth - (5 * game.textSize), (i + 1) * game.textSize );
     ++i;
   }
   textAlign(LEFT, BASELINE);
 }
 
-function draw_glass()
-{
-  let lvl = game.current_level;
-  fill(255, 150);
-  strokeWeight(4);
-  stroke(90, 50);
-  for (let x = 0 ; x < lvl.xsize; ++x)
-  {
-    for (let y = 0; y < lvl.ysize; ++y)
-    {
-      if (lvl.grid[x][y].grid_type == tiles.GLASS_WALL || lvl.grid[x][y].grid_type == tiles.GLASS_WALL_TOGGLABLE)
-        square(x * game.gridSize, y * game.gridSize, game.gridSize);
-    }
-  }
-}
+// function draw_glass()
+// {
+//   let lvl = game.current_level;
+//   fill(255, 150);
+//   strokeWeight(4);
+//   stroke(90, 50);
+//   for (let x = 0 ; x < lvl.xsize; ++x)
+//   {
+//     for (let y = 0; y < lvl.ysize; ++y)
+//     {
+//       if (lvl.grid[x][y].grid_type == tiles.GLASS_WALL || lvl.grid[x][y].grid_type == tiles.GLASS_WALL_TOGGLABLE)
+//         square(x * game.gridSize, y * game.gridSize, game.gridSize);
+//     }
+//   }
+// }
 
 function draw_floor_lines()
 {
@@ -4853,40 +5020,55 @@ function draw_floor_lines()
       if (game.use_animations)
         stroke(game.floor_animation.get_color(x, y));
 
-
       if (game.current_level.grid[x][y].grid_type == tiles.FLOOR_EMPTY 
           || game.current_level.grid[x][y].exist)
         continue;
-      // TODO: Refactor this, new class?
-      let top_left_offset = game.jiggle.jiggle_grid[x][y];
-      let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
-      let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
-
-      let top_left_point = [x * game.gridSize, y * game.gridSize];
-      let top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
-      let bottom_left_point = [x * game.gridSize, (y + 1) * game.gridSize];
-
-      if (!game.use_floor_wobble)
+      
+      if (game.use_floor_wobble)
       {
-        top_left_offset = [0, 0];
-        top_right_offset = [0, 0];
-        bottom_left_offset = [0, 0];
-        // bottom_right_offset = [0, 0];
+        let top_left_offset = game.jiggle.jiggle_grid[x][y];
+        let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
+        let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
+  
+        let top_left_point = [x * game.gridSize, y * game.gridSize];
+        let top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
+        let bottom_left_point = [x * game.gridSize, (y + 1) * game.gridSize];
+        if(x > 0 && x < game.gridWidth - 1)
+        {
+        line(top_left_point[0] + top_left_offset[0] + 1, 
+          top_left_point[1] + top_left_offset[1],
+          top_right_point[0] + top_right_offset[0] - 1,
+          top_right_point[1] + top_right_offset[1]);
+        }
+  
+        if (y > 0 && y < game.gridHeight - 1)
+        {
+        line(top_left_point[0] + top_left_offset[0], 
+          top_left_point[1] + top_left_offset[1] + 1,
+          bottom_left_point[0] + bottom_left_offset[0],
+          bottom_left_point[1] + bottom_left_offset[1] - 1);
+        }
       }
-      if(x > 0 && x < game.gridWidth - 1)
+      else
       {
-      line(top_left_point[0] + top_left_offset[0] + 1, 
-        top_left_point[1] + top_left_offset[1],
-        top_right_point[0] + top_right_offset[0] - 1,
-        top_right_point[1] + top_right_offset[1]);
-      }
-
-      if (y > 0 && y < game.gridHeight - 1)
-      {
-      line(top_left_point[0] + top_left_offset[0], 
-        top_left_point[1] + top_left_offset[1] + 1,
-        bottom_left_point[0] + bottom_left_offset[0],
-        bottom_left_point[1] + bottom_left_offset[1] - 1);
+        let top_left_point = [x * game.gridSize, y * game.gridSize];
+        let top_right_point = [(x + 1) * game.gridSize, y * game.gridSize];
+        let bottom_left_point = [x * game.gridSize, (y + 1) * game.gridSize];
+        if(x > 0 && x < game.gridWidth - 1)
+        {
+        line(top_left_point[0]+ 1, 
+          top_left_point[1],
+          top_right_point[0] - 1,
+          top_right_point[1]);
+        }
+  
+        if (y > 0 && y < game.gridHeight - 1)
+        {
+        line(top_left_point[0], 
+          top_left_point[1] + 1,
+          bottom_left_point[0],
+          bottom_left_point[1] - 1);
+        }
       }
     }
   }
@@ -4895,13 +5077,9 @@ function draw_floor_lines()
 
 function draw_walls_and_floors()
 {
-  // TODO: We can remove the permanant wall stuff from here since thats drawn elsewhere
   let lvl = game.current_level;
 
-  strokeWeight(3);
-  noFill();
-  stroke(palette.solid_wall_fill);
-  rect(0, 0, game.gameWidth, game.gameHeight);
+  // We were clearing the screen before, but since the entire thing gets redrawn, tis unncessary?
 
   let cur_fill = null;
   let cur_stroke = null;
@@ -4914,13 +5092,6 @@ function draw_walls_and_floors()
   {
     for (let y = 1; y < lvl.ysize - 1; ++y)
     {
-
-      // TODO: Refactor this, new class?
-      let top_left_offset = game.jiggle.jiggle_grid[x][y];
-      let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
-      let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
-      let bottom_right_offset = game.jiggle.jiggle_grid[x + 1][y + 1];
-
       let top_left_point;
       let top_right_point;
       let bottom_left_point;
@@ -5103,39 +5274,9 @@ function draw_walls_and_floors()
           }
         }
       }
-      
-      // if (lvl.grid[x][y].grid_type == tiles.GLASS_WALL_TOGGLABLE || lvl.grid[x][y] == tiles.GLASS_WALL)
-      // // TODO: This is unused! Don't worry about it for now
-      // {
-      //   strokeWeight(2);
-      //   stroke(170, 170, 170);
-      //   if (permenant)
-      //   {
-      //     noStroke();
-      //     fill(170, 170, 170, 40);
-      //   }
-      //   square(x * game.gridSize + 1, y * game.gridSize + 1, game.gridSize - 3);
-
-      //   // TODO: Little glass lines on the windows?
-      //   // strokeWeight(1);
-      //   // for (j = 0; j < 5; ++ j)
-      //   // {
-      //   //  line(x * game.gridSize + 10 - j, y * game.gridSize - j, x * game.gridSize + j, y * game.gridSize + 10 + j);
-      //   // }
-
-      // }
-
       // draw
       if (do_draw)
       {
-        // console.log(game.use_floor_wobble);
-        if (!game.use_floor_wobble)
-        {
-          top_left_offset = [0, 0];
-          top_right_offset = [0, 0];
-          bottom_left_offset = [0, 0];
-          bottom_right_offset = [0, 0];
-        }
         if (target_stroke != cur_stroke)
         {
           cur_stroke = target_stroke;
@@ -5146,12 +5287,23 @@ function draw_walls_and_floors()
           cur_fill = target_fill;
           fill(cur_fill);
         }
-        beginShape();
-        vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
-        vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
-        vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
-        vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
-        endShape(CLOSE);
+        if (game.use_floor_wobble)
+        {
+          let top_left_offset = game.jiggle.jiggle_grid[x][y];
+          let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
+          let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
+          let bottom_right_offset = game.jiggle.jiggle_grid[x + 1][y + 1];
+          beginShape();
+          vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
+          vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
+          vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
+          vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
+          endShape(CLOSE);
+        }
+        else
+        {
+          rect(top_left_point[0], top_left_point[1], game.gridSize, game.gridSize);
+        }
       }
     }
   }
@@ -5159,7 +5311,6 @@ function draw_walls_and_floors()
 
 function draw_outside_walls()
 {
-  // TODO: We can remove all the non-permanant wall stuff from here since that's all that
   // is being drawn here
   let lvl = game.current_level;
 
@@ -5183,10 +5334,7 @@ function draw_outside_walls()
         continue;
       
       // TODO: Refactor this, new class?
-      let top_left_offset = game.jiggle.jiggle_grid[x][y];
-      let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
-      let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
-      let bottom_right_offset = game.jiggle.jiggle_grid[x + 1][y + 1];
+
 
       let top_left_point;
       let top_right_point;
@@ -5236,13 +5384,6 @@ function draw_outside_walls()
       bottom_right_point = [(x + 1) * game.gridSize, (y + 1) * game.gridSize];
         
       // draw
-      if (!game.use_floor_wobble)
-      {
-        top_left_offset = [0, 0];
-        top_right_offset = [0, 0];
-        bottom_left_offset = [0, 0];
-        bottom_right_offset = [0, 0];
-      }
       if (target_stroke != cur_stroke)
       {
         cur_stroke = target_stroke;
@@ -5253,12 +5394,24 @@ function draw_outside_walls()
         cur_fill = target_fill;
         fill(cur_fill);
       }
-      beginShape();
-      vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
-      vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
-      vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
-      vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
-      endShape(CLOSE);
+      if (game.use_floor_wobble)
+      {
+        let top_left_offset = game.jiggle.jiggle_grid[x][y];
+        let top_right_offset = game.jiggle.jiggle_grid[x + 1][y];
+        let bottom_left_offset = game.jiggle.jiggle_grid[x][y + 1];
+        let bottom_right_offset = game.jiggle.jiggle_grid[x + 1][y + 1];
+        beginShape();
+        vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
+        vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
+        vertex(bottom_right_point[0] + bottom_right_offset[0], bottom_right_point[1] + bottom_right_offset[1]);
+        vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
+        endShape(CLOSE);
+      }
+      else
+      {
+        rect(top_left_point[0], top_left_point[1], game.gridSize, game.gridSize);
+      }
+
 
     }
   }
@@ -5275,7 +5428,7 @@ function draw_edges()
       line(e.sx, e.sy, e.ex, e.ey);
     }
     strokeWeight(1);
-    stroke(palette.edge_color_light, 150);
+    stroke(palette.edge_color_light, 120);
     for (let e of game.edges)
     {
       line(e.sx, e.sy, e.ex, e.ey);
@@ -5314,11 +5467,11 @@ function draw_edges()
         // use min to ensure we don't overshoot endpoints
         if (curr_x < end_x)
         {
-          next_x = min(end_x, curr_x + game.gridSize);
+          next_x = Math.min(end_x, curr_x + game.gridSize);
         }
         if (curr_y < end_y)
         {
-          next_y = min(end_y, curr_y + game.gridSize);
+          next_y = Math.min(end_y, curr_y + game.gridSize);
         }
 
         let sx_index = jiggle.get_index(curr_x);
@@ -5582,10 +5735,8 @@ function display_overlay()
 
   if (game.overlay_image == undefined)
   {
-    // console.log("game overlay is undefined, creating");
     make_overlay();
   }
-  // console.log("displaying");
   let lvl = game.current_level;
 
   for (let x = 1 ; x < lvl.xsize - 1; ++x)
@@ -5606,7 +5757,6 @@ function draw_outside_overlay()
   let lvl = game.current_level;
   if (game.overlay_image == undefined)
   {
-    // console.log("game overlay is undefined, creating");
     make_overlay();
   }
 
@@ -5638,7 +5788,7 @@ function try_load_level(level_string)
     load_level(level_string);
     return true;
   } catch (err) {
-    storeItem("savedgame", null);
+    storeItem("savedgame"+game.difficulty, null);
     return false;
   }
 }
@@ -5968,8 +6118,8 @@ function setup_time_game()
     game.high_timer_score = 0;
 
 
-  game.difficulty_level = 1;   // todo: shouldn't be hard coded here
-  game.time_remaining = game.initial_time;    // todo: shouldn't be hard coded here
+  game.difficulty_level = 1;
+  game.time_remaining = game.initial_time;
   game.total_time_played = game.time_remaining;
   game.has_new_timer_high_score = false;
   init_light_sources();
@@ -6108,6 +6258,7 @@ function do_show_time_results()
   }
 
   textAlign(LEFT);
+  // TODO: Line this up better
   let x1 = game.gridWidth * 10;
   let y1 = (game.gridHeight - 5) * game.gridSize;
   let x2 = game.gridWidth * 14;
@@ -6145,7 +6296,7 @@ function setup_random_game()
 {
   game.ghandler = new gameplay_handler();
   // next level button, will start hidden and disabled
-  let next_region = new mouse_region((game.gridWidth - 3) * game.gridSize, (game.gridHeight - 1) * game.gridSize, game.gridWidth * game.gridSize, game.gridHeight * game.gridSize);
+  let next_region = new mouse_region((game.gridWidth - 3) * game.gridSize, (game.gridHeight - 1) * game.gridSize, (game.gridWidth - 1) * game.gridSize, game.gridHeight * game.gridSize);
   next_region.events[mouse_events.CLICK] = () => { 
     game.sound_handler.play_sound("next_level_clicked");
     game.game_state = states.LEVEL_TRANSITION_OUT; 
@@ -6158,7 +6309,7 @@ function setup_random_game()
 
 
   // check if we have a saved game
-  let saved_g = getItem("savedgame");
+  let saved_g = getItem("savedgame"+game.difficulty);
   if (!saved_g)
   {
     game.difficulty_level = 1;
@@ -6174,7 +6325,18 @@ function setup_random_game()
   //     random_level();
   //   }
   // }
-  game.highest_score = getItem("high_random_score")
+  switch(game.difficulty)
+  {
+    case 1:
+      game.highest_score = getItem("high_random_score_easy");
+      break;
+    case 2:
+      game.highest_score = getItem("high_random_score")
+      break;
+    case 3:
+      game.highest_score = getItem("high_random_score_hard");
+      break;
+  }
   if (game.highest_score == null)
     game.highest_score = 0;
   game.highest_score_display_timer = 5;
@@ -6253,6 +6415,7 @@ function solvable_random_level(save=true, showcase=false)
   new_random_level.xsize = game.gridWidth;
   new_random_level.ysize = game.gridHeight;
 
+  // TODO: This is ugly! 
   new_random_level.initialize_grid(); 
   initializeGrid(new_random_level.grid);
 
@@ -6267,13 +6430,21 @@ function solvable_random_level(save=true, showcase=false)
     shrink_level = 4;
     diff_level = 20;
   }
+  if (showcase && game.difficulty <= 2)
+  {
+    shrink_level = 2;
+    diff_level = 15;
+  }
 
   make_some_floor_unbuildable(game.current_level.grid, shrink_level);
   make_some_floor_buildable(game.current_level.grid, diff_level);
 
-  let target_patterns = min(4, Math.floor(diff_level / 7));
+  let target_patterns = Math.min(4, Math.floor(diff_level / 7));
   if (showcase)
     target_patterns = 3;
+  if (showcase && game.difficulty <= 2)
+    target_patterns = 2;
+
   for (let i = 0 ; i < target_patterns; ++i)
     make_unbuildable_pattern(game.current_level.grid, diff_level);
 
@@ -6286,7 +6457,7 @@ function solvable_random_level(save=true, showcase=false)
   activate_lights();
 
   // randomly deactivate light source
-  if (diff_level < 20)
+  if (diff_level < 10)
   {
     for (let l of game.lightsources)
     {
@@ -6301,7 +6472,8 @@ function solvable_random_level(save=true, showcase=false)
   }
 
   // now place detectors in places that work, ie. they can be active
-  let d_amount = showcase ? 9 : difficulty_to_detector_amount();
+  let amt_detectors = Math.max(15, (game.difficulty * 2) + 3);
+  let d_amount = showcase ? amt_detectors : difficulty_to_detector_amount();
 
   solvable_init_random_detectors(game.current_level, d_amount);
 
@@ -6363,10 +6535,34 @@ function random_level(save=true)
   make_edges();
   update_all_light_viz_polys();
   // check if we're a high score, if we are, store us
-  let high_score = getItem("high_random_score");
+  let high_score;
+  switch (game.difficulty)
+  {
+    case 1:
+      high_score = getItem("high_random_score_easy");
+      break;
+    case 2:
+      high_score = getItem("high_random_score");
+      break;
+    case 3:
+      high_score = getItem("high_random_score_hard");
+      break;
+  } 
   if (high_score == null || high_score < game.new_scoring_system)
   {
-    storeItem("high_random_score", game.new_scoring_system);
+    switch(game.difficulty)
+    {
+      case 1:
+        storeItem("high_random_score_easy", game.new_scoring_system);
+        break;
+      case 2:
+        storeItem("high_random_score", game.new_scoring_system);
+        break;
+      case 3:
+        storeItem("high_random_score_hard", game.new_scoring_system);
+        break;
+    }
+    
     game.highest_score = game.new_scoring_system;
     game.highest_score_changed = 1;
     game.highest_score_display_timer = 10;
@@ -6376,6 +6572,9 @@ function random_level(save=true)
 
 function init_light_sources(start_active = false)
 {
+  // remove old mouse handlers
+  game.lightsources.forEach(l => l.end_light_mouse_handler());
+
   // init lights
   game.lightsources.splice(0, game.lightsources.length);
 
@@ -6572,13 +6771,14 @@ function difficulty_to_detector_amount()
 {
   // map from a difficulty level to number of detectors
   // on the field
-  if (game.difficulty_level <= 8)
-    return game.difficulty_level;
-  if (game.difficulty_level <= 20)
-    return int(game.difficulty_level / 4) + 4;
-  if (game.difficulty_level <= 30)
-    return int(game.difficulty_level / 5) + 3;
-  return min(10, int(4 + game.difficulty_level / 4));
+  // if (game.difficulty_level <= 8)
+  //   return game.difficulty_level;
+  // if (game.difficulty_level <= 20)
+  //   return int(game.difficulty_level / 4) + 4;
+  // if (game.difficulty_level <= 30)
+  //   return int(game.difficulty_level / 5) + 3;
+  // return min(10, int(4 + game.difficulty_level / 4));
+  return Math.min(7 * game.difficulty, game.difficulty * game.difficulty_level);
 }
 
 function difficulty_to_shrink_amount()
@@ -6813,7 +7013,7 @@ function make_unbuildable_pattern(which_grid, difficulty_amount)
 
 function make_some_built_floor(which_grid, difficulty_amount)
 {
-  for (let i = 0; i < min(10, difficulty_amount); ++i)
+  for (let i = 0; i < Math.min(10, difficulty_amount); ++i)
   {
     // TODO: Make sure this doesn't happen on one of the lights?
     // or say it's a feature, not a bug
