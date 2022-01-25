@@ -1,7 +1,7 @@
 "use strict";
 /*
 spectro
-tyler weston, 2021
+tyler weston, 2021/2022
 
 Controls:
 r, g, b: switch corresponding light (This currently doesn't work during tutorial!)
@@ -14,9 +14,9 @@ TODO:
 - Remove p5js and move to raw Canvas API and audio API calls
   - have to experiment with this on a smaller scale
 - Refactor buttons? The entire UI thing could maybe use a bit of an overhaul
-- make variable naming convetion more consistent, right now it is a mix of styles
+- make variable naming convention more consistent, right now it is a mix of styles
 - tweak time game, shouldn't have as many detectors as quickly, and we need to make sure
-  the game is always the same size playfield. Plus it seems really hard to get past the 3 level?
+  the game is always the same size play field. Plus it seems really hard to get past the 3 level?
 - tweak how time attack levels are made, right now they are pure random, not solvable?
 - solved by disabling give up for time game?
 - More BG animations! Even if you can't alway see lots of them, it will make a big visual impact I think!
@@ -56,7 +56,6 @@ Visual fixes:
 - add more floor patterns
 - fix / add more default floor animations
 - add more bonus floor animations
-- line up all font on the bottom better, ie, intro spectro is a bit wonky
 - Main menu should be better lined up... looks OK with new font
 - Font size may be strange on different size devices? Yes, this needs
   to scale based on the size of the device. ALSO, we may want to make
@@ -64,7 +63,7 @@ Visual fixes:
 
 Bugs:
 - light detection seems to be a bit wonky still
-- hi score board / leaderboard!
+- hi score board / leader board!
 - something broken with just setting is_dragging false to eat mouse input
   between level transitions, look at a better way to do this.
 - mouse state can get wacky between level transitions sometimes
@@ -106,9 +105,9 @@ Maybe eventually:
 - we could make filters for different colored lights by having
   r,g, and b edges, run the detection thing three times,
   solid walls would just exist in all three color planes?
-- Handle loading gameboards of different size? or just keep everything
+- Handle loading  game boards of different size? or just keep everything
   one size?
-- Maybe try removing the lightsources from the grid and see if it's fun like that?
+- Maybe try removing the light sources from the grid and see if it's fun like that?
   - the extra constraints might be necessary though?
   - save this for version 2
 
@@ -6194,7 +6193,7 @@ function difficulty_to_detector_amount()
   // map from a difficulty level to number of detectors
   // on the field
   let min_val = int(game.difficulty_level * Math.ceil(game.difficulty / 2));
-  let max_val = int(Math.min(5 * game.difficulty, game.difficulty_level * game.difficulty));
+  let max_val = int(Math.min(5 * game.difficulty, Math.ceil(game.difficulty_level / 2) * game.difficulty));
   let map_val = min(game.difficulty_level, 20);
   return map(map_val, 0, 20, min_val, max_val);
 }
