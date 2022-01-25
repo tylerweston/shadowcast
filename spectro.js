@@ -120,7 +120,7 @@ Maybe eventually:
 const MAJOR_VERSION = 1;
 const MINOR_VERSION = 8;
 
-const USE_DEBUG_KEYS = false;
+const USE_DEBUG_KEYS = true;
 
 // TODO: Bunch of little bits of state to clean up
 // TODO: The rest of this stuff will be taken care of via some sort of
@@ -2950,7 +2950,7 @@ p5.Graphics.prototype.remove = function() {
 };
 
 function mousePressed() {
-  // TODO: Only do this once
+  // TODO: Only do this once? Move this somewhere else? 
   if (game.sound_handler.need_init_audio_context)
   {
     userStartAudio();
@@ -6193,14 +6193,10 @@ function difficulty_to_detector_amount()
 {
   // map from a difficulty level to number of detectors
   // on the field
-  // if (game.difficulty_level <= 8)
-  //   return game.difficulty_level;
-  // if (game.difficulty_level <= 20)
-  //   return int(game.difficulty_level / 4) + 4;
-  // if (game.difficulty_level <= 30)
-  //   return int(game.difficulty_level / 5) + 3;
-  // return min(10, int(4 + game.difficulty_level / 4));
-  return Math.min(7 * game.difficulty, game.difficulty * game.difficulty_level);
+  let min_val = int(game.difficulty_level * Math.ceil(game.difficulty / 2));
+  let max_val = int(Math.min(5 * game.difficulty, game.difficulty_level * game.difficulty));
+  let map_val = min(game.difficulty_level, 20);
+  return map(map_val, 0, 20, min_val, max_val);
 }
 
 function difficulty_to_shrink_amount()
