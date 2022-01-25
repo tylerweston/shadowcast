@@ -120,7 +120,7 @@ Maybe eventually:
 const MAJOR_VERSION = 1;
 const MINOR_VERSION = 8;
 
-const USE_DEBUG_KEYS = true;
+const USE_DEBUG_KEYS = false;
 
 // TODO: Bunch of little bits of state to clean up
 // TODO: The rest of this stuff will be taken care of via some sort of
