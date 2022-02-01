@@ -8,6 +8,8 @@ r, g, b: switch corresponding light (This currently doesn't work during tutorial
 space: go to next level (if available)
 
 TODO:
+- Big problem, giving up is busted, if you give up after changing the size of a saved game?
+  - does this mean the new solution isn't getting saved when resolution changes or something?
 - Fix OK in about menu, button isn't quite lined up yet
   - This means moving the button and the OK graphic to using fontSize instead of gridSize? Since we want it
     to be independent of the difficulty level? Check how it is being done on the main menu and do something
@@ -27,6 +29,8 @@ TODO:
 - Maybe add some more detail to the background or something like that?
 - can click light sources through the top menu? Maybe don't allow mouse clicks on light sources when top menu open?
 - bug with loading scores? Seems like that got a bit janked up somehow!
+- make a sharable game option so you can share games with your friends
+  - have to store the game and the solution, store in base64 text? copy to clipboard?
 
 - Reddit feedback:
   - Tutorial could be a bit more in-depth/obvious
@@ -848,7 +852,8 @@ class level
   save_solution(lights, detectors)
   {
     let level_string = this.generate_save_string(lights, detectors);
-    storeItem("savedsolution", level_string);
+    if (game.difficulty )
+    storeItem("savedsolution" + game.difficulty, level_string);
   }
 
   save_level(lights, detectors, use_juice=false)
@@ -857,7 +862,7 @@ class level
     let level_string = this.generate_save_string(lights, detectors);
     if (use_juice)
       game.save_fade = 1;
-    storeItem("savedgame"+game.difficulty, level_string);
+    storeItem("savedgame" + game.difficulty, level_string);
   }
 
   copy_save_string_to_clipboard(lights, detectors)
@@ -3793,8 +3798,8 @@ function top_menu_main_menu()
   {
     if (game.given_up)
     {
-      storeItem("savedgame"+game.difficulty, null);
-      storeItem("savedsolution"+game.difficulty, null);
+      storeItem("savedgame" + game.difficulty, null);
+      storeItem("savedsolution" + game.difficulty, null);
       game.need_load_menu_map = false;
     }
     else
@@ -5433,7 +5438,7 @@ function draw_outside_overlay()
 //////// LEVEL SAVE / LOAD
 function load_solution()
 {
-  load_level(getItem("savedsolution"), /*keep_bg=*/true);
+  load_level(getItem("savedsolution"+game.difficulty), /*keep_bg=*/true);
 }
 
 function try_load_level(level_string)
