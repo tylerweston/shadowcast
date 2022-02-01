@@ -454,9 +454,9 @@ class tiles
 {
   static FLOOR_EMPTY = 0;      // darker, no tiles
   static FLOOR_BUILDABLE = 1;  // tiles, need buildable 1 and 2 for different color floors?
-  static FLOOR_BUILT = 6;      // buildable and built on
   static PERMENANT_WALL = 2;
   static DETECTOR_TILE = 5;
+  static FLOOR_BUILT = 6;      // buildable and built on
 }
 
 // color for walls (maybe make this a class?)
@@ -499,7 +499,6 @@ class palette
 
 // list of all possible detector colors
   static detector_colors;
-
 }
 
 class mouse_region
@@ -3611,6 +3610,8 @@ function do_setup_options()
     }
 
   }
+  // game.global_mouse_handler.update_mouse_overs();
+  menus.option_menu_selected = int(game.global_mouse_handler.my / (game.textSize * 2)) - 1;
   game.game_state = states.OPTIONS;
 }
 
