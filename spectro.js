@@ -8,6 +8,10 @@ r, g, b: switch corresponding light (This currently doesn't work during tutorial
 space: go to next level (if available)
 
 TODO:
+- Fix OK in about menu, button isn't quite lined up yet
+  - This means moving the button and the OK graphic to using fontSize instead of gridSize? Since we want it
+    to be independent of the difficulty level? Check how it is being done on the main menu and do something
+    similar!
 - Decrease difficulty curve a little bit? At least for hard setting
 - Should get more points per level on harder difficulties as well
 - Should a timed game always be in the middle difficulty setting?
@@ -33,10 +37,8 @@ TODO:
 - Make floor pattern functions like the unbuildable floor functions (or maybe
   putting the functions in an array would be smarter than putting them in a
   dictionary??)
-- If you give up, then reload the game, the saved game that you
-  gave up is still saved
-- Give up option in top menu during timed game is glitchy, should
-  just exit to main menu?
+- If you give up, then reload the game, the saved game that you gave up is still saved
+- Give up option in top menu during timed game is glitchy, should just exit to main menu?
 - mobile input could use some tweaking, instead of having to double tap to enter a choice?
 
 - Make the game size adjust better on mobile, it can be a rectangle instead of square?
@@ -962,6 +964,7 @@ class gameplay_handler
     this.DRAGGING_LIGHT_MODE = 2;
     this.selected_light = undefined;
     this.dragging_mode = undefined;
+    
     this.game_region = new mouse_region(0, 0, width, height);
     this.game_region.events[mouse_events.MOVE] = () => { this.moved();};
     this.game_region.events[mouse_events.CLICK] = () => { this.clicked();};
@@ -3488,7 +3491,7 @@ function do_setup_about()
   if (states.need_setup_about)
   {
     // eventually tutorial will be something that happens in game
-    let about_ok_button = new mouse_region((width / 2) - game.textSize, height - (5 * game.textSize), (width / 2) + game.textSize, height - (4 * game.textSize));
+    let about_ok_button = new mouse_region((width / 2) - game.textSize, height - (6 * game.textSize), (width / 2) + game.textSize, height - (4 * game.textSize));
     about_ok_button.events[mouse_events.CLICK] = ()=>{ game.game_state = states.TEARDOWN_ABOUT; };
     about_ok_button.events[mouse_events.ENTER_REGION] = ()=>{ over_about_ok_btn = true; };
     about_ok_button.events[mouse_events.EXIT_REGION] = ()=>{ over_about_ok_btn = false; };
@@ -3540,29 +3543,31 @@ function do_about_menu()
   {
     noStroke();
     fill(255, 20);
+    // let ox_pos = xpos;
+    // let oy_pos = ypos;
     let xpos = width / 2;
-    let ypos = height - 4.25 * game.gridSize;
-    xpos += sin(game.ok_btn_animation_timer / 2) * 8;
-    ypos += cos(game.ok_btn_animation_timer + ypos) * 8;
-    game.ok_btn_animation_timer += deltaTime / 64;
+    let ypos = height - 5 * game.textSize;
+    xpos += sin(game.ok_btn_animation_timer) * 32;
+    ypos += cos(game.ok_btn_animation_timer) * 20;
+    game.ok_btn_animation_timer += deltaTime / 128;
     if (game.ok_btn_animation_timer > TWO_PI)
     {
       game.ok_btn_animation_timer = 0;
     }
-    ellipse(xpos, ypos, game.gridSize * 2, game.gridSize * 2);
+    ellipse(xpos, ypos, game.textSize * 2, game.textSize * 2);
 
     fill(255);
   }
   else 
   {
     fill(0);
-    game.ok_btn_animation_timer = 0;
+    // game.ok_btn_animation_timer = 0;
   }
   stroke(130);
   strokeWeight(2);
   textSize(game.textSize * 2);
   textAlign(CENTER, BASELINE);
-  text("OK", (width / 2), height - 4 * game.gridSize);
+  text("OK", (width / 2), height - 4 * game.textSize);
 
   textAlign(LEFT, BASELINE);
 
