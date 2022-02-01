@@ -447,6 +447,10 @@ class game
   // font
   static spectro_font;
   static font_size;
+
+  // about menu graphic
+  static about_old_x = -1;
+  static about_old_y = -1;
 }
 
 // List of tile types
@@ -3516,15 +3520,15 @@ function do_about_menu()
   fill(72);
   rect(game.gridSize * 3, game.gridSize * 3, width - game.gridSize * 6, height - game.gridSize * 6);
 
-  let s = "About\n" +
-  "spectro v" + MAJOR_VERSION + "." + MINOR_VERSION + "\n" +
-   "Programming, etc.: Tyler Weston\n" +
-   "Based on Javidx9's line of sight vid.\n" +
-   "Thanks to Warren Sloper for testing\n" +
-   "and Jane Haselgrove for all the pizza.\n";
+  let s = "\t\tAbout\n" +
+  "\tspectro v" + MAJOR_VERSION + "." + MINOR_VERSION + "\n" +
+   "Programming, etc.: \nTyler Weston\n" +
+   "Thanks JH&WS.\n" +
+   "Based on Javidx9's vid.\n" ;
+
 
   //stroke(130);
-  textSize(game.textSize / 2);
+  textSize(game.textSize);
   textAlign(TOP, TOP);
   noStroke();
   blendMode(ADD);
@@ -3542,8 +3546,6 @@ function do_about_menu()
   {
     noStroke();
     fill(255, 20);
-    // let ox_pos = xpos;
-    // let oy_pos = ypos;
     let xpos = width / 2;
     let ypos = height - 5 * game.textSize;
     xpos += sin(game.ok_btn_animation_timer) * 32;
@@ -3554,8 +3556,21 @@ function do_about_menu()
       game.ok_btn_animation_timer = 0;
     }
     ellipse(xpos, ypos, game.textSize * 2, game.textSize * 2);
+    if (game.about_old_x != -1)
+    {
+      for (let i = 0; i < 3; ++i)
+      {
+        let ratio = 1 / i;
+        fill(255, 20 * ratio);
+        let xp = xpos - ((xpos - game.about_old_x) * ratio);
+        let yp = ypos - ((ypos - game.about_old_y) * ratio);
+        ellipse(xp, yp, game.textSize * 2 * ratio, game.textSize * 2 * ratio);
+      }
+    }
 
     fill(255);
+    game.about_old_x = xpos;
+    game.about_old_y = ypos;
   }
   else 
   {
@@ -3610,7 +3625,7 @@ function do_setup_options()
     }
 
   }
-  // game.global_mouse_handler.update_mouse_overs();
+  // make sure the menu launches with the right option selected.
   menus.option_menu_selected = int(game.global_mouse_handler.my / (game.textSize * 2)) - 1;
   game.game_state = states.OPTIONS;
 }
