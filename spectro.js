@@ -8,12 +8,7 @@ r, g, b: switch corresponding light (This currently doesn't work during tutorial
 space: go to next level (if available)
 
 TODO:
-- Big problem, giving up is busted, if you give up after changing the size of a saved game?
-  - does this mean the new solution isn't getting saved when resolution changes or something?
-- Fix OK in about menu, button isn't quite lined up yet
-  - This means moving the button and the OK graphic to using fontSize instead of gridSize? Since we want it
-    to be independent of the difficulty level? Check how it is being done on the main menu and do something
-    similar!
+- Reset game should show 'this will erase saved game' message with yes/no option
 - Decrease difficulty curve a little bit? At least for hard setting
 - Should get more points per level on harder difficulties as well
 - Should a timed game always be in the middle difficulty setting?
@@ -1400,8 +1395,8 @@ class detector
       vertex(bottom_left_point[0] + bottom_left_offset[0], bottom_left_point[1] + bottom_left_offset[1]);
       endShape(CLOSE);
       noFill();
-      stroke(this.r, this.g, this.b, 8);
-      strokeWeight(4);
+      stroke(this.r, this.g, this.b, 15);
+      strokeWeight(3);
       beginShape();
       vertex(top_left_point[0] + top_left_offset[0], top_left_point[1] + top_left_offset[1]);
       vertex(top_right_point[0] + top_right_offset[0], top_right_point[1] + top_right_offset[1]);
@@ -1413,8 +1408,8 @@ class detector
     {
       square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize);
       noFill();
-      stroke(this.r, this.g, this.b, 8);
-      strokeWeight(4);
+      stroke(this.r, this.g, this.b, 15);
+      strokeWeight(3);
       square(this.x * game.gridSize, this.y * game.gridSize, game.gridSize);
     }
   }
@@ -3068,22 +3063,9 @@ function setup() {
   }
 
 
-  // console.log("On mobile? " + mobileCheck());
   game.ON_MOBILE = mobileCheck();
-  // if (game.ON_MOBILE)
-  // {
-  //   game.PLAYFIELD_DIM = game.MOBILE_PLAYFIELD_DIM;
-  // }
-  // else
-  // {
   change_game_difficulty(/*skip_resize=*/true);
-  // }
-  // Base size of gameboard on size of parent window, so this should
-  // look ok on different screen sizes.
-
-  // -10 to avoid having bars?
   let largest_dim = Math.min(windowWidth, windowHeight) * 0.9;
-  // round down to nearest interval of 20 (PLAYFIELD_DIM)
   largest_dim -= largest_dim % game.playfield_dimensions;
   let target_gridSize = int(largest_dim / game.playfield_dimensions);
   game.gameHeight = largest_dim;
@@ -3218,18 +3200,18 @@ function change_game_difficulty(skip_resize=false)
   if (!skip_resize)
     windowResized();
   // we need to start a new saved game? Not if we have a game saved?
-  if (getItem("savedgame"+game.difficulty) === null)
+  if (getItem("savedgame" + game.difficulty) === null)
   {
-    storeItem("savedgame"+game.difficulty, null);
+    storeItem("savedgame" + game.difficulty, null);
   }
   game.need_load_menu_map = true;
   game.game_state = states.MAIN_MENU_SETUP;
 }
 
 function initialize_colors() {
-  palette.solid_wall_fill = color(155, 155, 170);
-  palette.solid_wall_permenant_fill = color(140, 140, 150);
-  palette.solid_wall_outline = color(120, 120, 120);
+  palette.solid_wall_fill = color(160, 160, 175);
+  palette.solid_wall_permenant_fill = color(135, 130, 130);
+  palette.solid_wall_outline = color(100, 100, 120);
 
   palette.buildable_fill = color(37, 37, 41);
   palette.buildable_2_fill = color(45, 45, 49);
@@ -3239,7 +3221,7 @@ function initialize_colors() {
   palette.empty_fill = color(13, 13, 13);
 
   palette.edge_color = color(60, 60, 80);
-  palette.edge_color_light = color(95, 95, 100);
+  palette.edge_color_light = color(85, 85, 90);
   palette.edge_circle_color = color(60, 60, 70);
 
   palette.font_color = color(200, 200, 215);
@@ -5227,7 +5209,7 @@ function make_overlay()
     for (let y = 0; y < game.gameHeight; y += game.gridSize / 2)
     {
       // 50% chance to skip
-      if (random(0, 1) > 0.5)
+      if (random(0, 1) > 0.75)
         continue;
       // random number between 20 and 60
       let r = random(0, 30);
@@ -5910,6 +5892,9 @@ function solvable_random_level(save=true, showcase=false)
     make_unbuildable_pattern(game.current_level.grid, diff_level);
 
   make_some_built_floor(game.current_level.grid, diff_level);
+
+  make_some_permanant_walls(game.current_level.grid, diff_level);
+
   make_edges();
 
   // Now, we put the lights back somewhere they fit
@@ -6219,7 +6204,7 @@ function difficulty_to_detector_amount()
   // map from a difficulty level to number of detectors
   // on the field
   let min_val = int(game.difficulty_level * Math.ceil(game.difficulty / 2));
-  let max_val = int(Math.min(5 * game.difficulty, Math.ceil(game.difficulty_level / 2) * game.difficulty));
+  let max_val = int(Math.min(5 * game.difficulty, Math.ceil(game.difficulty_level / 2) * game.difficulty * 0.8));
   let map_val = min(game.difficulty_level, 20);
   return map(map_val, 0, 20, min_val, max_val);
 }
@@ -6378,6 +6363,26 @@ function make_some_floor_unbuildable(which_grid, shrink_amount)
   }
 }
 
+function make_some_permanant_walls(which_grid, diff_amount)
+{
+  // Sets some walls to permanant so you have to work around them in the solution
+  let target_walls = Math.floor(Math.random() * game.difficulty_level / 2);
+  console.log(target_walls);
+  for (let i = 0; i < target_walls; ++i)
+  {
+    for (let j = 0; j < 10; ++j)  // Attempt randomly a max of 10 times
+    {
+      let x_target = Math.floor(Math.random() * game.gridWidth);
+      let y_target = Math.floor(Math.random() * game.gridHeight);
+      if (game.current_level.grid[x_target][y_target].grid_type === tiles.FLOOR_BUILDABLE)
+      {
+        set_grid(which_grid, x_target, y_target, tiles.PERMENANT_WALL);
+        break;
+      }
+    }
+  } 
+}
+
 /////////////////////// Unbuildable floor pattern functions
 const unbuildable_pattern_functions = {
   // take in an x position, y position, and sub_type (will be same for each
@@ -6486,25 +6491,24 @@ function remove_unneeded_walls(which_grid)
     for (let y = 1; y < game.gridHeight - 1; ++y)
     {
       let needed_wall = false;
-      if (which_grid[x][y].grid_type == tiles.FLOOR_BUILT)
+      if (which_grid[x][y].grid_type != tiles.FLOOR_BUILT)
+        continue;
+      // we have a built floor, see if it is necessary
+      set_grid(which_grid, x, y, tiles.FLOOR_BUILDABLE);
+      make_edges();
+      for (let d of game.detectors)
       {
-        // we have a built floor, see if it is necessary
-        set_grid(which_grid, x, y, tiles.FLOOR_BUILDABLE);
+        d.check_color(/*use_juice=*/false);
+        if (!d.correct)
+        {
+          needed_wall = true;
+          break;
+        }
+      }
+      if (needed_wall)
+      {
+        set_grid(which_grid, x, y, tiles.FLOOR_BUILT);
         make_edges();
-        for (let d of game.detectors)
-        {
-          d.check_color(/*use_juice=*/false);
-          if (!d.correct)
-          {
-            needed_wall = true;
-            break;
-          }
-        }
-        if (needed_wall)
-        {
-          set_grid(which_grid, x, y, tiles.FLOOR_BUILT);
-          make_edges();
-        }
       }
     }
   }
