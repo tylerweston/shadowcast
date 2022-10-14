@@ -1,4 +1,4 @@
-# spectro
+# [spectro - play here](https://tylerweston.github.io/spectro/)
 Build walls and use lights to activate all the detectors. When a detector is being hit by the correct color of light, it will become solid.  
 Save your progress by choosing save from the the top menu (It will also autosave at the start of each level), and you can continue your game by choosing continue from the main menu. There are three difficulty levels available from the options menu, each with their own saved level and high score.  
 You can toggle the wiggly, hand-drawn floor effect in the options menu if you don't like it.
